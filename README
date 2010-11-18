@@ -1,0 +1,20 @@
+Plask is an experiment in computation design.
+
+Released under the BSD license.
+
+(c) 2010, Dean McNamee <dean@gmail.com>
+
+This software contains code and ideas from the fantastic:
+
+Nicolas Garcia Belmonte
+Thatcher Ulrich
+Ryan Alexander
+Marcin Ignac
+
+Built with the fantastic:
+
+V8 JavaScript Engine
+Skia rasterization library
+NodeJS
+Cocoa and OpenGL
+FreeImage
