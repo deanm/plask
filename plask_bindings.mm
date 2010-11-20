@@ -2229,7 +2229,20 @@ class NSOpenGLContextWrapper {
   // void texImage2D(GLenum target, GLint level, GLenum internalformat,
   //                 GLenum format, GLenum type, HTMLVideoElement video)
   static v8::Handle<v8::Value> texImage2D(const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+    if (args.Length() != 9 || !args[8]->IsNull())
+      return v8_utils::ThrowError("Unimplemented.");
+
+    // TODO(deanm): Support more than just the zero initialization case.
+    glTexImage2D(args[0]->Uint32Value(),  // target
+                 args[1]->Int32Value(),   // level
+                 args[2]->Int32Value(),   // internalFormat
+                 args[3]->Int32Value(),   // width
+                 args[4]->Int32Value(),   // height
+                 args[5]->Int32Value(),   // border
+                 args[6]->Uint32Value(),  // format
+                 args[7]->Uint32Value(),  // type
+                 NULL);                   // data
+    return v8::Undefined();
   }
 
   // NOTE: texImage2DSkCanvas implemented below (SkCanvasWrapper dependency).
