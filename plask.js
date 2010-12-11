@@ -174,10 +174,16 @@ exports.Window = function(width, height, opts) {
         break;
       case PlaskRawMac.NSEvent.NSKeyUp:
       case PlaskRawMac.NSEvent.NSKeyDown:
+        var mods = e.modifierFlags();
         var te = {
           type: nsEventNameToEmitName(type),
           str: e.characters(),
           keyCode: e.keyCode(),  // I'll probably regret this.
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0
         };
         this_.emit(te.type, te);
       case PlaskRawMac.NSEvent.NSMouseMoved:

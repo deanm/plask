@@ -2913,6 +2913,16 @@ class NSEventWrapper {
       { "NSEventTypeRotate", NSEventTypeRotate },
       { "NSEventTypeBeginGesture", NSEventTypeBeginGesture },
       { "NSEventTypeEndGesture", NSEventTypeEndGesture },
+      { "NSAlphaShiftKeyMask", NSAlphaShiftKeyMask },
+      { "NSShiftKeyMask", NSShiftKeyMask },
+      { "NSControlKeyMask", NSControlKeyMask },
+      { "NSAlternateKeyMask", NSAlternateKeyMask },
+      { "NSCommandKeyMask", NSCommandKeyMask },
+      { "NSNumericPadKeyMask", NSNumericPadKeyMask },
+      { "NSHelpKeyMask", NSHelpKeyMask },
+      { "NSFunctionKeyMask", NSFunctionKeyMask },
+      { "NSDeviceIndependentModifierFlagsMask",
+          NSDeviceIndependentModifierFlagsMask },
     };
 
     static BatchedMethods class_methods[] = {
@@ -2928,6 +2938,7 @@ class NSEventWrapper {
       { "deltaX", &NSEventWrapper::deltaX },
       { "deltaY", &NSEventWrapper::deltaY },
       { "deltaZ", &NSEventWrapper::deltaZ },
+      { "modifierFlags", &NSEventWrapper::modifierFlags },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3023,6 +3034,11 @@ class NSEventWrapper {
   static v8::Handle<v8::Value> deltaZ(const v8::Arguments& args) {
     NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
     return v8::Number::New([event deltaZ]);
+  }
+
+  static v8::Handle<v8::Value> modifierFlags(const v8::Arguments& args) {
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    return v8::Integer::NewFromUnsigned([event modifierFlags]);
   }
 };
 
