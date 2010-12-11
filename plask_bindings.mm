@@ -849,7 +849,7 @@ class NSOpenGLContextWrapper {
       { "stencilOp", &NSOpenGLContextWrapper::stencilOp },
       { "stencilOpSeparate", &NSOpenGLContextWrapper::stencilOpSeparate },
       { "texImage2D", &NSOpenGLContextWrapper::texImage2D },
-      { "texImage2DSkCanvas", &NSOpenGLContextWrapper::texImage2DSkCanvas },
+      { "texImage2DSkCanvasB", &NSOpenGLContextWrapper::texImage2DSkCanvasB },
       { "texParameterf", &NSOpenGLContextWrapper::texParameterf },
       { "texParameteri", &NSOpenGLContextWrapper::texParameteri },
       { "texSubImage2D", &NSOpenGLContextWrapper::texSubImage2D },
@@ -2245,8 +2245,8 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // NOTE: texImage2DSkCanvas implemented below (SkCanvasWrapper dependency).
-  static v8::Handle<v8::Value> texImage2DSkCanvas(const v8::Arguments& args);
+  // NOTE: texImage2DSkCanvasB implemented below (SkCanvasWrapper dependency).
+  static v8::Handle<v8::Value> texImage2DSkCanvasB(const v8::Arguments& args);
 
   // void texParameterf(GLenum target, GLenum pname, GLfloat param)
   static v8::Handle<v8::Value> texParameterf(const v8::Arguments& args) {
@@ -3628,8 +3628,11 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawCanvas(const v8::Arguments& args) {
-    if (args.Length() < 2 || !SkCanvasWrapper::HasInstance(args[1]))
-      return v8::Undefined();
+    if (args.Length() < 6)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (!SkCanvasWrapper::HasInstance(args[1]))
+      return v8_utils::ThrowError("Bad arguments.");
 
     SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
     SkPaint* paint = NULL;
@@ -3983,7 +3986,7 @@ class NSSoundWrapper {
   }
 };
 
-v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvas(
+v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvasB(
     const v8::Arguments& args) {
   if (args.Length() != 3)
     return v8_utils::ThrowError("Wrong number of arguments.");

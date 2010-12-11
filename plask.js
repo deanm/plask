@@ -43,6 +43,18 @@ PlaskRawMac.NSOpenGLContext.prototype.vertexAttrib4fv = function(idx, seq) {
   this.vertexAttrib4f(idx, seq[0], seq[1], seq[2], seq[3]);
 };
 
+var flipper_paint = new exports.SkPaint;
+flipper_paint.setXfermodeMode(flipper_paint.kSrcMode);
+
+PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvas = function(a, b, c) {
+  var width = c.width, height = c.height;
+  var flipped = new exports.SkCanvas(width, height);
+  flipped.translate(0, height);
+  flipped.scale(1, -1);
+  flipped.drawCanvas(flipper_paint, c, 0, 0, width, height);
+  return this.texImage2DSkCanvasB(a, b, flipped);
+};
+
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
       opts.type === '3d' ? 1 : 0, width, height, opts.multisample === true);
