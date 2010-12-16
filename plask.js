@@ -128,6 +128,7 @@ exports.Window = function(width, height, opts) {
       case PlaskRawMac.NSEvent.NSRightMouseUp:
       case PlaskRawMac.NSEvent.NSOtherMouseDown:
       case PlaskRawMac.NSEvent.NSOtherMouseUp:
+        var mods = e.modifierFlags();
         var loc = e.locationInWindow();
         var button = e.buttonNumber() + 1;  // We work starting from 1.
         var type_name = nsEventNameToEmitName(type);
@@ -139,6 +140,11 @@ exports.Window = function(width, height, opts) {
           y: height - loc.y,  // Map from button left to top left.
           buttonNumber: button,
           buttonName: buttonNumberToName(button),
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0
         };
         // Filter out clicks on the title bar.
         if (te.y < 0) break;
@@ -150,6 +156,7 @@ exports.Window = function(width, height, opts) {
       case PlaskRawMac.NSEvent.NSLeftMouseDragged:
       case PlaskRawMac.NSEvent.NSRightMouseDragged:
       case PlaskRawMac.NSEvent.NSOtherMouseDragged:
+        var mods = e.modifierFlags();
         var loc = e.locationInWindow();
         var button = e.buttonNumber() + 1;  // We work starting from 1.
         var type_name = nsEventNameToEmitName(type);
@@ -164,6 +171,11 @@ exports.Window = function(width, height, opts) {
           dz: e.deltaZ(),
           buttonNumber: button,
           buttonName: buttonNumberToName(button),
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0
         };
         // TODO(deanm): This is wrong if the drag started in the content view.
         if (te.y < 0) break;
@@ -186,6 +198,7 @@ exports.Window = function(width, height, opts) {
           cmd: (mods & e.NSCommandKeyMask) !== 0
         };
         this_.emit(te.type, te);
+        break;
       case PlaskRawMac.NSEvent.NSMouseMoved:
         var loc = e.locationInWindow();
         var te = {
@@ -197,7 +210,9 @@ exports.Window = function(width, height, opts) {
           dz: e.deltaZ()
         };
         this_.emit(te.type, te);
+        break;
       case PlaskRawMac.NSEvent.NSScrollWheel:
+        var mods = e.modifierFlags();
         var loc = e.locationInWindow();
         var te = {
           type: 'scrollWheel',
@@ -205,9 +220,15 @@ exports.Window = function(width, height, opts) {
           y: height - loc.y,
           dx: e.deltaX(),
           dy: e.deltaY(),  // Doesn't need flipping since it's in device space.
-          dz: e.deltaZ()
+          dz: e.deltaZ(),
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0
         };
         this_.emit(te.type, te);
+        break;
       default:
         break;
     }
