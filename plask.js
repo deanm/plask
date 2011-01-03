@@ -27,6 +27,32 @@ exports.SkPath = PlaskRawMac.SkPath;
 exports.SkPaint = PlaskRawMac.SkPaint;
 exports.SkCanvas = PlaskRawMac.SkCanvas;
 
+var kPI  = 3.14159265358979323846264338327950288;
+var kPI2 = 1.57079632679489661923132169163975144;
+var kPI4 = 0.785398163397448309615660845819875721;
+var k2PI = 6.28318530717958647692528676655900576;
+
+function min(a, b) {
+  if (a < b) return a;
+  return b;
+}
+
+function max(a, b) {
+  if (a > b) return a;
+  return b;
+}
+
+// Keep the value |v| in the range vmin .. vmax.  This matches GLSL clamp().
+function clamp(v, vmin, vmax) {
+  return min(vmax, max(vmin, v));
+}
+
+// Linear interpolation on the line along points (0, |a|) and (1, |b|).  The
+// position |t| is the x coordinate, where 0 is |a| and 1 is |b|.
+function lerp(a, b, t) {
+  return a + (b-a)*t;
+}
+
 PlaskRawMac.NSOpenGLContext.prototype.vertexAttrib1fv = function(idx, seq) {
   this.vertexAttrib1f(idx, seq[0]);
 };
@@ -363,3 +389,13 @@ exports.simpleWindow = function(obj) {
 
   return obj;
 };
+
+exports.kPI  = kPI;
+exports.kPI2 = kPI2;
+exports.kPI4 = kPI4;
+exports.k2PI = k2PI;
+
+exports.min = min;
+exports.max = max;
+exports.clamp = clamp;
+exports.lerp = lerp;
