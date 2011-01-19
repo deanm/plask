@@ -81,6 +81,10 @@ PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvas = function(a, b, c) {
   return this.texImage2DSkCanvasB(a, b, flipped);
 };
 
+PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvasNoFlip = function() {
+  return this.texImage2DSkCanvasB.apply(this, arguments);
+};
+
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
       opts.type === '3d' ? 1 : 0, width, height, opts.multisample === true);
