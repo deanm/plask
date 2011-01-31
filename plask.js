@@ -142,6 +142,10 @@ exports.Window = function(width, height, opts) {
     nswindow_.setAcceptsFileDrag(enabled);
   };
 
+  this.setFrameTopLeftPoint = function(x, y) {
+    nswindow_.setFrameTopLeftPoint(x, y);
+  };
+
   function handleRawNSEvent(e) {
     var type = e.type();
     if (0) {
@@ -316,6 +320,9 @@ exports.simpleWindow = function(obj) {
 
   if (obj.title !== undefined)
     window_.setTitle(obj.title);
+
+  if (obj.position !== undefined)
+    window_.setFrameTopLeftPoint(obj.position.x, obj.position.y);
 
   obj.getRelativeMouseState = function() {
     return window_.getRelativeMouseState();

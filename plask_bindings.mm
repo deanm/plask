@@ -2675,6 +2675,7 @@ class NSWindowWrapper {
       { "setEventCallback",
         &NSWindowWrapper::setEventCallback },
       { "setTitle", &NSWindowWrapper::setTitle },
+      { "setFrameTopLeftPoint", &NSWindowWrapper::setFrameTopLeftPoint },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2862,6 +2863,14 @@ class NSWindowWrapper {
     WrappedNSWindow* window = ExtractWindowPointer(args.This());
     v8::String::Utf8Value title(args[0]->ToString());
     [window setTitle:[NSString stringWithUTF8String:*title]];
+    return v8::Undefined();
+  }
+  static v8::Handle<v8::Value> setFrameTopLeftPoint(const v8::Arguments& args) {
+    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    if (args.Length() != 2)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+    [window setFrameTopLeftPoint:NSMakePoint(args[0]->NumberValue(),
+                                             args[1]->NumberValue())];
     return v8::Undefined();
   }
 };
