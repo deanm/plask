@@ -3937,10 +3937,18 @@ class NSSoundWrapper {
     };
 
     static BatchedMethods methods[] = {
-      { "play", &NSSoundWrapper::play },
       { "isPlaying", &NSSoundWrapper::isPlaying },
-      { "duration", &NSSoundWrapper::duration },
+      { "pause", &NSSoundWrapper::pause },
+      { "play", &NSSoundWrapper::play },
+      { "resume", &NSSoundWrapper::resume },
+      { "stop", &NSSoundWrapper::stop },
+      { "volume", &NSSoundWrapper::volume },
+      { "setVolume", &NSSoundWrapper::setVolume },
       { "currentTime", &NSSoundWrapper::currentTime },
+      { "setCurrentTime", &NSSoundWrapper::setCurrentTime },
+      { "loops", &NSSoundWrapper::loops },
+      { "setLoops", &NSSoundWrapper::setLoops },
+      { "duration", &NSSoundWrapper::duration },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3981,19 +3989,71 @@ class NSSoundWrapper {
     return args.This();
   }
 
-  static v8::Handle<v8::Value> play(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
-    return v8::Boolean::New([sound play]);
-  }
-
   static v8::Handle<v8::Value> isPlaying(const v8::Arguments& args) {
     NSSound* sound = ExtractNSSoundPointer(args.This());
     return v8::Boolean::New([sound isPlaying]);
   }
 
+  static v8::Handle<v8::Value> pause(const v8::Arguments& args) {
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    return v8::Boolean::New([sound pause]);
+  }
+
+  static v8::Handle<v8::Value> play(const v8::Arguments& args) {
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    return v8::Boolean::New([sound play]);
+  }
+
+  static v8::Handle<v8::Value> resume(const v8::Arguments& args) {
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    return v8::Boolean::New([sound resume]);
+  }
+
+  static v8::Handle<v8::Value> stop(const v8::Arguments& args) {
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    return v8::Boolean::New([sound stop]);
+  }
+
+  static v8::Handle<v8::Value> volume(const v8::Arguments& args) {
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    return v8::Number::New([sound volume]);
+  }
+
+  static v8::Handle<v8::Value> setVolume(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    [sound setVolume:args[0]->NumberValue()];
+    return v8::Undefined();
+  }
+
   static v8::Handle<v8::Value> currentTime(const v8::Arguments& args) {
     NSSound* sound = ExtractNSSoundPointer(args.This());
     return v8::Number::New([sound currentTime]);
+  }
+
+  static v8::Handle<v8::Value> setCurrentTime(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    [sound setCurrentTime:args[0]->NumberValue()];
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> loops(const v8::Arguments& args) {
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    return v8::Boolean::New([sound loops]);
+  }
+
+  static v8::Handle<v8::Value> setLoops(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    NSSound* sound = ExtractNSSoundPointer(args.This());
+    [sound setLoops:args[0]->BooleanValue()];
+    return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> duration(const v8::Arguments& args) {
