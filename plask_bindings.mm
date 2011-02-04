@@ -27,6 +27,10 @@
 
 #include <string>
 
+#include <CoreFoundation/CoreFoundation.h>
+#include <CoreAudio/CoreAudio.h>
+#include <CoreMIDI/CoreMIDI.h>
+
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColorPriv.h"  // For color ordering.
@@ -4094,6 +4098,148 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvasB(
   return v8::Undefined();
 }
 
+// MIDI notes (pun pun):
+// Like UTF-8, there is tagging to identify the begin of a message.
+// All first bytes are in the range of 0x80 - 0xff, the MSB is set.
+// 8 = Note Off 
+// 9 = Note On 
+// A = AfterTouch (ie, key pressure) 
+// B = Control Change 
+// C = Program (patch) change 
+// D = Channel Pressure 
+// E = Pitch Wheel
+
+// TODO(deanm): Global MIDIClientCreate, lazily initialized, ever torn down?
+MIDIClientRef g_midi_client = NULL;
+
+class CAMIDISourceWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&CAMIDISourceWrapper::V8New));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // MIDIEndpointRef.
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "blah", 1 },
+    };
+
+    static BatchedMethods methods[] = {
+      { "sendData", &CAMIDISourceWrapper::sendData },
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      instance->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    return ft_cache;
+  }
+
+  // Can't use v8_utils::UnrwapCPointer because of LSB clear expectations.
+  static MIDIEndpointRef ExtractPointer(v8::Handle<v8::Object> obj) {
+    // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
+    return (MIDIEndpointRef)(intptr_t)v8::External::Unwrap(
+        obj->GetInternalField(0));
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+ private:
+  static MIDIPacketList* AllocateMIDIPacketList(size_t num_packets,
+                                         ByteCount* out_cnt) {
+    ByteCount cnt = num_packets * sizeof(MIDIPacket) +
+                    (sizeof(MIDIPacketList) - sizeof(MIDIPacket));
+    char* buf = new char[cnt];
+    if (out_cnt)
+      *out_cnt = cnt;
+    return reinterpret_cast<MIDIPacketList*>(buf);
+  }
+
+  static void FreeMIDIPacketList(MIDIPacketList* pl) {
+    delete[] reinterpret_cast<char*>(pl);
+  }
+
+  static v8::Handle<v8::Value> sendData(const v8::Arguments& args) {
+    if (!args[0]->IsArray())
+      return v8::Undefined();
+
+    MIDIEndpointRef src = ExtractPointer(args.This());
+    MIDITimeStamp timestamp = AudioGetCurrentHostTime();
+    ByteCount pl_count;
+    MIDIPacketList* pl = AllocateMIDIPacketList(1, &pl_count);
+    MIDIPacket* cur_packet = MIDIPacketListInit(pl);
+
+    v8::Handle<v8::Array> data = v8::Handle<v8::Array>::Cast(args[0]);
+    uint32_t data_len = data->Length();
+
+    Byte* data_buf = new Byte[data_len];
+
+    for (uint32_t i = 0; i < data_len; ++i) {
+      // Convert to an integer and truncate to 8 bits.
+      data_buf[i] = data->Get(v8::Integer::New(i))->Uint32Value();
+    }
+
+    cur_packet = MIDIPacketListAdd(pl, pl_count, cur_packet,
+                                   timestamp, data_len, data_buf);
+    OSStatus result = MIDIReceived(src, pl);
+    delete[] data_buf;
+    FreeMIDIPacketList(pl);
+
+    if (result != noErr) {
+      return v8_utils::ThrowError("Couldn't send midi data.");
+    }
+
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    OSStatus result;
+
+    if (!g_midi_client) {
+      result = MIDIClientCreate(CFSTR("Plask"), NULL, NULL, &g_midi_client);
+      if (result != noErr) {
+        return v8_utils::ThrowError("Couldn't create midi client object.");
+      }
+    }
+
+    v8::String::Utf8Value name_val(args[0]->ToString());
+    name = CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
+
+    MIDIEndpointRef endpoint;
+    result = MIDISourceCreate(g_midi_client, name, &endpoint);
+    CFRelease(name);
+    if (result != noErr) {
+      return v8_utils::ThrowError("Couldn't create midi source object.");
+    }
+
+    // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
+    args.This()->SetInternalField(0, v8::External::Wrap(
+        (void*)(intptr_t)endpoint));
+    return args.This();
+  }
+};
+
 }  // namespace
 
 @implementation WrappedNSWindow
@@ -4224,4 +4370,5 @@ void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj) {
   obj->Set(v8::String::New("NSOpenGLContext"),
            NSOpenGLContextWrapper::GetTemplate());
   obj->Set(v8::String::New("NSSound"), NSSoundWrapper::GetTemplate());
+  obj->Set(v8::String::New("CAMIDISource"), CAMIDISourceWrapper::GetTemplate());
 }

@@ -85,6 +85,25 @@ PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvasNoFlip = function() {
   return this.texImage2DSkCanvasB.apply(this, arguments);
 };
 
+function MidiSource(name) {
+  name = name === undefined ? 'Plask' : name;
+  this.casource_ = new PlaskRawMac.CAMIDISource(name);
+}
+
+MidiSource.prototype.sendData = function(bytes) {
+  return this.casource_.sendData(bytes);
+};
+
+MidiSource.prototype.noteOn = function(chan, note, vel) {
+  return this.sendData([0x90 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
+};
+
+MidiSource.prototype.noteOff = function(chan, note, vel) {
+  return this.sendData([0x80 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
+};
+
+exports.MidiSource = MidiSource;
+
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
       opts.type === '3d' ? 1 : 0, width, height, opts.multisample === true);

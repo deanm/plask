@@ -16,10 +16,12 @@
 		C5703517124FFED40082AA14 /* plask_bindings.mm in Sources */ = {isa = PBXBuildFile; fileRef = C5703516124FFED40082AA14 /* plask_bindings.mm */; };
 		C570353B125003630082AA14 /* v8_utils.cc in Sources */ = {isa = PBXBuildFile; fileRef = C5703539125003630082AA14 /* v8_utils.cc */; };
 		C570361A1250EB5E0082AA14 /* libfreeimage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C57036191250EB5E0082AA14 /* libfreeimage.framework */; };
+		C58108C912FC55920053FB3A /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C58108C812FC55920053FB3A /* CoreMIDI.framework */; };
 		C5A5260B12561A2200C0F632 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5A5260A12561A2200C0F632 /* OpenGL.framework */; };
 		C5D8EA081295C268003479AA /* libfreeimage.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = C57036191250EB5E0082AA14 /* libfreeimage.framework */; };
 		C5E26D181256442500EECE59 /* libskia_opts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5E26D161256442500EECE59 /* libskia_opts.a */; };
 		C5E26D191256442500EECE59 /* libskia.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5E26D171256442500EECE59 /* libskia.a */; };
+		C5EB3C6812FC55A60009FA7C /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,9 +56,11 @@
 		C5703539125003630082AA14 /* v8_utils.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = v8_utils.cc; sourceTree = "<group>"; };
 		C570353A125003630082AA14 /* v8_utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = v8_utils.h; sourceTree = "<group>"; };
 		C57036191250EB5E0082AA14 /* libfreeimage.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = libfreeimage.framework; path = deps/libfreeimage.framework; sourceTree = SOURCE_ROOT; };
+		C58108C812FC55920053FB3A /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = /System/Library/Frameworks/CoreMIDI.framework; sourceTree = "<absolute>"; };
 		C5A5260A12561A2200C0F632 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		C5E26D161256442500EECE59 /* libskia_opts.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts.a; path = deps/skiabuild/src/xcodebuild/Release/libskia_opts.a; sourceTree = SOURCE_ROOT; };
 		C5E26D171256442500EECE59 /* libskia.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia.a; path = deps/skiabuild/src/xcodebuild/Release/libskia.a; sourceTree = SOURCE_ROOT; };
+		C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = /System/Library/Frameworks/CoreAudio.framework; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +75,8 @@
 				C5A5260B12561A2200C0F632 /* OpenGL.framework in Frameworks */,
 				C5E26D181256442500EECE59 /* libskia_opts.a in Frameworks */,
 				C5E26D191256442500EECE59 /* libskia.a in Frameworks */,
+				C58108C912FC55920053FB3A /* CoreMIDI.framework in Frameworks */,
+				C5EB3C6812FC55A60009FA7C /* CoreAudio.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +132,8 @@
 				29B97317FDCFA39411CA2CEA /* Resources */,
 				29B97323FDCFA39411CA2CEA /* Frameworks */,
 				19C28FACFE9D520D11CA2CBB /* Products */,
+				C58108C812FC55920053FB3A /* CoreMIDI.framework */,
+				C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */,
 			);
 			name = plask;
 			sourceTree = "<group>";
@@ -191,7 +199,14 @@
 			isa = PBXProject;
 			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "plask" */;
 			compatibilityVersion = "Xcode 3.1";
+			developmentRegion = English;
 			hasScannedForEncodings = 1;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
 			mainGroup = 29B97314FDCFA39411CA2CEA /* plask */;
 			projectDirPath = "";
 			projectRoot = "";
