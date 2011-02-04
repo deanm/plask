@@ -102,7 +102,13 @@ MidiSource.prototype.noteOff = function(chan, note, vel) {
   return this.sendData([0x80 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
 };
 
+function MidiDestination(name) {
+  name = name === undefined ? 'Plask' : name;
+  this.cadest_ = new PlaskRawMac.CAMIDIDestination(name);
+}
+
 exports.MidiSource = MidiSource;
+exports.MidiDestination = MidiDestination;
 
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(

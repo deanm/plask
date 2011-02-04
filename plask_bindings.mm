@@ -4224,10 +4224,111 @@ class CAMIDISourceWrapper {
     }
 
     v8::String::Utf8Value name_val(args[0]->ToString());
-    name = CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
+    CFStringRef name =
+        CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
     MIDIEndpointRef endpoint;
     result = MIDISourceCreate(g_midi_client, name, &endpoint);
+    CFRelease(name);
+    if (result != noErr) {
+      return v8_utils::ThrowError("Couldn't create midi source object.");
+    }
+
+    // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
+    args.This()->SetInternalField(0, v8::External::Wrap(
+        (void*)(intptr_t)endpoint));
+    return args.This();
+  }
+};
+
+void asd(const MIDIPacketList *pktlist,
+         void *readProcRefCon,
+         void *srcConnRefCon) {
+  const MIDIPacket* packet = &pktlist->packet[0];
+  for (int i = 0; i < pktlist->numPackets; ++i) {
+    printf("Packet: ");
+    for (int j = 0; j < packet->length; ++j) {
+      printf("%02x ", packet->data[j]);
+    }
+    printf("\n");
+    packet = MIDIPacketNext(packet);
+  }
+}
+
+class CAMIDIDestinationWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&CAMIDIDestinationWrapper::V8New));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // MIDIEndpointRef.
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "kDummy", 1 },
+    };
+
+    static BatchedMethods methods[] = {
+      { "dummy", &CAMIDIDestinationWrapper::dummy },
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      instance->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    return ft_cache;
+  }
+
+  // Can't use v8_utils::UnrwapCPointer because of LSB clear expectations.
+  static MIDIEndpointRef ExtractPointer(v8::Handle<v8::Object> obj) {
+    // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
+    return (MIDIEndpointRef)(intptr_t)v8::External::Unwrap(
+        obj->GetInternalField(0));
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+ private:
+  static v8::Handle<v8::Value> dummy(const v8::Arguments& args) {
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    OSStatus result;
+
+    if (!g_midi_client) {
+      result = MIDIClientCreate(CFSTR("Plask"), NULL, NULL, &g_midi_client);
+      if (result != noErr) {
+        return v8_utils::ThrowError("Couldn't create midi client object.");
+      }
+    }
+
+    v8::String::Utf8Value name_val(args[0]->ToString());
+    CFStringRef name =
+        CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
+
+    MIDIEndpointRef endpoint;
+    result = MIDIDestinationCreate(g_midi_client, name, asd, NULL, &endpoint);
     CFRelease(name);
     if (result != noErr) {
       return v8_utils::ThrowError("Couldn't create midi source object.");
@@ -4371,4 +4472,6 @@ void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj) {
            NSOpenGLContextWrapper::GetTemplate());
   obj->Set(v8::String::New("NSSound"), NSSoundWrapper::GetTemplate());
   obj->Set(v8::String::New("CAMIDISource"), CAMIDISourceWrapper::GetTemplate());
+  obj->Set(v8::String::New("CAMIDIDestination"),
+           CAMIDIDestinationWrapper::GetTemplate());
 }
