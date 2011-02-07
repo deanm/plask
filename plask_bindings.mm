@@ -4241,21 +4241,13 @@ class CAMIDISourceWrapper {
   }
 };
 
-void asd(const MIDIPacketList *pktlist,
-         void *readProcRefCon,
-         void *srcConnRefCon) {
-  const MIDIPacket* packet = &pktlist->packet[0];
-  for (int i = 0; i < pktlist->numPackets; ++i) {
-    printf("Packet: ");
-    for (int j = 0; j < packet->length; ++j) {
-      printf("%02x ", packet->data[j]);
-    }
-    printf("\n");
-    packet = MIDIPacketNext(packet);
-  }
-}
-
 class CAMIDIDestinationWrapper {
+ private:
+  struct State {
+    MIDIEndpointRef endpoint;
+    int64_t clocks;
+  };
+
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
@@ -4276,7 +4268,7 @@ class CAMIDIDestinationWrapper {
     };
 
     static BatchedMethods methods[] = {
-      { "dummy", &CAMIDIDestinationWrapper::dummy },
+      { "syncClocks", &CAMIDIDestinationWrapper::syncClocks },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4295,10 +4287,8 @@ class CAMIDIDestinationWrapper {
   }
 
   // Can't use v8_utils::UnrwapCPointer because of LSB clear expectations.
-  static MIDIEndpointRef ExtractPointer(v8::Handle<v8::Object> obj) {
-    // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    return (MIDIEndpointRef)(intptr_t)v8::External::Unwrap(
-        obj->GetInternalField(0));
+  static State* ExtractPointer(v8::Handle<v8::Object> obj) {
+    return v8_utils::UnwrapCPointer<State>(obj->GetInternalField(0));
   }
 
   static bool HasInstance(v8::Handle<v8::Value> value) {
@@ -4306,8 +4296,34 @@ class CAMIDIDestinationWrapper {
   }
 
  private:
-  static v8::Handle<v8::Value> dummy(const v8::Arguments& args) {
-    return v8::Undefined();
+  // TODO(deanm): Access to state isn't thread safe.  As long as we're 64-bit
+  // I'm not particularly concerned.
+  static void ReadCallback(const MIDIPacketList *pktlist,
+                           void* state_raw,
+                           void* srcConnRefCon) {
+    State* state = reinterpret_cast<State*>(state_raw);
+    const MIDIPacket* packet = &pktlist->packet[0];
+    for (int i = 0; i < pktlist->numPackets; ++i) {
+      //printf("Packet: ");
+      //for (int j = 0; j < packet->length; ++j) {
+        //printf("%02x ", packet->data[j]);
+      //}
+      //printf("\n");
+      if (packet->data[0] == 0xf2) {
+        // NOTE(deanm): Wraps around bar 1024.
+        int beat = packet->data[2] << 7 | packet->data[1];
+        state->clocks = beat * 6;
+      } else if (packet->data[0] == 0xf8) {
+        ++state->clocks;
+        //printf("Clock position: %lld\n", state->clocks);
+      }
+      packet = MIDIPacketNext(packet);
+    }
+  }
+
+  static v8::Handle<v8::Value> syncClocks(const v8::Arguments& args) {
+    State* state = ExtractPointer(args.This());
+    return v8::Integer::New(state->clocks);
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
@@ -4328,15 +4344,18 @@ class CAMIDIDestinationWrapper {
         CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
     MIDIEndpointRef endpoint;
-    result = MIDIDestinationCreate(g_midi_client, name, asd, NULL, &endpoint);
+    State* state = new State;
+    result = MIDIDestinationCreate(
+        g_midi_client, name, &ReadCallback, state, &endpoint);
     CFRelease(name);
     if (result != noErr) {
+      delete state;
       return v8_utils::ThrowError("Couldn't create midi source object.");
     }
 
-    // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    args.This()->SetInternalField(0, v8::External::Wrap(
-        (void*)(intptr_t)endpoint));
+    state->endpoint = endpoint;
+    state->clocks = 0;
+    args.This()->SetInternalField(0, v8::External::Wrap(state));
     return args.This();
   }
 };
