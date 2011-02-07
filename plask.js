@@ -107,6 +107,10 @@ function MidiDestination(name) {
   this.cadest_ = new PlaskRawMac.CAMIDIDestination(name);
 }
 
+MidiDestination.prototype.syncClocks = function() {
+  return this.cadest_.syncClocks();
+};
+
 exports.MidiSource = MidiSource;
 exports.MidiDestination = MidiDestination;
 
