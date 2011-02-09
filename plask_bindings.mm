@@ -2717,12 +2717,13 @@ class NSWindowWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
-    if (args.Length() != 4)
+    if (args.Length() != 5)
       return v8_utils::ThrowError("Expected 3 arguments to NSWindow.");
     uint32_t type = args[0]->Uint32Value();
     uint32_t width = args[1]->Uint32Value();
     uint32_t height = args[2]->Uint32Value();
     bool multisample = args[3]->BooleanValue();
+    int fullscreen_display = args[4]->Int32Value();
     WrappedNSWindow* window = [[WrappedNSWindow alloc]
         initWithContentRect:NSMakeRect(0.0, 0.0,
                                        width,
@@ -2806,6 +2807,55 @@ class NSWindowWrapper {
     [window setDelegate:[[[WindowDelegate alloc] init] autorelease]];
     [window center];
     [window makeKeyAndOrderFront:nil];
+
+    if (fullscreen_display != -1) {
+      NSArray* screens = [NSScreen screens];
+
+#define PLASK_FULLSCREEN_CHANGE_RESOLUTION 1
+
+#ifdef PLASK_FULLSCREEN_CHANGE_RESOLUTION
+#if 0
+// TODO(deanm): Somehow figure out how to get the resolution changing stuff to
+// work.  It is stretching in some cases even when you ask it not to.
+      NSDictionary* dm_options =
+        [NSDictionary dictionaryWithObjectsAndKeys:
+          [NSNumber numberWithUnsignedInt: width],
+          kCGDisplayWidth,
+          [NSNumber numberWithUnsignedInt: height],
+          kCGDisplayHeight,
+          // Apparently we need kCGDisplayMode here, but with what?
+          nil];
+#endif
+      CFDictionaryRef best_options = CGDisplayBestModeForParameters(
+          fullscreen_display, 32, width, height, NULL);
+      NSMutableDictionary* dm2_options = [NSMutableDictionary
+          dictionaryWithDictionary:(NSDictionary*)best_options];
+      //[dm2_options setValue:[NSNumber numberWithBool:NO]
+      //             forKey:(NSString*)kCGDisplayModeIsStretched];
+#else
+      int display_settings = NSApplicationPresentationHideDock |
+                             NSApplicationPresentationHideMenuBar;
+
+#endif
+
+      // NOTE(deanm): Apparently we can't supply both NSFullScreenModeSetting
+      // and NSFullScreenModeApplicationPresentationOptions.
+      NSDictionary* fs_options =
+        [NSDictionary dictionaryWithObjectsAndKeys:
+            [NSNumber numberWithBool:NO],
+            NSFullScreenModeAllScreens,
+#ifdef PLASK_FULLSCREEN_CHANGE_RESOLUTION
+            best_options,//dm2_options,
+            NSFullScreenModeSetting,
+#else
+            [NSNumber numberWithInt:display_settings],
+            NSFullScreenModeApplicationPresentationOptions,
+#endif
+            nil];
+      [[window contentView]
+          enterFullScreenMode:[screens objectAtIndex:fullscreen_display]
+          withOptions:fs_options];
+    }
 
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(window));
     args.This()->SetInternalField(1, v8_utils::WrapCPointer(bitmap));
@@ -4298,9 +4348,9 @@ class CAMIDIDestinationWrapper {
  private:
   // TODO(deanm): Access to state isn't thread safe.  As long as we're 64-bit
   // I'm not particularly concerned.
-  static void ReadCallback(const MIDIPacketList *pktlist,
+  static void ReadCallback(const MIDIPacketList* pktlist,
                            void* state_raw,
-                           void* srcConnRefCon) {
+                           void* src) {
     State* state = reinterpret_cast<State*>(state_raw);
     const MIDIPacket* packet = &pktlist->packet[0];
     for (int i = 0; i < pktlist->numPackets; ++i) {

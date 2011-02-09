@@ -116,7 +116,10 @@ exports.MidiDestination = MidiDestination;
 
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
-      opts.type === '3d' ? 1 : 0, width, height, opts.multisample === true);
+      opts.type === '3d' ? 1 : 0,
+      width, height,
+      opts.multisample === true,
+      opts.fullscreen_display === undefined ? -1 : opts.fullscreen_display);
   var this_ = this;
 
   this.context = nswindow_.context;  // Export the 3d context (if it exists).
@@ -339,7 +342,9 @@ exports.simpleWindow = function(obj) {
 
   // TODO(deanm): Fullscreen.
   var window_ = new exports.Window(
-      width, height, {type: wintype, multisample: obj.multisample === true});
+      width, height, {type: wintype,
+                      multisample: obj.multisample === true,
+                      fullscreen_display: obj.fullscreen_display});
 
   var gl_ = window_.context;
 
