@@ -119,7 +119,8 @@ exports.Window = function(width, height, opts) {
       opts.type === '3d' ? 1 : 0,
       width, height,
       opts.multisample === true,
-      opts.fullscreen_display === undefined ? -1 : opts.fullscreen_display);
+      opts.display === undefined ? -1 : opts.display,
+      opts.fullscreen === true);
   var this_ = this;
 
   this.context = nswindow_.context;  // Export the 3d context (if it exists).
@@ -176,6 +177,10 @@ exports.Window = function(width, height, opts) {
 
   this.setFrameTopLeftPoint = function(x, y) {
     nswindow_.setFrameTopLeftPoint(x, y);
+  };
+
+  this.center = function() {
+    nswindow_.center();
   };
 
   function handleRawNSEvent(e) {
@@ -344,7 +349,9 @@ exports.simpleWindow = function(obj) {
   var window_ = new exports.Window(
       width, height, {type: wintype,
                       multisample: obj.multisample === true,
-                      fullscreen_display: obj.fullscreen_display});
+                      display: obj.display,
+                      fullscreen: obj.fullscreen});
+  if (obj.center === true) window_.center();
 
   var gl_ = window_.context;
 

@@ -2680,6 +2680,7 @@ class NSWindowWrapper {
         &NSWindowWrapper::setEventCallback },
       { "setTitle", &NSWindowWrapper::setTitle },
       { "setFrameTopLeftPoint", &NSWindowWrapper::setFrameTopLeftPoint },
+      { "center", &NSWindowWrapper::center },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2717,20 +2718,36 @@ class NSWindowWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError("Expected 3 arguments to NSWindow.");
+    if (args.Length() != 6)
+      return v8_utils::ThrowError("Wrong number of arguments.");
     uint32_t type = args[0]->Uint32Value();
     uint32_t width = args[1]->Uint32Value();
     uint32_t height = args[2]->Uint32Value();
     bool multisample = args[3]->BooleanValue();
-    int fullscreen_display = args[4]->Int32Value();
+    int display = args[4]->Int32Value();
+    bool fullscreen = args[5]->BooleanValue();
+
+    NSScreen* screen = [NSScreen mainScreen];
+    NSArray* screens = [NSScreen screens];
+
+    if (display < [screens count]) {
+      screen = [screens objectAtIndex:display];
+      NSLog(@"Using alternate screen: %@", screen);
+    }
+
+    int style_mask = NSTitledWindowMask; // | NSClosableWindowMask
+
+    if (fullscreen)
+      style_mask = NSBorderlessWindowMask;
+
     WrappedNSWindow* window = [[WrappedNSWindow alloc]
         initWithContentRect:NSMakeRect(0.0, 0.0,
                                        width,
                                        height)
-        styleMask:NSTitledWindowMask // | NSClosableWindowMask
+        styleMask:style_mask
         backing:NSBackingStoreBuffered
-        defer:NO];
+        defer:NO
+        screen: screen];
     // CGColorSpaceRef rgb_space = CGColorSpaceCreateDeviceRGB();
     // CGBitmapContextCreate(NULL, width, height, 8, width * 4, rgb_space,
     //                       kCGBitmapByteOrder32Little |
@@ -2804,58 +2821,10 @@ class NSWindowWrapper {
       args.This()->Set(v8::String::New("context"), context_wrapper);
     }
 
+    if (fullscreen)
+      [window setLevel:NSMainMenuWindowLevel+1];
     [window setDelegate:[[[WindowDelegate alloc] init] autorelease]];
-    [window center];
     [window makeKeyAndOrderFront:nil];
-
-    if (fullscreen_display != -1) {
-      NSArray* screens = [NSScreen screens];
-
-#define PLASK_FULLSCREEN_CHANGE_RESOLUTION 1
-
-#ifdef PLASK_FULLSCREEN_CHANGE_RESOLUTION
-#if 0
-// TODO(deanm): Somehow figure out how to get the resolution changing stuff to
-// work.  It is stretching in some cases even when you ask it not to.
-      NSDictionary* dm_options =
-        [NSDictionary dictionaryWithObjectsAndKeys:
-          [NSNumber numberWithUnsignedInt: width],
-          kCGDisplayWidth,
-          [NSNumber numberWithUnsignedInt: height],
-          kCGDisplayHeight,
-          // Apparently we need kCGDisplayMode here, but with what?
-          nil];
-#endif
-      CFDictionaryRef best_options = CGDisplayBestModeForParameters(
-          fullscreen_display, 32, width, height, NULL);
-      NSMutableDictionary* dm2_options = [NSMutableDictionary
-          dictionaryWithDictionary:(NSDictionary*)best_options];
-      //[dm2_options setValue:[NSNumber numberWithBool:NO]
-      //             forKey:(NSString*)kCGDisplayModeIsStretched];
-#else
-      int display_settings = NSApplicationPresentationHideDock |
-                             NSApplicationPresentationHideMenuBar;
-
-#endif
-
-      // NOTE(deanm): Apparently we can't supply both NSFullScreenModeSetting
-      // and NSFullScreenModeApplicationPresentationOptions.
-      NSDictionary* fs_options =
-        [NSDictionary dictionaryWithObjectsAndKeys:
-            [NSNumber numberWithBool:NO],
-            NSFullScreenModeAllScreens,
-#ifdef PLASK_FULLSCREEN_CHANGE_RESOLUTION
-            best_options,//dm2_options,
-            NSFullScreenModeSetting,
-#else
-            [NSNumber numberWithInt:display_settings],
-            NSFullScreenModeApplicationPresentationOptions,
-#endif
-            nil];
-      [[window contentView]
-          enterFullScreenMode:[screens objectAtIndex:fullscreen_display]
-          withOptions:fs_options];
-    }
 
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(window));
     args.This()->SetInternalField(1, v8_utils::WrapCPointer(bitmap));
@@ -2925,6 +2894,12 @@ class NSWindowWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
     [window setFrameTopLeftPoint:NSMakePoint(args[0]->NumberValue(),
                                              args[1]->NumberValue())];
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> center(const v8::Arguments& args) {
+    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    [window center];
     return v8::Undefined();
   }
 };
