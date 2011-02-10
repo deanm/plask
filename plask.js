@@ -559,6 +559,12 @@ Vec3.prototype.lerp = function(b, t) {
   return this;
 };
 
+Vec3.prototype.lerped = function(b, t) {
+  return new Vec3(this.x + (b.x-this.x)*t,
+                  this.y + (b.y-this.y)*t,
+                  this.z + (b.z-this.z)*t);
+};
+
 // Magnitude (length).
 Vec3.prototype.length = function() {
   var x = this.x, y = this.y, z = this.z;
@@ -672,6 +678,11 @@ Vec2.prototype.lerp = function(b, t) {
   this.y = this.y + (b.y-this.y)*t;
 
   return this;
+};
+
+Vec2.prototype.lerped = function(b, t) {
+  return new Vec2(this.x + (b.x-this.x)*t,
+                  this.y + (b.y-this.y)*t);
 };
 
 // Magnitude (length).
