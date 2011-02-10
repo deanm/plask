@@ -4410,7 +4410,9 @@ class CAMIDIDestinationWrapper {
 }
 
 -(void)sendEvent:(NSEvent *)event {
-  [super sendEvent:event];
+  // TODO(deanm): Causes beep on key events.  Hopefully not calling up doesn't
+  // break anything, I'm not exactly sure how the event pipeline should work.
+  //[super sendEvent:event];
   [self processEvent:event];
 }
 
