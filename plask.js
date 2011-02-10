@@ -589,6 +589,121 @@ Vec3.prototype.debugString = function() {
   return 'x: ' + this.x + ' y: ' + this.y + ' z: ' + this.z;
 };
 
+// Like a z-less Vec3, Vec2.
+function Vec2(x, y) {
+  this.x = x; this.y = y;
+}
+
+Vec2.prototype.set = function(x, y) {
+  this.x = x; this.y = y
+
+  return this;
+};
+
+Vec2.prototype.setVec2 = function(v) {
+  this.x = v.x; this.y = v.y;
+
+  return this;
+};
+
+// Returns the dot product, this . b.
+Vec2.prototype.dot = function(b) {
+  return this.x * b.x + this.y * b.y;
+};
+
+// Add two Vec2s, this = a + b.
+Vec2.prototype.add2 = function(a, b) {
+  this.x = a.x + b.x;
+  this.y = a.y + b.y;
+
+  return this;
+};
+
+Vec2.prototype.added2 = function(a, b) {
+  return new Vec2(a.x + b.x,
+                  a.y + b.y);
+};
+
+// Add a Vec2, this = this + b.
+Vec2.prototype.add = function(b) {
+  return this.add2(this, b);
+};
+
+Vec2.prototype.added = function(b) {
+  return this.added2(this, b);
+};
+
+// Subtract two Vec2s, this = a - b.
+Vec2.prototype.sub2 = function(a, b) {
+  this.x = a.x - b.x;
+  this.y = a.y - b.y;
+
+  return this;
+};
+
+Vec2.prototype.subbed2 = function(a, b) {
+  return new Vec2(a.x - b.x,
+                  a.y - b.y);
+};
+
+// Subtract another Vec2, this = this - b.
+Vec2.prototype.sub = function(b) {
+  return this.sub2(this, b);
+};
+
+Vec2.prototype.subbed = function(b) {
+  return this.subbed2(this, b);
+};
+
+// Multiply by a scalar.
+Vec2.prototype.scale = function(s) {
+  this.x *= s; this.y *= s;
+
+  return this;
+};
+
+Vec2.prototype.scaled = function(s) {
+  return new Vec2(this.x * s, this.y * s);
+};
+
+// Interpolate between this and another Vec2 |b|, based on |t|.
+Vec2.prototype.lerp = function(b, t) {
+  this.x = this.x + (b.x-this.x)*t;
+  this.y = this.y + (b.y-this.y)*t;
+
+  return this;
+};
+
+// Magnitude (length).
+Vec2.prototype.length = function() {
+  var x = this.x, y = this.y;
+  return Math.sqrt(x*x + y*y);
+};
+
+// Magnitude squared.
+Vec2.prototype.lengthSquared = function() {
+  var x = this.x, y = this.y;
+  return x*x + y*y;
+};
+
+// Normalize, scaling so the magnitude is 1.  Invalid for a zero vector.
+Vec2.prototype.normalize = function() {
+  return this.scale(1/this.length());
+};
+
+Vec2.prototype.normalized = function() {
+  return this.dup().normalize();
+};
+
+
+Vec2.prototype.dup = function() {
+  return new Vec2(this.x, this.y);
+};
+
+Vec2.prototype.debugString = function() {
+  return 'x: ' + this.x + ' y: ' + this.y;
+};
+
 exports.kPI  = kPI;
 exports.kPI2 = kPI2;
 exports.kPI4 = kPI4;
@@ -600,3 +715,4 @@ exports.clamp = clamp;
 exports.lerp = lerp;
 
 exports.Vec3 = Vec3;
+exports.Vec2 = Vec2;
