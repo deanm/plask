@@ -3113,6 +3113,7 @@ class SkPathWrapper {
       { "quadTo", &SkPathWrapper::quadTo },
       { "cubicTo", &SkPathWrapper::cubicTo },
       { "close", &SkPathWrapper::close },
+      { "offset", &SkPathWrapper::offset },
       { "getBounds", &SkPathWrapper::getBounds },
       { "toSVGString", &SkPathWrapper::toSVGString },
     };
@@ -3204,6 +3205,13 @@ class SkPathWrapper {
   static v8::Handle<v8::Value> close(const v8::Arguments& args) {
     SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
     path->close();
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> offset(const v8::Arguments& args) {
+    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    path->offset(SkDoubleToScalar(args[0]->NumberValue()),
+                 SkDoubleToScalar(args[1]->NumberValue()));
     return v8::Undefined();
   }
 
