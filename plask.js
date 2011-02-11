@@ -163,6 +163,8 @@ exports.Window = function(width, height, opts) {
       case PlaskRawMac.NSEvent.NSKeyUp: return 'keyUp';
       case PlaskRawMac.NSEvent.NSKeyDown: return 'keyDown';
       case PlaskRawMac.NSEvent.NSScrollWheel: return 'scrollWheel';
+      case PlaskRawMac.NSEvent.NSTabletPoint: return 'tabletPoint';
+      case PlaskRawMac.NSEvent.NSTabletProximity: return 'tabletProximity';
       default: return '';
     }
   }
@@ -240,6 +242,7 @@ exports.Window = function(width, height, opts) {
           dx: e.deltaX(),
           dy: e.deltaY(),  // Doesn't need flipping since it's in device space.
           dz: e.deltaZ(),
+          pressure: e.pressure(),
           buttonNumber: button,
           buttonName: buttonNumberToName(button),
           capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
@@ -254,6 +257,29 @@ exports.Window = function(width, height, opts) {
         this_.emit(te.type, te);
         // Emit a generic up / down event for all buttons.
         this_.emit('mouseDragged', te);
+        break;
+      case PlaskRawMac.NSEvent.NSTabletPoint:
+        var loc = e.locationInWindow();
+        var mods = e.modifierFlags();
+        var te = {
+          type: nsEventNameToEmitName(type),
+          x: loc.x,
+          y: height - loc.y,
+          pressure: e.pressure(),
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0
+        };
+        this_.emit(te.type, te);
+        break;
+      case PlaskRawMac.NSEvent.NSTabletProximity:
+        var te = {
+          type: nsEventNameToEmitName(type),
+          entering: e.isEnteringProximity()
+        };
+        this_.emit(te.type, te);
         break;
       case PlaskRawMac.NSEvent.NSKeyUp:
       case PlaskRawMac.NSEvent.NSKeyDown:

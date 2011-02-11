@@ -2976,6 +2976,8 @@ class NSEventWrapper {
       { "deltaX", &NSEventWrapper::deltaX },
       { "deltaY", &NSEventWrapper::deltaY },
       { "deltaZ", &NSEventWrapper::deltaZ },
+      { "pressure", &NSEventWrapper::pressure },
+      { "isEnteringProximity", &NSEventWrapper::isEnteringProximity },
       { "modifierFlags", &NSEventWrapper::modifierFlags },
     };
 
@@ -3072,6 +3074,16 @@ class NSEventWrapper {
   static v8::Handle<v8::Value> deltaZ(const v8::Arguments& args) {
     NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
     return v8::Number::New([event deltaZ]);
+  }
+
+  static v8::Handle<v8::Value> pressure(const v8::Arguments& args) {
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    return v8::Number::New([event pressure]);
+  }
+
+  static v8::Handle<v8::Value> isEnteringProximity(const v8::Arguments& args) {
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    return v8::Boolean::New([event isEnteringProximity]);
   }
 
   static v8::Handle<v8::Value> modifierFlags(const v8::Arguments& args) {
