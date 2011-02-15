@@ -3342,6 +3342,7 @@ class SkPaintWrapper {
       { "setColorHSV", &SkPaintWrapper::setColorHSV },
       { "setTextSize", &SkPaintWrapper::setTextSize },
       { "setXfermodeMode", &SkPaintWrapper::setXfermodeMode },
+      { "setFontFamily", &SkPaintWrapper::setFontFamily },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3459,6 +3460,17 @@ class SkPaintWrapper {
     // TODO(deanm): Memory management.
     paint->setXfermodeMode(
           static_cast<SkXfermode::Mode>(v8_utils::ToInt32(args[0])));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setFontFamily(const v8::Arguments& args) {
+    if (args.Length() < 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    v8::String::Utf8Value family_name(args[0]->ToString());
+    paint->setTypeface(SkTypeface::CreateFromName(
+        *family_name, static_cast<SkTypeface::Style>(args[1]->Uint32Value())));
     return v8::Undefined();
   }
 
