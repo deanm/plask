@@ -3518,6 +3518,7 @@ class SkCanvasWrapper {
 
     static BatchedMethods methods[] = {
       { "clipRect", &SkCanvasWrapper::clipRect },
+      { "clipPath", &SkCanvasWrapper::clipPath },
       { "drawCircle", &SkCanvasWrapper::drawCircle },
       { "drawLine", &SkCanvasWrapper::drawLine },
       { "drawPaint", &SkCanvasWrapper::drawPaint },
@@ -3664,6 +3665,19 @@ class SkCanvasWrapper {
                     SkDoubleToScalar(args[2]->NumberValue()),
                     SkDoubleToScalar(args[3]->NumberValue()) };
     canvas->clipRect(rect);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> clipPath(const v8::Arguments& args) {
+    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+
+    if (!SkPathWrapper::HasInstance(args[0]))
+      return v8::Undefined();
+
+    SkPath* path = SkPathWrapper::ExtractPointer(
+        v8::Handle<v8::Object>::Cast(args[0]));
+
+    canvas->clipPath(*path);  // TODO(deanm): Handle the optional argument.
     return v8::Undefined();
   }
 
