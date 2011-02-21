@@ -2681,6 +2681,8 @@ class NSWindowWrapper {
       { "setTitle", &NSWindowWrapper::setTitle },
       { "setFrameTopLeftPoint", &NSWindowWrapper::setFrameTopLeftPoint },
       { "center", &NSWindowWrapper::center },
+      { "hideCursor", &NSWindowWrapper::hideCursor },
+      { "showCursor", &NSWindowWrapper::showCursor },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2900,6 +2902,16 @@ class NSWindowWrapper {
   static v8::Handle<v8::Value> center(const v8::Arguments& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.This());
     [window center];
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> hideCursor(const v8::Arguments& args) {
+    CGDisplayHideCursor(kCGDirectMainDisplay);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> showCursor(const v8::Arguments& args) {
+    CGDisplayShowCursor(kCGDirectMainDisplay);
     return v8::Undefined();
   }
 };

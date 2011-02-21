@@ -170,15 +170,23 @@ exports.Window = function(width, height, opts) {
   }
 
   this.setMouseMovedEnabled = function(enabled) {
-    nswindow_.setAcceptsMouseMovedEvents(enabled);
+    return nswindow_.setAcceptsMouseMovedEvents(enabled);
   };
 
   this.setFileDragEnabled = function(enabled) {
-    nswindow_.setAcceptsFileDrag(enabled);
+    return nswindow_.setAcceptsFileDrag(enabled);
   };
 
   this.setFrameTopLeftPoint = function(x, y) {
-    nswindow_.setFrameTopLeftPoint(x, y);
+    return nswindow_.setFrameTopLeftPoint(x, y);
+  };
+
+  this.hideCursor = function() {
+    return nswindow_.hideCursor();
+  };
+
+  this.showCursor = function() {
+    return nswindow_.showCursor();
   };
 
   this.center = function() {
@@ -390,6 +398,9 @@ exports.simpleWindow = function(obj) {
 
   if (obj.position !== undefined)
     window_.setFrameTopLeftPoint(obj.position.x, obj.position.y);
+
+  if (obj.cursor === false)
+    window_.hideCursor();
 
   obj.getRelativeMouseState = function() {
     return window_.getRelativeMouseState();
