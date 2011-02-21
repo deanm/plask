@@ -4171,12 +4171,12 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvasB(
   const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
   glTexImage2D(args[0]->Uint32Value(),
                args[1]->Int32Value(),
-               GL_RGBA,
+               GL_RGBA8,
                bitmap.width(),
                bitmap.height(),
                0,
                GL_BGRA,  // We have to swizzle, so this technically isn't ES.
-               GL_UNSIGNED_BYTE,
+               GL_UNSIGNED_INT_8_8_8_8_REV,
                bitmap.getPixels());
   return v8::Undefined();
 }
