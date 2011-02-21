@@ -4455,6 +4455,18 @@ class CAMIDIDestinationWrapper {
   }
 }
 
+// In order to receive keyboard events, we need to be able to be the key window.
+// By default this would be YES, except if we don't have a title bar, for
+// example in fullscreen mode.  We want to always be able to become the key
+// window and the main window.
+-(BOOL)canBecomeMainWindow {
+  return YES;
+}
+
+-(BOOL)canBecomeKeyWindow {
+  return YES;
+}
+
 -(void)sendEvent:(NSEvent *)event {
   // TODO(deanm): Causes beep on key events.  Hopefully not calling up doesn't
   // break anything, I'm not exactly sure how the event pipeline should work.
