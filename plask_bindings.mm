@@ -743,6 +743,9 @@ class NSOpenGLContextWrapper {
       /* WebGL-specific enums */
       { "UNPACK_FLIP_Y_WEBGL", 0x9240 },
       { "UNPACK_PREMULTIPLY_ALPHA_WEBGL", 0x9241 },
+
+      // Some Plask non-WebGL enums, some of which are likely a bad idea.
+      { "GL_UNPACK_CLIENT_STORAGE_APPLE", GL_UNPACK_CLIENT_STORAGE_APPLE },
     };
 
     static BatchedMethods methods[] = {
