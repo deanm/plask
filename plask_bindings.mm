@@ -949,26 +949,48 @@ class NSOpenGLContextWrapper {
     int width = frame.size.width;
     int height = frame.size.height;
 
+    int buffer_type = args[3]->Int32Value();
+
+    FREE_IMAGE_FORMAT format;
+
     v8::String::Utf8Value type(args[0]->ToString());
-    if (strcmp(*type, "png") != 0)
-      return v8_utils::ThrowError("writeImage can only write PNG types.");
+    if (strcmp(*type, "png") == 0) {
+      format = FIF_PNG;
+    } else if (strcmp(*type, "tiff") == 0) {
+      format = FIF_TIFF;
+    } else if (strcmp(*type, "targa") == 0) {
+      format = FIF_TARGA;
+    } else {
+      return v8_utils::ThrowError("writeImage unsupported output type.");
+    }
 
     v8::String::Utf8Value filename(args[1]->ToString());
 
-    void* pixels = malloc(width * height * 4);
-    glReadPixels(0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+    FIBITMAP* fb;
 
-    FIBITMAP* fb = FreeImage_ConvertFromRawBits(
-        reinterpret_cast<BYTE*>(pixels),
-        width, height, width * 4, 32,
-        rmask, gmask, bmask, FALSE);
-    free(pixels);
+    if (buffer_type == 0) {  // RGBA color buffer.
+      void* pixels = malloc(width * height * 4);
+      glReadPixels(0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
 
-    if (!fb)
-      return v8_utils::ThrowError("Couldn't allocate output FreeImage bitmap.");
+      fb = FreeImage_ConvertFromRawBits(
+          reinterpret_cast<BYTE*>(pixels),
+          width, height, width * 4, 32,
+          rmask, gmask, bmask, FALSE);
+      free(pixels);
+      if (!fb)
+        return v8_utils::ThrowError("Couldn't allocate FreeImage bitmap.");
+    } else {  // Floating point depth buffer
+      fb = FreeImage_AllocateT(FIT_FLOAT, width, height);
+      if (!fb)
+        return v8_utils::ThrowError("Couldn't allocate FreeImage bitmap.");
+      glReadPixels(0, 0, width, height,
+                   GL_DEPTH_COMPONENT, GL_FLOAT, FreeImage_GetBits(fb));
+    }
+
+    int save_flags = 0;
 
     if (args.Length() >= 3 && args[2]->IsObject()) {
-      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[1]);
+      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
       if (opts->Has(v8::String::New("dotsPerMeterX"))) {
         FreeImage_SetDotsPerMeterX(fb,
             opts->Get(v8::String::New("dotsPerMeterX"))->Uint32Value());
@@ -977,9 +999,13 @@ class NSOpenGLContextWrapper {
         FreeImage_SetDotsPerMeterY(fb,
             opts->Get(v8::String::New("dotsPerMeterY"))->Uint32Value());
       }
+      if (format == FIF_TIFF && opts->Has(v8::String::New("tiffCompression"))) {
+        if (!opts->Get(v8::String::New("tiffCompression"))->BooleanValue())
+          save_flags = TIFF_NONE;
+      }
     }
 
-    bool saved = FreeImage_Save(FIF_PNG, fb, *filename, 0);
+    bool saved = FreeImage_Save(format, fb, *filename, save_flags);
     FreeImage_Unload(fb);
 
     if (!saved)
@@ -3994,7 +4020,7 @@ class SkCanvasWrapper {
     }
 
     if (args.Length() >= 3 && args[2]->IsObject()) {
-      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[1]);
+      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
       if (opts->Has(v8::String::New("dotsPerMeterX"))) {
         FreeImage_SetDotsPerMeterX(fb,
             opts->Get(v8::String::New("dotsPerMeterX"))->Uint32Value());
