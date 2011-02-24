@@ -3608,27 +3608,33 @@ class SkCanvasWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
-    SkBitmap bitmap;
+    // We have a level of indirection (tbitmap vs bitmap) so that we don't need
+    // to copy and create a new SkBitmap in the case it already exists (for
+    // example for an NSWindow which has already has an SkBitmap).  This is
+    // important since a copy of an SkBitmap will have a NULL pixel pointer.
+    SkBitmap tbitmap;
+    SkBitmap* bitmap = &tbitmap;
+
     SkCanvas* canvas;
     if (args.Length() == 2) {  // width / height offscreen constructor.
       unsigned int width = args[0]->Uint32Value();
       unsigned int height = args[1]->Uint32Value();
-      bitmap.setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
-      bitmap.allocPixels();
-      bitmap.eraseARGB(0, 0, 0, 0);
-      canvas = new SkCanvas(bitmap);
+      tbitmap.setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
+      tbitmap.allocPixels();
+      tbitmap.eraseARGB(0, 0, 0, 0);
+      canvas = new SkCanvas(tbitmap);
     } else if (args.Length() == 1 && NSWindowWrapper::HasInstance(args[0])) {
-      bitmap = *NSWindowWrapper::ExtractSkBitmapPointer(
+      bitmap = NSWindowWrapper::ExtractSkBitmapPointer(
           v8::Handle<v8::Object>::Cast(args[0]));
-      canvas = new SkCanvas(bitmap);
+      canvas = new SkCanvas(*bitmap);
     } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(args[0])) {
       SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
       const SkBitmap& pbitmap = pcanvas->getDevice()->accessBitmap(false);
-      bitmap = pbitmap;
+      tbitmap = pbitmap;
       // Allocate a new block of pixels with a copy from pbitmap.
-      pbitmap.copyTo(&bitmap, pbitmap.config(), NULL);
+      pbitmap.copyTo(&tbitmap, pbitmap.config(), NULL);
 
-      canvas = new SkCanvas(bitmap);
+      canvas = new SkCanvas(tbitmap);
     } else if (args.Length() == 1 && args[0]->IsString()) {
       // TODO(deanm): This is all super inefficent, we copy / flip / etc.
       v8::String::Utf8Value filename(args[0]->ToString());
@@ -3660,22 +3666,23 @@ class SkCanvasWrapper {
       if (!FreeImage_PreMultiplyWithAlpha(fbitmap))
         return v8_utils::ThrowError("Couldn't premultiply image.");
 
-      bitmap.setConfig(SkBitmap::kARGB_8888_Config,
+      tbitmap.setConfig(SkBitmap::kARGB_8888_Config,
                        FreeImage_GetWidth(fbitmap),
                        FreeImage_GetHeight(fbitmap),
                        FreeImage_GetWidth(fbitmap) * 4);
-      bitmap.allocPixels();
+      tbitmap.allocPixels();
 
       // Despite taking red/blue/green masks, FreeImage_CovertToRawBits doesn't
       // actually use them and swizzle the color ordering.  We just require
       // that FreeImage and Skia are compiled with the same color ordering
       // (BGRA).  The masks are ignored for 32 bpp bitmaps so we just pass 0.
       // And of course FreeImage coordinates are upside down, so flip it.
-      FreeImage_ConvertToRawBits(reinterpret_cast<BYTE*>(bitmap.getPixels()),
-                                 fbitmap, bitmap.rowBytes(), 32, 0, 0, 0, TRUE);
+      FreeImage_ConvertToRawBits(reinterpret_cast<BYTE*>(tbitmap.getPixels()),
+                                 fbitmap, tbitmap.rowBytes(),
+                                 32, 0, 0, 0, TRUE);
       FreeImage_Unload(fbitmap);
 
-      canvas = new SkCanvas(bitmap);
+      canvas = new SkCanvas(tbitmap);
     } else {
       return v8_utils::ThrowError("Improper SkCanvas constructor arguments.");
     }
@@ -3683,11 +3690,11 @@ class SkCanvasWrapper {
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(canvas));
     // Direct pixel access via array[] indexing.
     args.This()->SetIndexedPropertiesToPixelData(
-        reinterpret_cast<uint8_t*>(bitmap.getPixels()), bitmap.getSize());
+        reinterpret_cast<uint8_t*>(bitmap->getPixels()), bitmap->getSize());
     args.This()->Set(v8::String::New("width"),
-                     v8::Integer::NewFromUnsigned(bitmap.width()));
+                     v8::Integer::NewFromUnsigned(bitmap->width()));
     args.This()->Set(v8::String::New("height"),
-                     v8::Integer::NewFromUnsigned(bitmap.height()));
+                     v8::Integer::NewFromUnsigned(bitmap->height()));
 
     return v8::Undefined();
   }
