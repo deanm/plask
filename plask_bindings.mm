@@ -745,7 +745,18 @@ class NSOpenGLContextWrapper {
       { "UNPACK_PREMULTIPLY_ALPHA_WEBGL", 0x9241 },
 
       // Some Plask non-WebGL enums, some of which are likely a bad idea.
-      { "GL_UNPACK_CLIENT_STORAGE_APPLE", GL_UNPACK_CLIENT_STORAGE_APPLE },
+      { "UNPACK_CLIENT_STORAGE_APPLE", GL_UNPACK_CLIENT_STORAGE_APPLE },
+      { "RGBA16F", 0x881A },
+      { "RGBA32F", 0x8814 },
+      { "COLOR_ATTACHMENT1", 0x8CE1 },
+      { "COLOR_ATTACHMENT2", 0x8CE2 },
+      { "COLOR_ATTACHMENT3", 0x8CE3 },
+      { "COLOR_ATTACHMENT4", 0x8CE4 },
+      { "COLOR_ATTACHMENT5", 0x8CE5 },
+      { "COLOR_ATTACHMENT6", 0x8CE6 },
+      { "COLOR_ATTACHMENT7", 0x8CE7 },
+      { "DEPTH_COMPONENT24", 0x81A6 },
+      { "DEPTH_COMPONENT32", 0x81A7 },
     };
 
     static BatchedMethods methods[] = {
@@ -891,6 +902,8 @@ class NSOpenGLContextWrapper {
       //{ "vertexAttrib4fv", &NSOpenGLContextWrapper::vertexAttrib4fv },
       { "vertexAttribPointer", &NSOpenGLContextWrapper::vertexAttribPointer },
       { "viewport", &NSOpenGLContextWrapper::viewport },
+      // Plask-specific, not in WebGL.  From ARB_draw_buffers.
+      { "drawBuffers", &NSOpenGLContextWrapper::drawBuffers },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2673,6 +2686,27 @@ class NSOpenGLContextWrapper {
                args[1]->Int32Value(),
                args[2]->Int32Value(),
                args[3]->Int32Value());
+    return v8::Undefined();
+  }
+
+  // void DrawBuffersARB(sizei n, const enum *bufs);
+  static v8::Handle<v8::Value> drawBuffers(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (!args[0]->IsArray())
+      return v8_utils::ThrowError("Sequence must be an Array.");
+
+    v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[0]);
+
+    uint32_t length = arr->Length();
+    GLenum* attachments = new GLenum[length];
+    for (uint32_t i = 0; i < length; ++i) {
+      attachments[i] = arr->Get(i)->Uint32Value();
+    }
+
+    glDrawBuffers(length, attachments);
+    delete[] attachments;
     return v8::Undefined();
   }
 };
