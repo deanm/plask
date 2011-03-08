@@ -4550,10 +4550,12 @@ class CAMIDIDestinationWrapper {
 }
 
 -(void)sendEvent:(NSEvent *)event {
-  // TODO(deanm): Causes beep on key events.  Hopefully not calling up doesn't
-  // break anything, I'm not exactly sure how the event pipeline should work.
-  //[super sendEvent:event];
+  [super sendEvent:event];
   [self processEvent:event];
+}
+
+-(void)noResponderFor:(SEL)event_selector {
+  // Overridden since the default implementation beeps for keyDown.
 }
 
 - (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender {
