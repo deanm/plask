@@ -757,6 +757,8 @@ class NSOpenGLContextWrapper {
       { "COLOR_ATTACHMENT7", 0x8CE7 },
       { "DEPTH_COMPONENT24", 0x81A6 },
       { "DEPTH_COMPONENT32", 0x81A7 },
+      { "DRAW_FRAMEBUFFER", GL_DRAW_FRAMEBUFFER },
+      { "READ_FRAMEBUFFER", GL_READ_FRAMEBUFFER },
     };
 
     static BatchedMethods methods[] = {
@@ -904,6 +906,7 @@ class NSOpenGLContextWrapper {
       { "viewport", &NSOpenGLContextWrapper::viewport },
       // Plask-specific, not in WebGL.  From ARB_draw_buffers.
       { "drawBuffers", &NSOpenGLContextWrapper::drawBuffers },
+      { "blitFramebuffer", &NSOpenGLContextWrapper::blitFramebuffer },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2707,6 +2710,33 @@ class NSOpenGLContextWrapper {
 
     glDrawBuffers(length, attachments);
     delete[] attachments;
+    return v8::Undefined();
+  }
+
+  // void glBlitFramebuffer(GLint srcX0,
+  //                        GLint srcY0,
+  //                        GLint srcX1,
+  //                        GLint srcY1,
+  //                        GLint dstX0,
+  //                        GLint dstY0,
+  //                        GLint dstX1,
+  //                        GLint dstY1,
+  //                        GLbitfield mask,
+  //                        GLenum filter);
+  static v8::Handle<v8::Value> blitFramebuffer(const v8::Arguments& args) {
+    if (args.Length() != 10)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    glBlitFramebuffer(args[0]->Int32Value(),
+                      args[1]->Int32Value(),
+                      args[2]->Int32Value(),
+                      args[3]->Int32Value(),
+                      args[4]->Int32Value(),
+                      args[5]->Int32Value(),
+                      args[6]->Int32Value(),
+                      args[7]->Int32Value(),
+                      args[8]->Uint32Value(),
+                      args[9]->Uint32Value());
     return v8::Undefined();
   }
 };
