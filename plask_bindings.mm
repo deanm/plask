@@ -3450,6 +3450,7 @@ class SkPaintWrapper {
       { "setXfermodeMode", &SkPaintWrapper::setXfermodeMode },
       { "setFontFamily", &SkPaintWrapper::setFontFamily },
       { "setLinearGradientShader", &SkPaintWrapper::setLinearGradientShader },
+      { "setRadialGradientShader", &SkPaintWrapper::setRadialGradientShader },
       { "clearShader", &SkPaintWrapper::clearShader },
     };
 
@@ -3617,6 +3618,50 @@ class SkPaintWrapper {
 
     // TODO(deanm): Tile mode.
     SkShader* s = SkGradientShader::CreateLinear(points, colors, positions, num,
+                                                 SkShader::kClamp_TileMode);
+    paint->setShader(s);
+
+    delete[] colors;
+    delete[] positions;
+
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setRadialGradientShader(
+      const v8::Arguments& args) {
+    if (args.Length() != 4)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+
+    SkPoint center = {SkDoubleToScalar(args[0]->NumberValue()),
+                      SkDoubleToScalar(args[1]->NumberValue())};
+    SkScalar radius = SkDoubleToScalar(args[2]->NumberValue());
+
+    SkColor* colors = NULL;
+    SkScalar* positions = NULL;
+    uint32_t num = 0;
+
+    if (args[3]->IsArray()) {
+      v8::Handle<v8::Array> data = v8::Handle<v8::Array>::Cast(args[3]);
+      uint32_t data_len = data->Length();
+      num = data_len / 5;
+
+      colors = new SkColor[num];
+      positions = new SkScalar[num];
+
+      for (uint32_t i = 0, j = 0; i < data_len; i += 5, ++j) {
+        positions[j] = SkDoubleToScalar(data->Get(i)->NumberValue());
+        colors[j] = SkColorSetARGB(data->Get(i+4)->Uint32Value() & 0xff,
+                                   data->Get(i+1)->Uint32Value() & 0xff,
+                                   data->Get(i+2)->Uint32Value() & 0xff,
+                                   data->Get(i+3)->Uint32Value() & 0xff);
+      }
+    }
+
+    // TODO(deanm): Tile mode.
+    SkShader* s = SkGradientShader::CreateRadial(center, radius,
+                                                 colors, positions, num,
                                                  SkShader::kClamp_TileMode);
     paint->setShader(s);
 
