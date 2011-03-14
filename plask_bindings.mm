@@ -2279,8 +2279,22 @@ class NSOpenGLContextWrapper {
   // void texImage2D(GLenum target, GLint level, GLenum internalformat,
   //                 GLenum format, GLenum type, HTMLVideoElement video)
   static v8::Handle<v8::Value> texImage2D(const v8::Arguments& args) {
-    if (args.Length() != 9 || !args[8]->IsNull())
-      return v8_utils::ThrowError("Unimplemented.");
+    if (args.Length() != 9)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    GLvoid* data = NULL;
+
+    if (!args[8]->IsNull()) {
+      if (!args[8]->IsObject())
+        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
+
+      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[8]);
+      if (!obj->HasIndexedPropertiesInExternalArrayData())
+        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
+
+      // TODO(deanm): Check size / format.  For now just use it correctly.
+      data = obj->GetIndexedPropertiesExternalArrayData();
+    }
 
     // TODO(deanm): Support more than just the zero initialization case.
     glTexImage2D(args[0]->Uint32Value(),  // target
@@ -2291,7 +2305,7 @@ class NSOpenGLContextWrapper {
                  args[5]->Int32Value(),   // border
                  args[6]->Uint32Value(),  // format
                  args[7]->Uint32Value(),  // type
-                 NULL);                   // data
+                 data);                   // data
     return v8::Undefined();
   }
 
