@@ -247,10 +247,19 @@ class TemplatedArray {
   }
 };
 
-class Float32Array : public TemplatedArray<4, v8::kExternalFloatArray> {
+class Int8Array : public TemplatedArray<1, v8::kExternalByteArray> {
 };
-
 class Uint8Array : public TemplatedArray<1, v8::kExternalUnsignedByteArray> {
+};
+class Int16Array : public TemplatedArray<2, v8::kExternalShortArray> {
+};
+class Uint16Array : public TemplatedArray<2, v8::kExternalUnsignedShortArray> {
+};
+class Int32Array : public TemplatedArray<4, v8::kExternalIntArray> {
+};
+class Uint32Array : public TemplatedArray<4, v8::kExternalUnsignedIntArray> {
+};
+class Float32Array : public TemplatedArray<4, v8::kExternalFloatArray> {
 };
 
 class WebGLActiveInfo {
