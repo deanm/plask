@@ -419,6 +419,7 @@ exports.simpleWindow = function(obj) {
   obj.framerate = function(fps) {
     if (framerate_handle !== null)
       clearInterval(framerate_handle);
+    if (fps === 0) return;
     framerate_handle = setInterval(function() {
       obj.redraw();
     }, 1000 / fps);
