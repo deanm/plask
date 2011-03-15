@@ -4797,10 +4797,20 @@ class CAMIDIDestinationWrapper {
 
 void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj) {
   v8::Handle<v8::Object> global(v8::Context::GetCurrent()->Global());
-  global->Set(v8::String::New("Float32Array"),
-              Float32Array::GetTemplate()->GetFunction());
+  global->Set(v8::String::New("Int8Array"),
+              Int8Array::GetTemplate()->GetFunction());
   global->Set(v8::String::New("Uint8Array"),
               Uint8Array::GetTemplate()->GetFunction());
+  global->Set(v8::String::New("Int16Array"),
+              Int16Array::GetTemplate()->GetFunction());
+  global->Set(v8::String::New("Uint16Array"),
+              Uint16Array::GetTemplate()->GetFunction());
+  global->Set(v8::String::New("Int32Array"),
+              Int32Array::GetTemplate()->GetFunction());
+  global->Set(v8::String::New("Uint32Array"),
+              Uint32Array::GetTemplate()->GetFunction());
+  global->Set(v8::String::New("Float32Array"),
+              Float32Array::GetTemplate()->GetFunction());
 
   obj->Set(v8::String::New("NSWindow"), NSWindowWrapper::GetTemplate());
   obj->Set(v8::String::New("NSEvent"), NSEventWrapper::GetTemplate());
