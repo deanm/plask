@@ -27,12 +27,8 @@
 
 #include "v8.h"
 #define EV_MULTIPLICITY 0
+#include "node.h"
 #include "ev.h"
-
-int node_main(int argc, char** argv);
-char** node_init(int argc, char** argv);
-void node_load(v8::Handle<v8::Object> process);
-v8::Handle<v8::Object> node_setup_process_object(int argc, char *argv[]);
 
 static void TimerFired(CFRunLoopTimerRef timer, void* info);
 
@@ -51,10 +47,7 @@ static void KqueueCallback(CFFileDescriptorRef backend_cffd,
   CFFileDescriptorEnableCallBacks(backend_cffd, kCFFileDescriptorReadCallBack);
 }
 
-static v8::Handle<v8::Value> Loop(const v8::Arguments& args) {
-  v8::HandleScope scope;
-  assert(args.Length() == 0);
-
+static void RunMainLoop() {
   // TODO Probably don't need to start this each time.
   // Avoids failing on test/simple/test-eio-race3.js though
   // ev_idle_start(EV_DEFAULT_UC_ &eio_poller);
@@ -97,8 +90,6 @@ static v8::Handle<v8::Value> Loop(const v8::Arguments& args) {
     }
     [pool drain];
   }
-
-  return v8::Undefined();
 }
 
 int main(int argc, char** argv) {  
@@ -121,25 +112,25 @@ int main(int argc, char** argv) {
     NSLog(@"loading from bundled: %@", bundled_main_js);
   }
 
-  argv = node_init(argc, argv);
+  argv = node::Init(argc, argv);
 
   // Create the one and only Context.
   v8::Persistent<v8::Context> context = v8::Context::New();
   v8::Context::Scope context_scope(context);
 
-  v8::Handle<v8::Object> process = node_setup_process_object(argc, argv);
+  v8::Handle<v8::Object> process = node::SetupProcessObject(argc, argv);
 
   v8::Handle<v8::ObjectTemplate> plask_raw = v8::ObjectTemplate::New();
   plask_setup_bindings(plask_raw);
 
-  // Overwrite the node process#loop with our own.
-  process->Set(v8::String::NewSymbol("loop"),
-               v8::FunctionTemplate::New(&Loop)->GetFunction());
-
   context->Global()->Set(v8::String::NewSymbol("PlaskRawMac"),
                          plask_raw->NewInstance());
 
-  node_load(process);
+  node::Load(process);
+
+  RunMainLoop();
+
+  node::EmitExit(process);
 
 #ifndef NDEBUG
   // Clean up.

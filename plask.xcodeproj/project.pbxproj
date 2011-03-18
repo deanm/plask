@@ -342,6 +342,7 @@
 					deps/skiabuild/src/skia/config,
 					deps/v8/include,
 					deps/libev,
+					deps/node,
 				);
 				LIBRARY_SEARCH_PATHS = "\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"";
 				ONLY_ACTIVE_ARCH = YES;
@@ -374,6 +375,7 @@
 					deps/skiabuild/src/skia/config,
 					deps/v8/include,
 					deps/libev,
+					deps/node,
 				);
 				LIBRARY_SEARCH_PATHS = "\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"";
 				OTHER_LDFLAGS = (
