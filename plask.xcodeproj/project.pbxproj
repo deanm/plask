@@ -11,6 +11,7 @@
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072D0486CEB800E47090 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.mm */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
+		C54F213713353048002D5B10 /* v8_typed_array.cc in Sources */ = {isa = PBXBuildFile; fileRef = C54F213513353048002D5B10 /* v8_typed_array.cc */; };
 		C561D369124FD01500CA8AF6 /* libnode.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C561D367124FD01500CA8AF6 /* libnode.a */; };
 		C561D36A124FD01500CA8AF6 /* libv8.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C561D368124FD01500CA8AF6 /* libv8.a */; };
 		C5703517124FFED40082AA14 /* plask_bindings.mm in Sources */ = {isa = PBXBuildFile; fileRef = C5703516124FFED40082AA14 /* plask_bindings.mm */; };
@@ -49,6 +50,8 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		8D1107310486CEB800E47090 /* plask-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "plask-Info.plist"; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* plask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = plask.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C54F213513353048002D5B10 /* v8_typed_array.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = v8_typed_array.cc; sourceTree = "<group>"; };
+		C54F213613353048002D5B10 /* v8_typed_array.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = v8_typed_array.h; sourceTree = "<group>"; };
 		C561D367124FD01500CA8AF6 /* libnode.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libnode.a; path = deps/libnode.a; sourceTree = SOURCE_ROOT; };
 		C561D368124FD01500CA8AF6 /* libv8.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libv8.a; path = deps/libv8.a; sourceTree = SOURCE_ROOT; };
 		C5703515124FFED40082AA14 /* plask_bindings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = plask_bindings.h; sourceTree = "<group>"; };
@@ -141,6 +144,8 @@
 		29B97315FDCFA39411CA2CEA /* Other Sources */ = {
 			isa = PBXGroup;
 			children = (
+				C54F213513353048002D5B10 /* v8_typed_array.cc */,
+				C54F213613353048002D5B10 /* v8_typed_array.h */,
 				C5703539125003630082AA14 /* v8_utils.cc */,
 				C570353A125003630082AA14 /* v8_utils.h */,
 				C5703515124FFED40082AA14 /* plask_bindings.h */,
@@ -253,6 +258,7 @@
 				256AC3DA0F4B6AC300CF3369 /* plaskAppDelegate.mm in Sources */,
 				C5703517124FFED40082AA14 /* plask_bindings.mm in Sources */,
 				C570353B125003630082AA14 /* v8_utils.cc in Sources */,
+				C54F213713353048002D5B10 /* v8_typed_array.cc in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
