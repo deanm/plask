@@ -40,6 +40,47 @@ struct BatchedMethods {
   v8::Handle<v8::Value> (*func)(const v8::Arguments& args);
 };
 
+class ArrayBuffer {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&ArrayBuffer::V8New));
+    ft_cache->SetClassName(v8::String::New("ArrayBuffer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // Buffer.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+ private:
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return ThrowError("Wrong number of arguments.");
+
+    size_t num_bytes = args[0]->Uint32Value();
+    void* buf = calloc(num_bytes, 1);
+    if (!buf)
+      return ThrowError("Unable to allocate ArrayBuffer.");
+
+    args.This()->SetPointerInInternalField(0, buf);
+
+    args.This()->Set(v8::String::New("byteLength"),
+                     v8::Integer::NewFromUnsigned(num_bytes),
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
+
+    return args.This();
+  }
+};
+
 template <int TBytes, v8::ExternalArrayType TEAType>
 class TemplatedArray {
  public:
@@ -54,19 +95,10 @@ class TemplatedArray {
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
     instance->SetInternalFieldCount(0);
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
-
     ft_cache->Set(v8::String::New("BYTES_PER_ELEMENT"),
                   v8::Uint32::New(TBytes), v8::ReadOnly);
     instance->Set(v8::String::New("BYTES_PER_ELEMENT"),
                   v8::Uint32::New(TBytes), v8::ReadOnly);
-
-    instance->SetAccessor(v8::String::New("length"),
-                          &TemplatedArray<TBytes, TEAType>::lengthGetter,
-                          NULL,
-                          v8::Handle<v8::Value>(),
-                          v8::PROHIBITS_OVERWRITING,
-                          (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
 
     return ft_cache;
   }
@@ -80,40 +112,60 @@ class TemplatedArray {
     if (args.Length() != 1)
       return ThrowError("Wrong number of arguments.");
 
-    float* buffer = NULL;
+    v8::Local<v8::Object> buffer;
     int num_elements = 0;
+
     if (args[0]->IsObject()) {
       if (!args[0]->IsArray())
         return ThrowError("Sequence must be an Array.");
 
       v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[0]);
       uint32_t il = arr->Length();
-      buffer = reinterpret_cast<float*>(calloc(il, TBytes));
+
+      // TODO(deanm): Handle integer overflow.
+      v8::Handle<v8::Value> argv[1] = {
+          v8::Integer::NewFromUnsigned(il * TBytes)};
+
+      buffer = ArrayBuffer::GetTemplate()->
+                 GetFunction()->NewInstance(1, argv);
+      void* buf = buffer->GetPointerFromInternalField(0);
       num_elements = il;  // TODO(deanm): signedness mismatch.
       args.This()->SetIndexedPropertiesToExternalArrayData(
-          buffer, TEAType, num_elements);
+          buf, TEAType, num_elements);
       // TODO(deanm): check for failure.
       for (uint32_t i = 0; i < il; ++i) {
         // Use the v8 setter to deal with typing.  Maybe slow?
         args.This()->Set(i, arr->Get(i));
       }
     } else {
-      num_elements = args[0]->Int32Value();
-      if (num_elements < 0)
-        return ThrowError("Invalid length, cannot be negative.");
-      buffer = reinterpret_cast<float*>(calloc(num_elements, TBytes));
+      num_elements = args[0]->Uint32Value();
+      // TODO(deanm): Handle integer overflow.
+      v8::Handle<v8::Value> argv[1] = {
+          v8::Integer::NewFromUnsigned(num_elements * TBytes)};
+
+      buffer = ArrayBuffer::GetTemplate()->
+                 GetFunction()->NewInstance(1, argv);
+      void* buf = buffer->GetPointerFromInternalField(0);
+
       args.This()->SetIndexedPropertiesToExternalArrayData(
-          buffer, TEAType, num_elements);
+          buf, TEAType, num_elements);
       // TODO(deanm): check for failure.
     }
 
-    return args.This();
-  }
+    args.This()->Set(v8::String::New("buffer"),
+                     buffer,
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
+    args.This()->Set(v8::String::New("length"),
+                     v8::Integer::New(num_elements),
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
+    args.This()->Set(v8::String::New("byteOffset"),
+                     v8::Integer::New(0),
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
+    args.This()->Set(v8::String::New("byteLength"),
+                     v8::Integer::NewFromUnsigned(num_elements * TBytes),
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
 
-  static v8::Handle<v8::Value> lengthGetter(v8::Local<v8::String> property,
-                                            const v8::AccessorInfo& info) {
-    return v8::Integer::New(
-        info.This()->GetIndexedPropertiesExternalArrayDataLength());
+    return args.This();
   }
 };
 
@@ -300,6 +352,8 @@ class DataView {
 namespace v8_typed_array {
 
 void AttachBindings(v8::Handle<v8::Object> obj) {
+  obj->Set(v8::String::New("ArrayBuffer"),
+           ArrayBuffer::GetTemplate()->GetFunction());
   obj->Set(v8::String::New("Int8Array"),
            Int8Array::GetTemplate()->GetFunction());
   obj->Set(v8::String::New("Uint8Array"),
