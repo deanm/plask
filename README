@@ -1,5 +1,17 @@
 Plask is an experiment in computation design.
 
+- Building
+
+Plask integrates together quite a few pieces of technology, which unfortunately
+makes the build process more complicated.  It is possible to do a boostrapped
+build, where you only build the Plask source file, but use prebuilt object
+files for Plask's dependencies.  Run the fetch_deps.sh script to download and
+extract a copy of these prebuilt dependencies.  When fetching new source
+changes to Plask, you will have to be aware if there have been any changes to
+the prebuilt dependencies, and if so, to run fetch_deps.sh again.
+
+- Credits
+
 Released under the BSD license.
 
 (c) 2010, Dean McNamee <dean@gmail.com>
