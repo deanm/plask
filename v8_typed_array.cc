@@ -77,6 +77,9 @@ class ArrayBuffer {
                      v8::Integer::NewFromUnsigned(num_bytes),
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
 
+    //V8::AdjustAmountOfExternalAllocatedMemory(num_bytes);
+    // TODO(deanm): Unadjust when destroyed.
+
     return args.This();
   }
 };
