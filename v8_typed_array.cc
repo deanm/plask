@@ -181,47 +181,47 @@ class Uint32Array : public TypedArray<4, v8::kExternalUnsignedIntArray> { };
 class Float32Array : public TypedArray<4, v8::kExternalFloatArray> { };
 
 template <typename T>
-v8::Handle<v8::Value> typedValueFactory(T) {
+v8::Handle<v8::Value> cTypeToValue(T) {
   return v8::Undefined();
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(unsigned char val) {
+v8::Handle<v8::Value> cTypeToValue(unsigned char val) {
   return v8::Integer::NewFromUnsigned(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(char val) {
+v8::Handle<v8::Value> cTypeToValue(char val) {
   return v8::Integer::New(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(unsigned short val) {
+v8::Handle<v8::Value> cTypeToValue(unsigned short val) {
   return v8::Integer::NewFromUnsigned(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(short val) {
+v8::Handle<v8::Value> cTypeToValue(short val) {
   return v8::Integer::New(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(unsigned int val) {
+v8::Handle<v8::Value> cTypeToValue(unsigned int val) {
   return v8::Integer::NewFromUnsigned(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(int val) {
+v8::Handle<v8::Value> cTypeToValue(int val) {
   return v8::Integer::New(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(float val) {
+v8::Handle<v8::Value> cTypeToValue(float val) {
   return v8::Number::New(val);
 }
 
 template <>
-v8::Handle<v8::Value> typedValueFactory(double val) {
+v8::Handle<v8::Value> cTypeToValue(double val) {
   return v8::Number::New(val);
 }
 
@@ -306,7 +306,7 @@ class DataView {
       return ThrowError("Index out of range.");
 
     void* ptr = obj->GetIndexedPropertiesExternalArrayData();
-    return typedValueFactory<T>(getValue<T>(ptr, index));
+    return cTypeToValue<T>(getValue<T>(ptr, index));
   }
 
   static v8::Handle<v8::Value> getUint8(const v8::Arguments& args) {
