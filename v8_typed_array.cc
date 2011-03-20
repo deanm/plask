@@ -82,7 +82,7 @@ class ArrayBuffer {
 };
 
 template <int TBytes, v8::ExternalArrayType TEAType>
-class TemplatedArray {
+class TypedArray {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
@@ -91,7 +91,7 @@ class TemplatedArray {
 
     v8::HandleScope scope;
     ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&TemplatedArray<TBytes, TEAType>::V8New));
+        v8::FunctionTemplate::New(&TypedArray<TBytes, TEAType>::V8New));
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
     instance->SetInternalFieldCount(0);
 
@@ -169,20 +169,13 @@ class TemplatedArray {
   }
 };
 
-class Int8Array : public TemplatedArray<1, v8::kExternalByteArray> {
-};
-class Uint8Array : public TemplatedArray<1, v8::kExternalUnsignedByteArray> {
-};
-class Int16Array : public TemplatedArray<2, v8::kExternalShortArray> {
-};
-class Uint16Array : public TemplatedArray<2, v8::kExternalUnsignedShortArray> {
-};
-class Int32Array : public TemplatedArray<4, v8::kExternalIntArray> {
-};
-class Uint32Array : public TemplatedArray<4, v8::kExternalUnsignedIntArray> {
-};
-class Float32Array : public TemplatedArray<4, v8::kExternalFloatArray> {
-};
+class Int8Array : public TypedArray<1, v8::kExternalByteArray> { };
+class Uint8Array : public TypedArray<1, v8::kExternalUnsignedByteArray> { };
+class Int16Array : public TypedArray<2, v8::kExternalShortArray> { };
+class Uint16Array : public TypedArray<2, v8::kExternalUnsignedShortArray> { };
+class Int32Array : public TypedArray<4, v8::kExternalIntArray> { };
+class Uint32Array : public TypedArray<4, v8::kExternalUnsignedIntArray> { };
+class Float32Array : public TypedArray<4, v8::kExternalFloatArray> { };
 
 template <typename T>
 v8::Handle<v8::Value> typedValueFactory(T) {
