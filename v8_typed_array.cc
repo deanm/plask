@@ -77,6 +77,13 @@ class ArrayBuffer {
                      v8::Integer::NewFromUnsigned(num_bytes),
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
 
+    // NOTE(deanm): This is not in the spec, you shouldn't be able to index
+    // the ArrayBuffer.  However, it currently simplifies some handling in our
+    // implementation, so we make ArrayView operator[] act like an Uint8Array.
+    // , This allows DataView to work with both ArrayBuffers and TypedArrays.
+    args.This()->SetIndexedPropertiesToExternalArrayData(
+        buf, v8::kExternalUnsignedByteArray, num_bytes);
+
     //V8::AdjustAmountOfExternalAllocatedMemory(num_bytes);
     // TODO(deanm): Unadjust when destroyed.
 
