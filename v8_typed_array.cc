@@ -225,6 +225,53 @@ v8::Handle<v8::Value> cTypeToValue(double val) {
   return v8::Number::New(val);
 }
 
+
+template <typename T>
+T valueToCType(v8::Handle<v8::Value> value) {
+  return 0;
+}
+
+template <>
+unsigned char valueToCType(v8::Handle<v8::Value> value) {
+  return value->Uint32Value();
+}
+
+template <>
+char valueToCType(v8::Handle<v8::Value> value) {
+  return value->Int32Value();
+}
+
+template <>
+unsigned short valueToCType(v8::Handle<v8::Value> value) {
+  return value->Uint32Value();
+}
+
+template <>
+short valueToCType(v8::Handle<v8::Value> value) {
+  return value->Int32Value();
+}
+
+template <>
+unsigned int valueToCType(v8::Handle<v8::Value> value) {
+  return value->Uint32Value();
+}
+
+template <>
+int valueToCType(v8::Handle<v8::Value> value) {
+  return value->Int32Value();
+}
+
+template <>
+float valueToCType(v8::Handle<v8::Value> value) {
+  return value->NumberValue();
+}
+
+template <>
+double valueToCType(v8::Handle<v8::Value> value) {
+  return value->NumberValue();
+}
+
+
 class DataView {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
@@ -250,6 +297,14 @@ class DataView {
       { "getInt32", &DataView::getInt32 },
       { "getFloat32", &DataView::getFloat32 },
       { "getFloat64", &DataView::getFloat64 },
+      { "setUint8", &DataView::setUint8 },
+      { "setInt8", &DataView::setInt8 },
+      { "setUint16", &DataView::setUint16 },
+      { "setInt16", &DataView::setInt16 },
+      { "setUint32", &DataView::setUint32 },
+      { "setInt32", &DataView::setInt32 },
+      { "setFloat32", &DataView::setFloat32 },
+      { "setFloat64", &DataView::setFloat64 },
     };
 
     for (size_t i = 0; i < sizeof(methods) / sizeof(*methods); ++i) {
@@ -283,9 +338,15 @@ class DataView {
   }
 
   template <typename T>
-  static T getValue(void* ptr, int index) {
+  static T getValue(void* ptr, unsigned int index) {
     // I don't know which standards I violate more, C++ or my own.
     return *reinterpret_cast<T*>(reinterpret_cast<char*>(ptr) + index);
+  }
+
+  template <typename T>
+  static void setValue(void* ptr, unsigned int index, T val) {
+    // I don't know which standards I violate more, C++ or my own.
+    *reinterpret_cast<T*>(reinterpret_cast<char*>(ptr) + index) = val;
   }
 
   template <typename T>
@@ -293,7 +354,7 @@ class DataView {
     if (args.Length() != 1)
       return ThrowError("Wrong number of arguments.");
 
-    int index = args[0]->Int32Value();
+    unsigned int index = args[0]->Uint32Value();
     v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(
         args.This()->GetInternalField(0));
     // TODO(deanm): All of these things should be cacheable.
@@ -302,11 +363,33 @@ class DataView {
     int size =
         obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
 
-    if (index < 0 || index + sizeof(T) > size)
+    if (index + sizeof(T) > size)  // TODO(deanm): integer overflow.
       return ThrowError("Index out of range.");
 
     void* ptr = obj->GetIndexedPropertiesExternalArrayData();
     return cTypeToValue<T>(getValue<T>(ptr, index));
+  }
+
+  template <typename T>
+  static v8::Handle<v8::Value> setGeneric(const v8::Arguments& args) {
+    if (args.Length() != 2)
+      return ThrowError("Wrong number of arguments.");
+
+    unsigned int index = args[0]->Int32Value();
+    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(
+        args.This()->GetInternalField(0));
+    // TODO(deanm): All of these things should be cacheable.
+    int element_size = v8_typed_array::SizeOfArrayElementForType(
+        obj->GetIndexedPropertiesExternalArrayDataType());
+    int size =
+        obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
+
+    if (index + sizeof(T) > size)  // TODO(deanm): integer overflow.
+      return ThrowError("Index out of range.");
+
+    void* ptr = obj->GetIndexedPropertiesExternalArrayData();
+    setValue<T>(ptr, index, valueToCType<T>(args[1]));
+    return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> getUint8(const v8::Arguments& args) {
@@ -339,6 +422,38 @@ class DataView {
 
   static v8::Handle<v8::Value> getFloat64(const v8::Arguments& args) {
     return getGeneric<double>(args);
+  }
+
+  static v8::Handle<v8::Value> setUint8(const v8::Arguments& args) {
+    return setGeneric<unsigned char>(args);
+  }
+
+  static v8::Handle<v8::Value> setInt8(const v8::Arguments& args) {
+    return setGeneric<char>(args);
+  }
+
+  static v8::Handle<v8::Value> setUint16(const v8::Arguments& args) {
+    return setGeneric<unsigned short>(args);
+  }
+
+  static v8::Handle<v8::Value> setInt16(const v8::Arguments& args) {
+    return setGeneric<short>(args);
+  }
+
+  static v8::Handle<v8::Value> setUint32(const v8::Arguments& args) {
+    return setGeneric<unsigned int>(args);
+  }
+
+  static v8::Handle<v8::Value> setInt32(const v8::Arguments& args) {
+    return setGeneric<int>(args);
+  }
+
+  static v8::Handle<v8::Value> setFloat32(const v8::Arguments& args) {
+    return setGeneric<float>(args);
+  }
+
+  static v8::Handle<v8::Value> setFloat64(const v8::Arguments& args) {
+    return setGeneric<double>(args);
   }
 };
 
