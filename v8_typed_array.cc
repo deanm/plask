@@ -62,6 +62,23 @@ class ArrayBuffer {
   }
 
  private:
+  static void WeakCallback(v8::Persistent<v8::Value> value, void* data) {
+    v8::Object* obj = v8::Object::Cast(*value);
+
+    void* ptr = obj->GetIndexedPropertiesExternalArrayData();
+    int element_size = v8_typed_array::SizeOfArrayElementForType(
+        obj->GetIndexedPropertiesExternalArrayDataType());
+    int size =
+        obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
+
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(-size);
+
+    value.ClearWeak();
+    value.Dispose();
+
+    free(ptr);
+  }
+
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
     if (args.Length() != 1)
       return ThrowError("Wrong number of arguments.");
@@ -84,8 +101,11 @@ class ArrayBuffer {
     args.This()->SetIndexedPropertiesToExternalArrayData(
         buf, v8::kExternalUnsignedByteArray, num_bytes);
 
-    //V8::AdjustAmountOfExternalAllocatedMemory(num_bytes);
-    // TODO(deanm): Unadjust when destroyed.
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(num_bytes);
+
+    v8::Persistent<v8::Object> persistent =
+        v8::Persistent<v8::Object>::New(args.This());
+    persistent.MakeWeak(NULL, &ArrayBuffer::WeakCallback);
 
     return args.This();
   }
