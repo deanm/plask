@@ -76,6 +76,8 @@ static void RunMainLoop() {
     NSAutoreleasePool* pool = [NSAutoreleasePool new];
     PumpNode();
     double next_waittime = ev_next_waittime();
+    // TODO(deanm): Fix loop integration with newest version of Node.
+    next_waittime = 0.01;
     NSDate* next_date = [NSDate dateWithTimeIntervalSinceNow:next_waittime];
     // printf("Running a loop iteration with timeout %f\n", next_waittime);
     NSEvent* event = [NSApp nextEventMatchingMask:NSAnyEventMask
