@@ -85,6 +85,9 @@ class ArrayBuffer {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return ThrowTypeError("Constructor cannot be called as a function.");
+
     // To match Chrome, we allow "new ArrayBuffer()".
     // if (args.Length() != 1)
     //   return ThrowError("Wrong number of arguments.");
@@ -168,6 +171,9 @@ class TypedArray {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return ThrowTypeError("Constructor cannot be called as a function.");
+
     // To match Chrome, we allow "new Float32Array()".
     // if (args.Length() != 1)
     //   return ThrowError("Wrong number of arguments.");
@@ -348,8 +354,6 @@ class TypedArray {
     if (args.Length() > 1)
       end = args[1]->Int32Value();
 
-    printf("begin end %d %d\n", begin, end);
-
     if (begin < 0) begin = length + begin;
     if (begin < 0) begin = 0;
     if (begin > length) begin = length;
@@ -359,7 +363,6 @@ class TypedArray {
     if (end > length) end = length;
 
     if (begin > end) begin = end;
-    printf("begin end %d %d\n", begin, end);
 
     int byte_offset = begin * TBytes +
         args.This()->Get(v8::String::New("byteOffset"))->Uint32Value();
@@ -486,7 +489,7 @@ class DataView {
         v8::FunctionTemplate::New(&DataView::V8New));
     ft_cache->SetClassName(v8::String::New("DataView"));
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
-    instance->SetInternalFieldCount(1);  // ArrayBuffer
+    instance->SetInternalFieldCount(0);
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
 
@@ -525,72 +528,126 @@ class DataView {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
-    if (args.Length() != 1)
+    if (!args.IsConstructCall())
+      return ThrowTypeError("Constructor cannot be called as a function.");
+
+    if (args.Length() < 1)
       return ThrowError("Wrong number of arguments.");
 
     if (!args[0]->IsObject())
       return ThrowError("Object must be an ArrayBuffer.");
 
-    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[0]);
-    if (!obj->HasIndexedPropertiesInExternalArrayData())
+    v8::Handle<v8::Object> buffer = v8::Handle<v8::Object>::Cast(args[0]);
+    if (!buffer->HasIndexedPropertiesInExternalArrayData())
       return ThrowError("Object must be an ArrayBuffer.");
 
-    args.This()->SetInternalField(0, obj);
+    unsigned int byte_length =
+        buffer->GetIndexedPropertiesExternalArrayDataLength();
+    unsigned int byte_offset = args[1]->Uint32Value();
+
+    if (args[1]->Int32Value() < 0 || byte_offset >= byte_length)
+      return ThrowRangeError("byteOffset out of range.");
+
+    if (!args[2]->IsUndefined()) {
+      if (args[2]->Int32Value() < 0)
+        return ThrowRangeError("byteLength out of range.");
+      unsigned int new_byte_length = args[2]->Uint32Value();
+      if (new_byte_length > byte_length)
+        return ThrowRangeError("byteLength out of range.");
+      if (byte_offset + new_byte_length > byte_length)
+        return ThrowRangeError("byteOffset/byteLength out of range.");
+      byte_length = new_byte_length;
+    } else {
+      // Adjust the original byte_length from total length to length to end.
+      byte_length -= byte_offset;
+    }
+
+    void* buf = buffer->GetIndexedPropertiesExternalArrayData();
+
+    // Like ArrayBuffer, we violate the spec and add an operator[].
+    args.This()->SetIndexedPropertiesToExternalArrayData(
+        reinterpret_cast<char*>(buf) + byte_offset,
+        v8::kExternalUnsignedByteArray, byte_length);
+
+    args.This()->Set(v8::String::New("buffer"),
+                     buffer,
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
+    args.This()->Set(v8::String::New("byteOffset"),
+                     v8::Integer::NewFromUnsigned(byte_offset),
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
+    args.This()->Set(v8::String::New("byteLength"),
+                     v8::Integer::NewFromUnsigned(byte_length),
+                     (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
     return args.This();
   }
 
-  template <typename T>
-  static T getValue(void* ptr, unsigned int index) {
-    // I don't know which standards I violate more, C++ or my own.
-    return *reinterpret_cast<T*>(reinterpret_cast<char*>(ptr) + index);
+  // TODO(deanm): This isn't beautiful or optimal.
+  static void swizzle(char* buf, size_t len) {
+    for (int i = 0; i < len / 2; ++i) {
+      char t = buf[i];
+      buf[i] = buf[len - i - 1];
+      buf[len - i - 1] = t;
+    }
   }
 
   template <typename T>
-  static void setValue(void* ptr, unsigned int index, T val) {
-    // I don't know which standards I violate more, C++ or my own.
-    *reinterpret_cast<T*>(reinterpret_cast<char*>(ptr) + index) = val;
+  static T getValue(void* ptr, unsigned int index, bool swiz) {
+    char buf[sizeof(T)];
+    memcpy(buf, reinterpret_cast<char*>(ptr) + index, sizeof(T));
+    if (swiz)
+      swizzle(buf, sizeof(T));
+    T val;
+    memcpy(&val, buf, sizeof(T));
+    return val;
+  }
+
+  template <typename T>
+  static void setValue(void* ptr, unsigned int index, T val, bool swiz) {
+    char buf[sizeof(T)];
+    memcpy(buf, &val, sizeof(T));
+    if (swiz)
+      swizzle(buf, sizeof(T));
+    memcpy(reinterpret_cast<char*>(ptr) + index, buf, sizeof(T));
   }
 
   template <typename T>
   static v8::Handle<v8::Value> getGeneric(const v8::Arguments& args) {
-    if (args.Length() != 1)
+    if (args.Length() < 1)
       return ThrowError("Wrong number of arguments.");
 
     unsigned int index = args[0]->Uint32Value();
-    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(
-        args.This()->GetInternalField(0));
+    bool little_endian = args[1]->BooleanValue();
     // TODO(deanm): All of these things should be cacheable.
     int element_size = v8_typed_array::SizeOfArrayElementForType(
-        obj->GetIndexedPropertiesExternalArrayDataType());
-    int size =
-        obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
+        args.This()->GetIndexedPropertiesExternalArrayDataType());
+    int size = args.This()->GetIndexedPropertiesExternalArrayDataLength() *
+               element_size;
 
     if (index + sizeof(T) > size)  // TODO(deanm): integer overflow.
       return ThrowError("Index out of range.");
 
-    void* ptr = obj->GetIndexedPropertiesExternalArrayData();
-    return cTypeToValue<T>(getValue<T>(ptr, index));
+    void* ptr = args.This()->GetIndexedPropertiesExternalArrayData();
+    return cTypeToValue<T>(getValue<T>(ptr, index, !little_endian));
   }
 
   template <typename T>
   static v8::Handle<v8::Value> setGeneric(const v8::Arguments& args) {
-    if (args.Length() != 2)
+    if (args.Length() < 2)
       return ThrowError("Wrong number of arguments.");
 
     unsigned int index = args[0]->Int32Value();
-    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(
-        args.This()->GetInternalField(0));
+    bool little_endian = args[2]->BooleanValue();
     // TODO(deanm): All of these things should be cacheable.
     int element_size = v8_typed_array::SizeOfArrayElementForType(
-        obj->GetIndexedPropertiesExternalArrayDataType());
-    int size =
-        obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
+        args.This()->GetIndexedPropertiesExternalArrayDataType());
+    int size = args.This()->GetIndexedPropertiesExternalArrayDataLength() *
+               element_size;
 
     if (index + sizeof(T) > size)  // TODO(deanm): integer overflow.
       return ThrowError("Index out of range.");
 
-    void* ptr = obj->GetIndexedPropertiesExternalArrayData();
-    setValue<T>(ptr, index, valueToCType<T>(args[1]));
+    void* ptr = args.This()->GetIndexedPropertiesExternalArrayData();
+    setValue<T>(ptr, index, valueToCType<T>(args[1]), !little_endian);
     return v8::Undefined();
   }
 
