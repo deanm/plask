@@ -20,6 +20,7 @@
 // IN THE SOFTWARE.
 
 #include <stdlib.h>  // calloc, etc
+#include <string.h>  // memmove
 
 #include <v8.h>
 
@@ -144,6 +145,19 @@ class TypedArray {
     instance->Set(v8::String::New("BYTES_PER_ELEMENT"),
                   v8::Uint32::New(TBytes), v8::ReadOnly);
 
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    static BatchedMethods methods[] = {
+      { "set", &TypedArray<TBytes, TEAType>::set },
+    };
+
+    for (size_t i = 0; i < sizeof(methods) / sizeof(*methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
     return ft_cache;
   }
 
@@ -251,6 +265,74 @@ class TypedArray {
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
 
     return args.This();
+  }
+
+  static v8::Handle<v8::Value> set(const v8::Arguments& args) {
+    if (args.Length() < 1)
+      return ThrowError("Wrong number of arguments.");
+
+    if (!args[0]->IsObject())
+      return ThrowTypeError("Type error.");
+
+    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[0]);
+
+    if (TypedArray<TBytes, TEAType>::HasInstance(obj)) {  // ArrayBufferView.
+      v8::Handle<v8::Object> src_buffer = v8::Handle<v8::Object>::Cast(
+          obj->Get(v8::String::New("buffer")));
+      v8::Handle<v8::Object> dst_buffer = v8::Handle<v8::Object>::Cast(
+          args.This()->Get(v8::String::New("buffer")));
+
+      if (args[1]->Int32Value() < 0)
+        return ThrowRangeError("Offset may not be negative.");
+
+      unsigned int offset = args[1]->Uint32Value();
+      unsigned int src_length =
+          obj->Get(v8::String::New("length"))->Uint32Value();
+      unsigned int dst_length =
+          args.This()->Get(v8::String::New("length"))->Uint32Value();
+      if (offset > dst_length)
+        return ThrowRangeError("Offset out of range.");
+
+      if (src_length > dst_length - offset)
+        return ThrowRangeError("Offset/length out of range.");
+
+      // We don't want to get the buffer pointer, because that means we'll have
+      // to just do the calculations for byteOffset / byteLength again.
+      // Instead just use the pointer on the external array data.
+      void* src_ptr = obj->GetIndexedPropertiesExternalArrayData();
+      void* dst_ptr = args.This()->GetIndexedPropertiesExternalArrayData();
+
+      // From the spec:
+      // If the input array is a TypedArray, the two arrays may use the same
+      // underlying ArrayBuffer. In this situation, setting the values takes
+      // place as if all the data is first copied into a temporary buffer that
+      // does not overlap either of the arrays, and then the data from the
+      // temporary buffer is copied into the current array.
+      memmove(reinterpret_cast<char*>(dst_ptr) + offset * TBytes,
+              src_ptr, src_length * TBytes);
+    } else {  // type[]
+      if (args[1]->Int32Value() < 0)
+        return ThrowRangeError("Offset may not be negative.");
+
+      unsigned int src_length =
+          obj->Get(v8::String::New("length"))->Uint32Value();
+      unsigned int dst_length =
+          args.This()->Get(v8::String::New("length"))->Uint32Value();
+      unsigned int offset = args[1]->Uint32Value();
+
+      if (offset > dst_length)
+        return ThrowRangeError("Offset out of range.");
+
+      if (src_length > dst_length - offset)
+        return ThrowRangeError("Offset/length out of range.");
+
+      for (uint32_t i = 0; i < src_length; ++i) {
+        // Use the v8 setter to deal with typing.  Maybe slow?
+        args.This()->Set(i + offset, obj->Get(i));
+      }
+    }
+
+    return v8::Undefined();
   }
 };
 
