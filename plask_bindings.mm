@@ -21,6 +21,13 @@
 
 #include "plask_bindings.h"
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
 #include "v8_utils.h"
 #include "v8_typed_array.h"
 
@@ -4413,6 +4420,9 @@ class CAMIDIDestinationWrapper {
   struct State {
     MIDIEndpointRef endpoint;
     int64_t clocks;
+    int dgram_fd;
+    struct sockaddr_un dgram_un;
+    size_t dgram_un_len;
   };
 
  public:
@@ -4436,6 +4446,7 @@ class CAMIDIDestinationWrapper {
 
     static BatchedMethods methods[] = {
       { "syncClocks", &CAMIDIDestinationWrapper::syncClocks },
+      { "setDgramPath", &CAMIDIDestinationWrapper::setDgramPath },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4483,6 +4494,12 @@ class CAMIDIDestinationWrapper {
       } else if (packet->data[0] == 0xf8) {
         ++state->clocks;
         //printf("Clock position: %lld\n", state->clocks);
+      } else if (state->dgram_fd != -1) {
+        int res = sendto(state->dgram_fd, packet->data, packet->length, 0,
+                         (sockaddr*)&state->dgram_un, state->dgram_un_len);
+        if (res != packet->length) {
+          printf("Error sending midi -> dgram (%d)\n", res);
+        }
       }
       packet = MIDIPacketNext(packet);
     }
@@ -4491,6 +4508,22 @@ class CAMIDIDestinationWrapper {
   static v8::Handle<v8::Value> syncClocks(const v8::Arguments& args) {
     State* state = ExtractPointer(args.This());
     return v8::Integer::New(state->clocks);
+  }
+
+  static v8::Handle<v8::Value> setDgramPath(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    State* state = ExtractPointer(args.This());
+    v8::String::Utf8Value path(args[0]->ToString());
+    memset(&state->dgram_un, 0, sizeof(state->dgram_un));
+    state->dgram_un.sun_family = AF_UNIX;
+    memcpy(state->dgram_un.sun_path, *path, path.length());
+    state->dgram_un_len = sizeof(state->dgram_un) -
+                          sizeof(state->dgram_un.sun_path) +
+                          path.length() + 1;
+    state->dgram_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
+    return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
@@ -4512,6 +4545,7 @@ class CAMIDIDestinationWrapper {
 
     MIDIEndpointRef endpoint;
     State* state = new State;
+    state->dgram_fd = -1;
     result = MIDIDestinationCreate(
         g_midi_client, name, &ReadCallback, state, &endpoint);
     CFRelease(name);
