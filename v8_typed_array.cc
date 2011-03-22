@@ -35,6 +35,10 @@ v8::Handle<v8::Value> ThrowTypeError(const char* msg) {
   return v8::ThrowException(v8::Exception::TypeError(v8::String::New(msg)));
 }
 
+v8::Handle<v8::Value> ThrowRangeError(const char* msg) {
+  return v8::ThrowException(v8::Exception::RangeError(v8::String::New(msg)));
+}
+
 struct BatchedMethods {
   const char* name;
   v8::Handle<v8::Value> (*func)(const v8::Arguments& args);
@@ -80,8 +84,14 @@ class ArrayBuffer {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
-    if (args.Length() != 1)
-      return ThrowError("Wrong number of arguments.");
+    // To match Chrome, we allow "new ArrayBuffer()".
+    // if (args.Length() != 1)
+    //   return ThrowError("Wrong number of arguments.");
+
+    if (args[0]->Int32Value() < 0) {
+      return ThrowRangeError("ArrayBufferView size is not a small enough "
+                             "positive integer.");
+    }
 
     size_t num_bytes = args[0]->Uint32Value();
     void* buf = calloc(num_bytes, 1);
@@ -111,7 +121,11 @@ class ArrayBuffer {
   }
 };
 
-template <int TBytes, v8::ExternalArrayType TEAType>
+static bool checkAlignment(unsigned int val, unsigned int bytes) {
+  return (val & (bytes - 1)) == 0;  // Handles bytes == 0.
+}
+
+template <unsigned int TBytes, v8::ExternalArrayType TEAType>
 class TypedArray {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
@@ -139,46 +153,87 @@ class TypedArray {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
-    if (args.Length() != 1)
-      return ThrowError("Wrong number of arguments.");
+    // To match Chrome, we allow "new Float32Array()".
+    // if (args.Length() != 1)
+    //   return ThrowError("Wrong number of arguments.");
 
     v8::Local<v8::Object> buffer;
-    int num_elements = 0;
+    unsigned int length = 0;
+    unsigned int byte_offset = 0;
 
-    if (args[0]->IsObject()) {
-      if (!args[0]->IsArray())
-        return ThrowError("Sequence must be an Array.");
+    if (ArrayBuffer::HasInstance(args[0])) {  // ArrayBuffer constructor.
+      buffer = v8::Local<v8::Object>::Cast(args[0]);
+      unsigned int buflen =
+          buffer->GetIndexedPropertiesExternalArrayDataLength();
 
-      v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[0]);
-      uint32_t il = arr->Length();
+      if (args[1]->Int32Value() < 0)
+        return ThrowRangeError("Byte offset out of range.");
+      byte_offset = args[1]->Uint32Value();
 
-      // TODO(deanm): Handle integer overflow.
-      v8::Handle<v8::Value> argv[1] = {
-          v8::Integer::NewFromUnsigned(il * TBytes)};
+      if (!checkAlignment(byte_offset, TBytes))
+        return ThrowRangeError("Byte offset is not aligned.");
 
-      buffer = ArrayBuffer::GetTemplate()->
-                 GetFunction()->NewInstance(1, argv);
-      void* buf = buffer->GetPointerFromInternalField(0);
-      num_elements = il;  // TODO(deanm): signedness mismatch.
-      args.This()->SetIndexedPropertiesToExternalArrayData(
-          buf, TEAType, num_elements);
-      // TODO(deanm): check for failure.
-      for (uint32_t i = 0; i < il; ++i) {
-        // Use the v8 setter to deal with typing.  Maybe slow?
-        args.This()->Set(i, arr->Get(i));
+      if (args.Length() > 2) {
+        if (args[2]->Int32Value() < 0)
+          return ThrowRangeError("Length out of range.");
+        length = args[2]->Uint32Value();
+      } else {
+        if (buflen < byte_offset ||
+            !checkAlignment(buflen - byte_offset, TBytes)) {
+          return ThrowRangeError("Byte offset / length is not aligned.");
+        }
+        length = (buflen - byte_offset) / TBytes;
       }
-    } else {
-      num_elements = args[0]->Uint32Value();
+
+      // TODO(deanm): Check for integer overflow.
+      if (byte_offset + length * TBytes > buflen)
+        return ThrowRangeError("Length is out of range.");
+
+      // TODO(deanm): Error check.
+      void* buf = buffer->GetPointerFromInternalField(0);
+      args.This()->SetIndexedPropertiesToExternalArrayData(
+          reinterpret_cast<char*>(buf) + byte_offset, TEAType, length);
+    } else if (args[0]->IsObject()) {  // TypedArray / type[] constructor.
+      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[0]);
+      length = obj->Get(v8::String::New("length"))->Uint32Value();
+
       // TODO(deanm): Handle integer overflow.
       v8::Handle<v8::Value> argv[1] = {
-          v8::Integer::NewFromUnsigned(num_elements * TBytes)};
+          v8::Integer::NewFromUnsigned(length * TBytes)};
+      buffer = ArrayBuffer::GetTemplate()->
+                 GetFunction()->NewInstance(1, argv);
+
+      void* buf = buffer->GetPointerFromInternalField(0);
+      args.This()->SetIndexedPropertiesToExternalArrayData(
+          buf, TEAType, length);
+      // TODO(deanm): check for failure.
+      for (uint32_t i = 0; i < length; ++i) {
+        // Use the v8 setter to deal with typing.  Maybe slow?
+        args.This()->Set(i, obj->Get(i));
+      }
+    } else {  // length constructor.
+      // Try to match Chrome, Float32Array(""), Float32Array(true/false) is
+      // okay, but Float32Array(null) throws a TypeError and
+      // Float32Array(undefined) throw a RangeError.
+      if (args.Length() > 0 && (args[0]->IsUndefined() || args[0]->IsNull()))
+        return ThrowTypeError("Type error");
+
+      if (args[0]->Int32Value() < 0) {
+        return ThrowRangeError("ArrayBufferView size is not a small enough "
+                               "positive integer.");
+      }
+
+      length = args[0]->Uint32Value();
+      // TODO(deanm): Handle integer overflow.
+      v8::Handle<v8::Value> argv[1] = {
+          v8::Integer::NewFromUnsigned(length * TBytes)};
 
       buffer = ArrayBuffer::GetTemplate()->
                  GetFunction()->NewInstance(1, argv);
       void* buf = buffer->GetPointerFromInternalField(0);
 
       args.This()->SetIndexedPropertiesToExternalArrayData(
-          buf, TEAType, num_elements);
+          buf, TEAType, length);
       // TODO(deanm): check for failure.
     }
 
@@ -186,13 +241,13 @@ class TypedArray {
                      buffer,
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
     args.This()->Set(v8::String::New("length"),
-                     v8::Integer::New(num_elements),
+                     v8::Integer::NewFromUnsigned(length),
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
     args.This()->Set(v8::String::New("byteOffset"),
-                     v8::Integer::New(0),
+                     v8::Integer::NewFromUnsigned(byte_offset),
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
     args.This()->Set(v8::String::New("byteLength"),
-                     v8::Integer::NewFromUnsigned(num_elements * TBytes),
+                     v8::Integer::NewFromUnsigned(length * TBytes),
                      (v8::PropertyAttribute)(v8::ReadOnly|v8::DontDelete));
 
     return args.This();
