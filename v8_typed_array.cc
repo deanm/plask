@@ -149,6 +149,7 @@ class TypedArray {
 
     static BatchedMethods methods[] = {
       { "set", &TypedArray<TBytes, TEAType>::set },
+      { "subarray", &TypedArray<TBytes, TEAType>::subarray },
     };
 
     for (size_t i = 0; i < sizeof(methods) / sizeof(*methods); ++i) {
@@ -199,9 +200,11 @@ class TypedArray {
         length = (buflen - byte_offset) / TBytes;
       }
 
-      // TODO(deanm): Check for integer overflow.
-      if (byte_offset + length * TBytes > buflen)
+      // NOTE(deanm): Sloppy integer overflow checks.
+      if (byte_offset > buflen || byte_offset + length > buflen ||
+          byte_offset + length * TBytes > buflen) {
         return ThrowRangeError("Length is out of range.");
+      }
 
       // TODO(deanm): Error check.
       void* buf = buffer->GetPointerFromInternalField(0);
@@ -333,6 +336,41 @@ class TypedArray {
     }
 
     return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> subarray(const v8::Arguments& args) {
+    // TODO(deanm): The unsigned / signed type mixing makes me super nervous.
+
+    unsigned int length =
+        args.This()->Get(v8::String::New("length"))->Uint32Value();
+    int begin = args[0]->Int32Value();
+    int end = length;
+    if (args.Length() > 1)
+      end = args[1]->Int32Value();
+
+    printf("begin end %d %d\n", begin, end);
+
+    if (begin < 0) begin = length + begin;
+    if (begin < 0) begin = 0;
+    if (begin > length) begin = length;
+
+    if (end < 0) end = length + end;
+    if (end < 0) end = 0;
+    if (end > length) end = length;
+
+    if (begin > end) begin = end;
+    printf("begin end %d %d\n", begin, end);
+
+    int byte_offset = begin * TBytes +
+        args.This()->Get(v8::String::New("byteOffset"))->Uint32Value();
+
+    // Call through to the ArrayBuffer, byteOffset, length constructor.
+    v8::Handle<v8::Value> argv[] = {
+        args.This()->Get(v8::String::New("buffer")),
+        v8::Integer::New(byte_offset),
+        v8::Integer::New(end - begin)};
+    return TypedArray<TBytes, TEAType>::GetTemplate()->
+        GetFunction()->NewInstance(3, argv);
   }
 };
 
