@@ -102,6 +102,16 @@ MidiSource.prototype.noteOff = function(chan, note, vel) {
   return this.sendData([0x80 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
 };
 
+// Pitch wheel takes a value between -1 .. 1, and will be mapped to 14-bit midi.
+MidiSource.prototype.pitchWheel = function(chan, val) {
+  var bits = clamp((val * 0.5 + 0.5) * 16384, 0, 16383);  // Not perfect at +1.
+  return this.sendData([0xe0 | (chan & 0xf), bits & 0x7f, (bits >> 7) & 0x7f]);
+};
+
+MidiSource.prototype.controller = function(chan, con, val) {
+  return this.sendData([0xb0 | (chan & 0xf), con & 0x7f, val & 0x7f]);
+};
+
 function MidiDestination(name) {
   name = name === undefined ? 'Plask' : name;
   this.cadest_ = new PlaskRawMac.CAMIDIDestination(name);
@@ -109,6 +119,10 @@ function MidiDestination(name) {
 
 MidiDestination.prototype.syncClocks = function() {
   return this.cadest_.syncClocks();
+};
+
+MidiDestination.prototype.setDgramPath = function(path) {
+  return this.cadest_.setDgramPath(path);
 };
 
 exports.MidiSource = MidiSource;
