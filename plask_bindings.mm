@@ -787,6 +787,7 @@ class NSOpenGLContextWrapper {
       // Plask-specific, not in WebGL.  From ARB_draw_buffers.
       { "drawBuffers", &NSOpenGLContextWrapper::drawBuffers },
       { "blitFramebuffer", &NSOpenGLContextWrapper::blitFramebuffer },
+      { "drawSkCanvas", &NSOpenGLContextWrapper::drawSkCanvas },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2188,8 +2189,9 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // NOTE: texImage2DSkCanvasB implemented below (SkCanvasWrapper dependency).
+  // NOTE: implemented outside of class definition (SkCanvasWrapper dependency).
   static v8::Handle<v8::Value> texImage2DSkCanvasB(const v8::Arguments& args);
+  static v8::Handle<v8::Value> drawSkCanvas(const v8::Arguments& args);
 
   // void texParameterf(GLenum target, GLenum pname, GLfloat param)
   static v8::Handle<v8::Value> texParameterf(const v8::Arguments& args) {
@@ -4266,6 +4268,25 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvasB(
                bitmap.width(),
                bitmap.height(),
                0,
+               GL_BGRA,  // We have to swizzle, so this technically isn't ES.
+               GL_UNSIGNED_INT_8_8_8_8_REV,
+               bitmap.getPixels());
+  return v8::Undefined();
+}
+
+v8::Handle<v8::Value> NSOpenGLContextWrapper::drawSkCanvas(
+    const v8::Arguments& args) {
+  if (args.Length() != 1)
+    return v8_utils::ThrowError("Wrong number of arguments.");
+
+  if (!args[0]->IsObject() && !SkCanvasWrapper::HasInstance(args[0]))
+    return v8_utils::ThrowError("Expected image to be an SkCanvas instance.");
+
+  SkCanvas* canvas = SkCanvasWrapper::ExtractPointer(
+      v8::Handle<v8::Object>::Cast(args[0]));
+  const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
+  glDrawPixels(bitmap.width(),
+               bitmap.height(),
                GL_BGRA,  // We have to swizzle, so this technically isn't ES.
                GL_UNSIGNED_INT_8_8_8_8_REV,
                bitmap.getPixels());
