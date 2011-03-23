@@ -50,6 +50,8 @@
 #include "third_party/skia/include/utils/SkParsePath.h"
 #include "third_party/skia/include/effects/SkGradientShader.h"
 
+#import <Syphon/Syphon.h>
+
 template <typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
 
@@ -171,6 +173,94 @@ class WebGLActiveInfo {
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
     return args.This();
+  }
+};
+
+
+class SyphonServerWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&SyphonServerWrapper::V8New));
+    ft_cache->SetClassName(v8::String::New("SyphonServer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // SyphonServer
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "kValue", 12 },
+    };
+
+    static BatchedMethods methods[] = {
+      { "publishFrameTexture", &SyphonServerWrapper::publishFrameTexture },
+      { "bindToDrawFrameOfSize", &SyphonServerWrapper::bindToDrawFrameOfSize },
+      { "unbindAndPublish", &SyphonServerWrapper::unbindAndPublish },
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      ft_cache->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static SyphonServer* ExtractSyphonServerPointer(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<SyphonServer*>(obj->GetPointerFromInternalField(0));
+  }
+
+  static v8::Handle<v8::Value> NewFromSyphonServer(SyphonServer* server) {
+    v8::Local<v8::Object> obj = SyphonServerWrapper::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetPointerInInternalField(0, server);
+    return obj;
+  }
+
+ private:
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    return args.This();
+  }
+
+  static v8::Handle<v8::Value> publishFrameTexture(const v8::Arguments& args) {
+    if (args.Length() != 9)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> bindToDrawFrameOfSize(
+      const v8::Arguments& args) {
+    if (args.Length() != 2)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    BOOL res = [server bindToDrawFrameOfSize:NSMakeSize(args[0]->Int32Value(),
+                                                        args[1]->Int32Value())];
+    return v8::Boolean::New(res);
+  }
+
+  static v8::Handle<v8::Value> unbindAndPublish(const v8::Arguments& args) {
+    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    [server unbindAndPublish];
+    return v8::Undefined();
   }
 };
 
@@ -788,6 +878,8 @@ class NSOpenGLContextWrapper {
       { "drawBuffers", &NSOpenGLContextWrapper::drawBuffers },
       { "blitFramebuffer", &NSOpenGLContextWrapper::blitFramebuffer },
       { "drawSkCanvas", &NSOpenGLContextWrapper::drawSkCanvas },
+      // Syphon.
+      { "createSyphonServer", &NSOpenGLContextWrapper::createSyphonServer },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -821,6 +913,19 @@ class NSOpenGLContextWrapper {
     NSOpenGLContext* context = ExtractContextPointer(args.This());
     [context makeCurrentContext];
     return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> createSyphonServer(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    v8::String::Utf8Value name(args[0]->ToString());
+    SyphonServer* server = [[SyphonServer alloc]
+        initWithName:[NSString stringWithUTF8String:*name]
+        context:reinterpret_cast<CGLContextObj>([context CGLContextObj])
+        options:nil];
+    return SyphonServerWrapper::NewFromSyphonServer(server);
   }
 
   // aka vsync.
