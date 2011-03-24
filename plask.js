@@ -21,6 +21,7 @@
 
 var sys = require('sys');
 var events = require('events');
+var dgram = require('dgram');
 var inherits = sys.inherits;
 
 exports.SkPath = PlaskRawMac.SkPath;
@@ -112,9 +113,11 @@ MidiSource.prototype.controller = function(chan, con, val) {
   return this.sendData([0xb0 | (chan & 0xf), con & 0x7f, val & 0x7f]);
 };
 
+// Depricated, use MidiIn.
 function MidiDestination(name) {
   name = name === undefined ? 'Plask' : name;
-  this.cadest_ = new PlaskRawMac.CAMIDIDestination(name);
+  this.cadest_ = new PlaskRawMac.CAMIDIDestination();
+  this.cadest_.createVirtual(name);
 }
 
 MidiDestination.prototype.syncClocks = function() {
@@ -127,6 +130,58 @@ MidiDestination.prototype.setDgramPath = function(path) {
 
 exports.MidiSource = MidiSource;
 exports.MidiDestination = MidiDestination;
+
+exports.MidiIn = PlaskRawMac.CAMIDIDestination;
+exports.MidiOut = PlaskRawMac.CAMIDISource;
+
+inherits(PlaskRawMac.CAMIDIDestination, events.EventEmitter);
+
+PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
+  if (this._dgram_initialized !== true) {
+    var path = '/tmp/plask_internal_midi_socket_' +
+               process.pid + '_' + Date.now();
+    var sock = dgram.createSocket('unix_dgram');
+    sock.bind(path);
+    var this_ = this;
+    sock.on('message', function(msg, rinfo) {
+      if (msg.length < 1) {
+        console.log('Received zero length midi message.');
+        return;
+      }
+      
+      if ((msg[0] & 0x80) !== 0x80) {
+        console.log('First MIDI byte not a status byte.');
+        return;
+      }
+
+      // NOTE(deanm): We expect MIDI packets are the correct length, for
+      // example 3 bytes for note on and off.  Instead of error checking, we'll
+      // get undefined from msg[] if the message is shorter, maybe should
+      // handle this better, but loads of length checking is annoying.
+      switch (msg[0] & 0xf0) {
+        case 0x90:  // Note on.
+          this_.emit('noteOn', {type:'noteOn',
+                                chan: msg[0] & 0x0f,
+                                note: msg[1],
+                                vel: msg[2]});
+          break;
+        case 0x80:  // Note off.
+          this_.emit('noteOff', {type:'noteOff',
+                                chan: msg[0] & 0x0f,
+                                note: msg[1],
+                                vel: msg[2]});
+          break;
+        default:
+          console.log('Unhandled MIDI status byte: 0x' + msg[0].toString(16));
+          break;
+      }
+    });
+    this.setDgramPath(path);
+    this._dgram_initialized = true;
+  }
+
+  events.EventEmitter.prototype.on.call(this, evname, callback);
+};
 
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
