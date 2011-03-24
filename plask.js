@@ -444,7 +444,7 @@ exports.Window = function(width, height, opts) {
 inherits(exports.Window, events.EventEmitter);
 
 exports.simpleWindow = function(obj) {
-  var wintype = obj.type === '3d' ? '3d' : '2d';
+  var wintype = (obj.type === '3d' || obj.type === '3d2d') ? '3d' : '2d';
   var width = obj.width === undefined ? 400 : obj.width;
   var height = obj.height === undefined ? 300 : obj.height;
 
@@ -475,13 +475,22 @@ exports.simpleWindow = function(obj) {
     return window_.getRelativeMouseState();
   };
 
+  var canvas = null;  // Protected from getting clobbered on obj.
+
   if (wintype === '3d') {
-    obj.gl = gl_;
     if (obj.vsync === true)
       gl_.setSwapInterval(1);
+    if (obj.type === '3d') {  // Don't expose gl for 3d2d windows.
+      obj.gl = gl_;
+    } else {  // Create a canvas and paint for 3d2d windows.
+      obj.paint = new exports.SkPaint;
+      canvas = new exports.SkCanvas(width, height);  // Offscreen.
+      obj.canvas = canvas;
+    }
   } else {
     obj.paint = new exports.SkPaint;
-    obj.canvas = window_.makeWindowBackedCanvas();
+    canvas = window_.makeWindowBackedCanvas();
+    obj.canvas = canvas;
   }
 
   var framerate_handle = null;
@@ -546,6 +555,9 @@ exports.simpleWindow = function(obj) {
                   ex + '\n' + ex.stack);
       }
       frameid++;
+    }
+    if (gl_ !== undefined && canvas !== null) {  // 3d2d
+      gl_.drawSkCanvas(canvas);
     }
     window_.blit();  // Update the screen automatically.
   };
