@@ -527,6 +527,9 @@ exports.simpleWindow = function(obj) {
   }
 
   var draw = null;
+  var frameid = 0;
+  var frame_start_time = Date.now();
+
   if ('draw' in obj)
     draw = obj.draw;
 
@@ -534,12 +537,15 @@ exports.simpleWindow = function(obj) {
     if (gl_ !== undefined)
       gl_.makeCurrentContext();
     if (draw !== null) {
+      obj.frameid = frameid;
+      obj.frametime = (Date.now() - frame_start_time) / 1000;  // Secs.
       try {
         obj.draw();
       } catch (ex) {
         sys.error('Exception caught in simpleWindow draw:\n' +
                   ex + '\n' + ex.stack);
       }
+      frameid++;
     }
     window_.blit();  // Update the screen automatically.
   };
