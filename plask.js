@@ -472,6 +472,8 @@ exports.simpleWindow = function(obj) {
   var width = settings.width === undefined ? 400 : settings.width;
   var height = settings.height === undefined ? 300 : settings.height;
 
+  var syphon_server = null;
+
   // TODO(deanm): Fullscreen.
   var window_ = new exports.Window(
       width, height, {type: wintype,
@@ -520,6 +522,9 @@ exports.simpleWindow = function(obj) {
       obj.paint = new exports.SkPaint;
       canvas = new exports.SkCanvas(width, height);  // Offscreen.
       obj.canvas = canvas;
+    }
+    if (obj.syphon_server !== undefined) {
+      syphon_server = gl_.createSyphonServer(obj.syphon_server);
     }
   } else {
     obj.paint = new exports.SkPaint;
@@ -591,6 +596,15 @@ exports.simpleWindow = function(obj) {
       frameid++;
     }
     if (gl_ !== undefined && canvas !== null) {  // 3d2d
+      if (syphon_server !== null) {  // Blit to Syphon.
+        if (syphon_server.bindToDrawFrameOfSize(width, height) === true) {
+          gl_.drawSkCanvas(canvas);
+          syphon_server.unbindAndPublish();
+        } else {
+          console.log('Error blitting for Syphon.');
+        }
+      }
+      // Blit to the screen OpenGL context.
       gl_.drawSkCanvas(canvas);
     }
     window_.blit();  // Update the screen automatically.
