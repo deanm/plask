@@ -444,31 +444,36 @@ exports.Window = function(width, height, opts) {
 inherits(exports.Window, events.EventEmitter);
 
 exports.simpleWindow = function(obj) {
-  var wintype = (obj.type === '3d' || obj.type === '3d2d') ? '3d' : '2d';
-  var width = obj.width === undefined ? 400 : obj.width;
-  var height = obj.height === undefined ? 300 : obj.height;
+  // NOTE(deanm): Moving to a settings object to reduce the pollution of the
+  // main simpleWindow object.  For now fall back for compat.
+  var settings = settings === undefined ? obj : settings;
+
+  var wintype = (settings.type === '3d' || settings.type === '3d2d') ? '3d' :
+                                                                       '2d';
+  var width = settings.width === undefined ? 400 : settings.width;
+  var height = settings.height === undefined ? 300 : settings.height;
 
   // TODO(deanm): Fullscreen.
   var window_ = new exports.Window(
       width, height, {type: wintype,
-                      multisample: obj.multisample === true,
-                      display: obj.display,
-                      fullscreen: obj.fullscreen});
-  if (obj.center === true) window_.center();
+                      multisample: settings.multisample === true,
+                      display: settings.display,
+                      fullscreen: settings.fullscreen});
+  if (settings.center !== false) window_.center();
 
   var gl_ = window_.context;
 
-  obj.window = window_;
+  // obj.window = window_;
   obj.width = width;
   obj.height = height;
 
-  if (obj.title !== undefined)
-    window_.setTitle(obj.title);
+  if (settings.title !== undefined)
+    window_.setTitle(settings.title);
 
-  if (obj.position !== undefined)
-    window_.setFrameTopLeftPoint(obj.position.x, obj.position.y);
+  if (settings.position !== undefined)
+    window_.setFrameTopLeftPoint(settings.position.x, settings.position.y);
 
-  if (obj.cursor === false)
+  if (settings.cursor === false)
     window_.hideCursor();
 
   obj.getRelativeMouseState = function() {
@@ -478,9 +483,9 @@ exports.simpleWindow = function(obj) {
   var canvas = null;  // Protected from getting clobbered on obj.
 
   if (wintype === '3d') {
-    if (obj.vsync === true)
+    if (settings.vsync === true)
       gl_.setSwapInterval(1);
-    if (obj.type === '3d') {  // Don't expose gl for 3d2d windows.
+    if (settings.type === '3d') {  // Don't expose gl for 3d2d windows.
       obj.gl = gl_;
     } else {  // Create a canvas and paint for 3d2d windows.
       obj.paint = new exports.SkPaint;
