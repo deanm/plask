@@ -596,7 +596,8 @@ exports.simpleWindow = function(obj) {
       frameid++;
     }
     if (gl_ !== undefined && canvas !== null) {  // 3d2d
-      if (syphon_server !== null) {  // Blit to Syphon.
+      // Blit to Syphon.
+      if (syphon_server !== null && syphon_server.hasClients() === true) {
         if (syphon_server.bindToDrawFrameOfSize(width, height) === true) {
           gl_.drawSkCanvas(canvas);
           syphon_server.unbindAndPublish();
