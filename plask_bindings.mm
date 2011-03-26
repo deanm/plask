@@ -202,6 +202,7 @@ class SyphonServerWrapper {
       { "publishFrameTexture", &SyphonServerWrapper::publishFrameTexture },
       { "bindToDrawFrameOfSize", &SyphonServerWrapper::bindToDrawFrameOfSize },
       { "unbindAndPublish", &SyphonServerWrapper::unbindAndPublish },
+      { "hasClients", &SyphonServerWrapper::hasClients },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -244,6 +245,17 @@ class SyphonServerWrapper {
   static v8::Handle<v8::Value> publishFrameTexture(const v8::Arguments& args) {
     if (args.Length() != 9)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    [server publishFrameTexture:args[0]->Uint32Value()
+            textureTarget:args[1]->Uint32Value()
+            imageRegion:NSMakeRect(args[2]->Int32Value(),
+                                   args[3]->Int32Value(),
+                                   args[4]->Int32Value(),
+                                   args[5]->Int32Value())
+            textureDimensions:NSMakeSize(args[6]->Int32Value(),
+                                         args[7]->Int32Value())
+            flipped:args[8]->BooleanValue()];
     return v8::Undefined();
   }
 
@@ -261,6 +273,11 @@ class SyphonServerWrapper {
     SyphonServer* server = ExtractSyphonServerPointer(args.This());
     [server unbindAndPublish];
     return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> hasClients(const v8::Arguments& args) {
+    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    return v8::Boolean::New([server hasClients]);
   }
 };
 
