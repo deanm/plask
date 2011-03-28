@@ -470,6 +470,8 @@ exports.simpleWindow = function(obj) {
   if (settings.title !== undefined)
     window_.setTitle(settings.title);
 
+  obj.setTitle = function(title) { window_.setTitle(title); };
+
   if (settings.position !== undefined)
     window_.setFrameTopLeftPoint(settings.position.x, settings.position.y);
 
