@@ -3622,6 +3622,7 @@ class SkCanvasWrapper {
       { "drawPaint", &SkCanvasWrapper::drawPaint },
       { "drawCanvas", &SkCanvasWrapper::drawCanvas },
       { "drawColor", &SkCanvasWrapper::drawColor },
+      { "eraseColor", &SkCanvasWrapper::eraseColor },
       { "drawPath", &SkCanvasWrapper::drawPath },
       { "drawPoints", &SkCanvasWrapper::drawPoints },
       { "drawRect", &SkCanvasWrapper::drawRect },
@@ -3878,6 +3879,18 @@ class SkCanvasWrapper {
     int m = v8_utils::ToInt32WithDefault(args[4], SkXfermode::kSrcOver_Mode);
 
     canvas->drawARGB(a, r, g, b, static_cast<SkXfermode::Mode>(m));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> eraseColor(const v8::Arguments& args) {
+    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+
+    int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
+    int g = Clamp(v8_utils::ToInt32WithDefault(args[1], 0), 0, 255);
+    int b = Clamp(v8_utils::ToInt32WithDefault(args[2], 0), 0, 255);
+    int a = Clamp(v8_utils::ToInt32WithDefault(args[3], 255), 0, 255);
+
+    canvas->getDevice()->eraseColor(SkColorSetARGB(a, r, g, b));
     return v8::Undefined();
   }
 
