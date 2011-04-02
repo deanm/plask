@@ -2672,6 +2672,8 @@ class NSWindowWrapper {
       { "center", &NSWindowWrapper::center },
       { "hideCursor", &NSWindowWrapper::hideCursor },
       { "showCursor", &NSWindowWrapper::showCursor },
+      { "hide", &NSWindowWrapper::hide },
+      { "show", &NSWindowWrapper::show },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2901,6 +2903,32 @@ class NSWindowWrapper {
 
   static v8::Handle<v8::Value> showCursor(const v8::Arguments& args) {
     CGDisplayShowCursor(kCGDirectMainDisplay);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> hide(const v8::Arguments& args) {
+    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    [window orderOut:nil];
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> show(const v8::Arguments& args) {
+    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    switch (args[0]->Uint32Value()) {
+      case 0:  // Also when no argument was passed.
+        [window makeKeyAndOrderFront:nil];
+        break;
+      case 1:
+        [window orderFront:nil];
+        break;
+      case 2:
+        [window orderBack:nil];
+        break;
+      default:
+        return v8_utils::ThrowError("Unknown argument to show().");
+        break;
+    }
+
     return v8::Undefined();
   }
 };
