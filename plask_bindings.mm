@@ -2674,6 +2674,7 @@ class NSWindowWrapper {
       { "showCursor", &NSWindowWrapper::showCursor },
       { "hide", &NSWindowWrapper::hide },
       { "show", &NSWindowWrapper::show },
+      { "screenSize", &NSWindowWrapper::screenSize },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -2931,6 +2932,16 @@ class NSWindowWrapper {
 
     return v8::Undefined();
   }
+
+  static v8::Handle<v8::Value> screenSize(const v8::Arguments& args) {
+    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    NSRect frame = [[window screen] frame];
+    v8::Local<v8::Object> res = v8::Object::New();
+    res->Set(v8::String::New("width"), v8::Number::New(frame.size.width));
+    res->Set(v8::String::New("height"), v8::Number::New(frame.size.height));
+    return res;
+  }
+
 };
 
 
