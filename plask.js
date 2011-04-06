@@ -54,6 +54,11 @@ function lerp(a, b, t) {
   return a + (b-a)*t;
 }
 
+// Test if |num| is a floating point -0.
+function isNegZero(num) {
+  return 1/num === -Infinity;
+}
+
 PlaskRawMac.NSOpenGLContext.prototype.vertexAttrib1fv = function(idx, seq) {
   this.vertexAttrib1f(idx, seq[0]);
 };
@@ -248,6 +253,10 @@ exports.Window = function(width, height, opts) {
 
   this.setFrameTopLeftPoint = function(x, y) {
     return nswindow_.setFrameTopLeftPoint(x, y);
+  };
+
+  this.screenSize = function() {
+    return nswindow_.screenSize();
   };
 
   this.hideCursor = function() {
@@ -459,7 +468,19 @@ exports.simpleWindow = function(obj) {
                       multisample: settings.multisample === true,
                       display: settings.display,
                       fullscreen: settings.fullscreen});
-  if (settings.center !== false) window_.center();
+
+  if (settings.position !== undefined) {
+    var position_x = settings.position.x;
+    var position_y = settings.position.y;
+    if (position_y < 0 || isNegZero(position_y))
+      position_y = window_.screenSize().height + position_y;
+    if (position_x < 0 || isNegZero(position_x))
+      position_x = window_.screenSize().width + position_x;
+    console.log(position_y);
+    window_.setFrameTopLeftPoint(position_x, position_y);
+  } else if (settings.center !== false) {
+    window_.center();
+  }
 
   var gl_ = window_.context;
 
@@ -471,9 +492,6 @@ exports.simpleWindow = function(obj) {
     window_.setTitle(settings.title);
 
   obj.setTitle = function(title) { window_.setTitle(title); };
-
-  if (settings.position !== undefined)
-    window_.setFrameTopLeftPoint(settings.position.x, settings.position.y);
 
   if (settings.cursor === false)
     window_.hideCursor();
