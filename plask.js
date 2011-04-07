@@ -91,9 +91,11 @@ PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvasNoFlip = function() {
   return this.texImage2DSkCanvasB.apply(this, arguments);
 };
 
+// Depricated, use MidiOut.
 function MidiSource(name) {
   name = name === undefined ? 'Plask' : name;
-  this.casource_ = new PlaskRawMac.CAMIDISource(name);
+  this.casource_ = new PlaskRawMac.CAMIDISource();
+  this.casource_.createVirtual(name);
 }
 
 MidiSource.prototype.sendData = function(bytes) {

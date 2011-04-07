@@ -4359,6 +4359,131 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::drawSkCanvas(
 // TODO(deanm): Global MIDIClientCreate, lazily initialized, ever torn down?
 MIDIClientRef g_midi_client = NULL;
 
+// This function was submitted by Douglas Casey Tucker and apparently
+// derived largely from PortMidi.  (From RtMidi).
+static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal )
+{
+  CFMutableStringRef result = CFStringCreateMutable( NULL, 0 );
+  CFStringRef str;
+
+  // Begin with the endpoint's name.
+  str = NULL;
+  MIDIObjectGetStringProperty( endpoint, kMIDIPropertyName, &str );
+  if ( str != NULL ) {
+    CFStringAppend( result, str );
+    CFRelease( str );
+  }
+
+  MIDIEntityRef entity = NULL;
+  MIDIEndpointGetEntity( endpoint, &entity );
+  if ( entity == NULL )
+    // probably virtual
+    return result;
+
+  if ( CFStringGetLength( result ) == 0 ) {
+    // endpoint name has zero length -- try the entity
+    str = NULL;
+    MIDIObjectGetStringProperty( entity, kMIDIPropertyName, &str );
+    if ( str != NULL ) {
+      CFStringAppend( result, str );
+      CFRelease( str );
+    }
+  }
+  // now consider the device's name
+  MIDIDeviceRef device = NULL;
+  MIDIEntityGetDevice( entity, &device );
+  if ( device == NULL )
+    return result;
+
+  str = NULL;
+  MIDIObjectGetStringProperty( device, kMIDIPropertyName, &str );
+  if ( CFStringGetLength( result ) == 0 ) {
+      CFRelease( result );
+      return str;
+  }
+  if ( str != NULL ) {
+    // if an external device has only one entity, throw away
+    // the endpoint name and just use the device name
+    if ( isExternal && MIDIDeviceGetNumberOfEntities( device ) < 2 ) {
+      CFRelease( result );
+      return str;
+    } else {
+      if ( CFStringGetLength( str ) == 0 ) {
+        CFRelease( str );
+        return result;
+      }
+      // does the entity name already start with the device name?
+      // (some drivers do this though they shouldn't)
+      // if so, do not prepend
+        if ( CFStringCompareWithOptions( result, /* endpoint name */
+             str /* device name */,
+             CFRangeMake(0, CFStringGetLength( str ) ), 0 ) != kCFCompareEqualTo ) {
+        // prepend the device name to the entity name
+        if ( CFStringGetLength( result ) > 0 )
+          CFStringInsert( result, 0, CFSTR(" ") );
+        CFStringInsert( result, 0, str );
+      }
+      CFRelease( str );
+    }
+  }
+  return result;
+}
+
+// This function was submitted by Douglas Casey Tucker and apparently
+// derived largely from PortMidi.  (From RtMidi).
+static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
+{
+  CFMutableStringRef result = CFStringCreateMutable( NULL, 0 );
+  CFStringRef str;
+  OSStatus err;
+  int i;
+
+  // Does the endpoint have connections?
+  CFDataRef connections = NULL;
+  int nConnected = 0;
+  bool anyStrings = false;
+  err = MIDIObjectGetDataProperty( endpoint, kMIDIPropertyConnectionUniqueID, &connections );
+  if ( connections != NULL ) {
+    // It has connections, follow them
+    // Concatenate the names of all connected devices
+    nConnected = CFDataGetLength( connections ) / sizeof(MIDIUniqueID);
+    if ( nConnected ) {
+      const SInt32 *pid = (const SInt32 *)(CFDataGetBytePtr(connections));
+      for ( i=0; i<nConnected; ++i, ++pid ) {
+        MIDIUniqueID id = EndianS32_BtoN( *pid );
+        MIDIObjectRef connObject;
+        MIDIObjectType connObjectType;
+        err = MIDIObjectFindByUniqueID( id, &connObject, &connObjectType );
+        if ( err == noErr ) {
+          if ( connObjectType == kMIDIObjectType_ExternalSource  ||
+              connObjectType == kMIDIObjectType_ExternalDestination ) {
+            // Connected to an external device's endpoint (10.3 and later).
+            str = EndpointName( (MIDIEndpointRef)(connObject), true );
+          } else {
+            // Connected to an external device (10.2) (or something else, catch-
+            str = NULL;
+            MIDIObjectGetStringProperty( connObject, kMIDIPropertyName, &str );
+          }
+          if ( str != NULL ) {
+            if ( anyStrings )
+              CFStringAppend( result, CFSTR(", ") );
+            else anyStrings = true;
+            CFStringAppend( result, str );
+            CFRelease( str );
+          }
+        }
+      }
+    }
+    CFRelease( connections );
+  }
+  if ( anyStrings )
+    return result;
+
+  // Here, either the endpoint had no connections, or we failed to obtain names
+  return EndpointName( endpoint, false );
+}
+  
+
 class CAMIDISourceWrapper {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
@@ -4370,7 +4495,7 @@ class CAMIDISourceWrapper {
     ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
         v8::FunctionTemplate::New(&CAMIDISourceWrapper::V8New));
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
-    instance->SetInternalFieldCount(1);  // MIDIEndpointRef.
+    instance->SetInternalFieldCount(2);  // MIDIEndpointRef and MIDIPortRef.
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
 
@@ -4380,6 +4505,9 @@ class CAMIDISourceWrapper {
     };
 
     static BatchedMethods methods[] = {
+      { "destinations", &CAMIDISourceWrapper::destinations },
+      { "openDestination", &CAMIDISourceWrapper::openDestination },
+      { "createVirtual", &CAMIDISourceWrapper::createVirtual },
       { "sendData", &CAMIDISourceWrapper::sendData },
     };
 
@@ -4398,11 +4526,13 @@ class CAMIDISourceWrapper {
     return ft_cache;
   }
 
-  // Can't use v8_utils::UnrwapCPointer because of LSB clear expectations.
-  static MIDIEndpointRef ExtractPointer(v8::Handle<v8::Object> obj) {
+  static MIDIEndpointRef ExtractEndpoint(v8::Handle<v8::Object> obj) {
     // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    return (MIDIEndpointRef)(intptr_t)v8::External::Unwrap(
-        obj->GetInternalField(0));
+    return (MIDIEndpointRef)(intptr_t)obj->GetPointerFromInternalField(0);
+  }
+
+  static MIDIPortRef ExtractPort(v8::Handle<v8::Object> obj) {
+    return (MIDIPortRef)(intptr_t)obj->GetPointerFromInternalField(1);
   }
 
   static bool HasInstance(v8::Handle<v8::Value> value) {
@@ -4428,7 +4558,13 @@ class CAMIDISourceWrapper {
     if (!args[0]->IsArray())
       return v8::Undefined();
 
-    MIDIEndpointRef src = ExtractPointer(args.This());
+    MIDIEndpointRef endpoint = ExtractEndpoint(args.This());
+
+    if (!endpoint) {
+      return v8_utils::ThrowError("Can't send on midi without an endpoint.");
+    }
+
+    MIDIPortRef port = ExtractPort(args.This());
     MIDITimeStamp timestamp = AudioGetCurrentHostTime();
     ByteCount pl_count;
     MIDIPacketList* pl = AllocateMIDIPacketList(1, &pl_count);
@@ -4446,7 +4582,9 @@ class CAMIDISourceWrapper {
 
     cur_packet = MIDIPacketListAdd(pl, pl_count, cur_packet,
                                    timestamp, data_len, data_buf);
-    OSStatus result = MIDIReceived(src, pl);
+    // Depending whether we are virtual we need to send differently.
+    OSStatus result = port ? MIDISend(port, endpoint, pl) :
+                             MIDIReceived(endpoint, pl);
     delete[] data_buf;
     FreeMIDIPacketList(pl);
 
@@ -4458,9 +4596,6 @@ class CAMIDISourceWrapper {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
-    if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
-
     OSStatus result;
 
     if (!g_midi_client) {
@@ -4469,6 +4604,17 @@ class CAMIDISourceWrapper {
         return v8_utils::ThrowError("Couldn't create midi client object.");
       }
     }
+
+    args.This()->SetPointerInInternalField(0, NULL);
+    args.This()->SetPointerInInternalField(1, NULL);
+    return args.This();
+  }
+
+  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {   
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    OSStatus result;
 
     v8::String::Utf8Value name_val(args[0]->ToString());
     CFStringRef name =
@@ -4482,10 +4628,50 @@ class CAMIDISourceWrapper {
     }
 
     // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    args.This()->SetInternalField(0, v8::External::Wrap(
-        (void*)(intptr_t)endpoint));
-    return args.This();
+    args.This()->SetPointerInInternalField(0, (void*)(intptr_t)endpoint);
+    args.This()->SetPointerInInternalField(1, NULL);
+    return v8::Undefined();
   }
+
+  static v8::Handle<v8::Value> openDestination(const v8::Arguments& args) {   
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    OSStatus result;
+
+    ItemCount num_destinations = MIDIGetNumberOfDestinations();
+    ItemCount index = args[0]->Uint32Value();
+    if (index >= num_destinations)
+      return v8_utils::ThrowError("Invalid MIDI destination index.");
+
+    MIDIEndpointRef destination = MIDIGetDestination(index);
+
+    MIDIPortRef port;
+    result = MIDIOutputPortCreate(
+        g_midi_client, CFSTR("Plask"), &port);
+    if (result != noErr)
+      return v8_utils::ThrowError("Couldn't create midi output port.");
+
+    args.This()->SetPointerInInternalField(0, (void*)(intptr_t)destination);
+    args.This()->SetPointerInInternalField(1, (void*)(intptr_t)port);
+
+    return v8::Undefined();
+    return v8::Undefined();
+  }
+
+  // NOTE(deanm): See API notes about sources(), same comments apply here.
+  static v8::Handle<v8::Value> destinations(const v8::Arguments& args) {   
+    ItemCount num_destinations = MIDIGetNumberOfDestinations();
+    v8::Local<v8::Array> arr = v8::Array::New(num_destinations);
+    for (ItemCount i = 0; i < num_destinations; ++i) {
+      MIDIEndpointRef point = MIDIGetDestination(i);
+      CFStringRef name = ConnectedEndpointName(point);
+      arr->Set(i, v8::String::New([(NSString*)name UTF8String]));
+      CFRelease(name);
+    }
+    return arr;
+  }
+
 };
 
 class CAMIDIDestinationWrapper {
@@ -4620,130 +4806,6 @@ class CAMIDIDestinationWrapper {
     return args.This();
   }
 
-  // This function was submitted by Douglas Casey Tucker and apparently
-  // derived largely from PortMidi.  (From RtMidi).
-  static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal )
-  {
-    CFMutableStringRef result = CFStringCreateMutable( NULL, 0 );
-    CFStringRef str;
-
-    // Begin with the endpoint's name.
-    str = NULL;
-    MIDIObjectGetStringProperty( endpoint, kMIDIPropertyName, &str );
-    if ( str != NULL ) {
-      CFStringAppend( result, str );
-      CFRelease( str );
-    }
-
-    MIDIEntityRef entity = NULL;
-    MIDIEndpointGetEntity( endpoint, &entity );
-    if ( entity == NULL )
-      // probably virtual
-      return result;
-
-    if ( CFStringGetLength( result ) == 0 ) {
-      // endpoint name has zero length -- try the entity
-      str = NULL;
-      MIDIObjectGetStringProperty( entity, kMIDIPropertyName, &str );
-      if ( str != NULL ) {
-        CFStringAppend( result, str );
-        CFRelease( str );
-      }
-    }
-    // now consider the device's name
-    MIDIDeviceRef device = NULL;
-    MIDIEntityGetDevice( entity, &device );
-    if ( device == NULL )
-      return result;
-
-    str = NULL;
-    MIDIObjectGetStringProperty( device, kMIDIPropertyName, &str );
-    if ( CFStringGetLength( result ) == 0 ) {
-        CFRelease( result );
-        return str;
-    }
-    if ( str != NULL ) {
-      // if an external device has only one entity, throw away
-      // the endpoint name and just use the device name
-      if ( isExternal && MIDIDeviceGetNumberOfEntities( device ) < 2 ) {
-        CFRelease( result );
-        return str;
-      } else {
-        if ( CFStringGetLength( str ) == 0 ) {
-          CFRelease( str );
-          return result;
-        }
-        // does the entity name already start with the device name?
-        // (some drivers do this though they shouldn't)
-        // if so, do not prepend
-          if ( CFStringCompareWithOptions( result, /* endpoint name */
-               str /* device name */,
-               CFRangeMake(0, CFStringGetLength( str ) ), 0 ) != kCFCompareEqualTo ) {
-          // prepend the device name to the entity name
-          if ( CFStringGetLength( result ) > 0 )
-            CFStringInsert( result, 0, CFSTR(" ") );
-          CFStringInsert( result, 0, str );
-        }
-        CFRelease( str );
-      }
-    }
-    return result;
-  }
-
-  // This function was submitted by Douglas Casey Tucker and apparently
-  // derived largely from PortMidi.  (From RtMidi).
-  static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
-  {
-    CFMutableStringRef result = CFStringCreateMutable( NULL, 0 );
-    CFStringRef str;
-    OSStatus err;
-    int i;
-
-    // Does the endpoint have connections?
-    CFDataRef connections = NULL;
-    int nConnected = 0;
-    bool anyStrings = false;
-    err = MIDIObjectGetDataProperty( endpoint, kMIDIPropertyConnectionUniqueID, &connections );
-    if ( connections != NULL ) {
-      // It has connections, follow them
-      // Concatenate the names of all connected devices
-      nConnected = CFDataGetLength( connections ) / sizeof(MIDIUniqueID);
-      if ( nConnected ) {
-        const SInt32 *pid = (const SInt32 *)(CFDataGetBytePtr(connections));
-        for ( i=0; i<nConnected; ++i, ++pid ) {
-          MIDIUniqueID id = EndianS32_BtoN( *pid );
-          MIDIObjectRef connObject;
-          MIDIObjectType connObjectType;
-          err = MIDIObjectFindByUniqueID( id, &connObject, &connObjectType );
-          if ( err == noErr ) {
-            if ( connObjectType == kMIDIObjectType_ExternalSource  ||
-                connObjectType == kMIDIObjectType_ExternalDestination ) {
-              // Connected to an external device's endpoint (10.3 and later).
-              str = EndpointName( (MIDIEndpointRef)(connObject), true );
-            } else {
-              // Connected to an external device (10.2) (or something else, catch-
-              str = NULL;
-              MIDIObjectGetStringProperty( connObject, kMIDIPropertyName, &str );
-            }
-            if ( str != NULL ) {
-              if ( anyStrings )
-                CFStringAppend( result, CFSTR(", ") );
-              else anyStrings = true;
-              CFStringAppend( result, str );
-              CFRelease( str );
-            }
-          }
-        }
-      }
-      CFRelease( connections );
-    }
-    if ( anyStrings )
-      return result;
-
-    // Here, either the endpoint had no connections, or we failed to obtain names
-    return EndpointName( endpoint, false );
-  }
-  
 
   static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {   
     if (args.Length() != 1)
