@@ -478,7 +478,6 @@ exports.simpleWindow = function(obj) {
       position_y = window_.screenSize().height + position_y;
     if (position_x < 0 || isNegZero(position_x))
       position_x = window_.screenSize().width + position_x;
-    console.log(position_y);
     window_.setFrameTopLeftPoint(position_x, position_y);
   } else if (settings.center !== false) {
     window_.center();
