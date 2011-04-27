@@ -3676,6 +3676,7 @@ class SkCanvasWrapper {
       { "save", &SkCanvasWrapper::save },
       { "restore", &SkCanvasWrapper::restore },
       { "writeImage", &SkCanvasWrapper::writeImage },
+      { "dispose", &SkCanvasWrapper::dispose },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3696,7 +3697,7 @@ class SkCanvasWrapper {
   }
 
   static SkCanvas* ExtractPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<SkCanvas>(obj->GetInternalField(0));
+    return reinterpret_cast<SkCanvas*>(obj->GetPointerFromInternalField(0));
   }
 
   static bool HasInstance(v8::Handle<v8::Value> value) {
@@ -3784,7 +3785,7 @@ class SkCanvasWrapper {
       return v8_utils::ThrowError("Improper SkCanvas constructor arguments.");
     }
 
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(canvas));
+    args.This()->SetPointerInInternalField(0, canvas);
     // Direct pixel access via array[] indexing.
     args.This()->SetIndexedPropertiesToPixelData(
         reinterpret_cast<uint8_t*>(bitmap->getPixels()), bitmap->getSize());
@@ -4153,6 +4154,17 @@ class SkCanvasWrapper {
     if (!saved)
       return v8_utils::ThrowError("Failed to save png.");
 
+    return v8::Undefined();
+  }
+
+  // Delete the backing SkCanvas object.  Skia reference counting should handle
+  // cleaning up deeper resources (for example the backing pixels).
+  // Calling functions on the SkCanvas object after dispose() will currently
+  // lead to a NULL pointer crash.
+  static v8::Handle<v8::Value> dispose(const v8::Arguments& args) {
+    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    delete canvas;
+    args.This()->SetPointerInInternalField(0, NULL);
     return v8::Undefined();
   }
 };
