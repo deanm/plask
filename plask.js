@@ -638,7 +638,7 @@ Vec4.prototype.toVec3 = function() {
   return new Vec3(this.x, this.y, this.z);
 };
 
-Vec2.prototype.debugString = function() {
+Vec4.prototype.debugString = function() {
   return 'x: ' + this.x + ' y: ' + this.y + ' z: ' + this.z + ' w: ';
 };
 
