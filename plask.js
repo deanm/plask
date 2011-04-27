@@ -746,11 +746,11 @@ Vec3.prototype.multed2 = function(a, b) {
 
 // Multiply by another Vec3, this = this * b.
 Vec3.prototype.mult = function(b) {
-  return this.mul2(this, b);
+  return this.mult2(this, b);
 };
 
 Vec3.prototype.multed = function(b) {
-  return this.dupMul2(this, b);
+  return this.multed2(this, b);
 };
 
 // Multiply by a scalar.
