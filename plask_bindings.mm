@@ -2231,8 +2231,35 @@ class NSOpenGLContextWrapper {
   // void texSubImage2D(GLenum target, GLint level,
   //                    GLint xoffset, GLint yoffset, 
   //                    GLenum format, GLenum type, HTMLVideoElement video)
+
   static v8::Handle<v8::Value> texSubImage2D(const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+    if (args.Length() != 9)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    GLvoid* data = NULL;
+
+    if (!args[8]->IsNull()) {
+      if (!args[8]->IsObject())
+        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
+
+      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[8]);
+      if (!obj->HasIndexedPropertiesInExternalArrayData())
+        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
+
+      // TODO(deanm): Check size / format.  For now just use it correctly.
+      data = obj->GetIndexedPropertiesExternalArrayData();
+    }
+
+    glTexSubImage2D(args[0]->Uint32Value(),  // target
+                    args[1]->Int32Value(),   // level
+                    args[2]->Int32Value(),   // xoffset
+                    args[3]->Int32Value(),   // yoffset
+                    args[4]->Int32Value(),   // width
+                    args[5]->Int32Value(),   // height
+                    args[6]->Uint32Value(),  // format
+                    args[7]->Uint32Value(),  // type
+                    data);                   // data
+    return v8::Undefined();
   }
 
   template<void uniformFuncT(GLint, GLsizei, const GLfloat*)>
