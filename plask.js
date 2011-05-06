@@ -601,6 +601,7 @@ exports.simpleWindow = function(obj) {
   return obj;
 };
 
+
 // A class representing a 3 dimensional point and/or vector.  There isn't a
 // good reason to differentiate between the two, and you often want to change
 // how you think about the same set of values.  So there is only "vector".
@@ -745,7 +746,6 @@ Vec3.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
-
 Vec3.prototype.dup = function() {
   return new Vec3(this.x, this.y, this.z);
 };
@@ -753,6 +753,7 @@ Vec3.prototype.dup = function() {
 Vec3.prototype.debugString = function() {
   return 'x: ' + this.x + ' y: ' + this.y + ' z: ' + this.z;
 };
+
 
 // Like a z-less Vec3, Vec2.
 function Vec2(x, y) {
@@ -865,7 +866,6 @@ Vec2.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
-
 Vec2.prototype.dup = function() {
   return new Vec2(this.x, this.y);
 };
@@ -873,6 +873,34 @@ Vec2.prototype.dup = function() {
 Vec2.prototype.debugString = function() {
   return 'x: ' + this.x + ' y: ' + this.y;
 };
+
+
+// TODO(deanm): Vec4 is currently a skeleton container, it should match the
+// features of Vec3.
+function Vec4(x, y, z, w) {
+  this.x = x; this.y = y; this.z = z; this.w = w;
+}
+
+Vec4.prototype.set = function(x, y, z, w) {
+  this.x = x; this.y = y; this.z = z; this.w = w;
+
+  return this;
+};
+
+Vec4.prototype.setVec4 = function(v) {
+  this.x = v.x; this.y = v.y; this.z = v.z; this.w = v.w;
+
+  return this;
+};
+
+Vec4.prototype.dup = function() {
+  return new Vec4(this.x, this.y, this.z, this.w);
+};
+
+Vec4.prototype.toVec3 = function() {
+  return new Vec3(this.x, this.y, this.z);
+};
+
 
 exports.kPI  = kPI;
 exports.kPI2 = kPI2;
@@ -886,3 +914,4 @@ exports.lerp = lerp;
 
 exports.Vec3 = Vec3;
 exports.Vec2 = Vec2;
+exports.Vec4 = Vec4;
