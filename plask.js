@@ -945,7 +945,7 @@ Mat4.prototype.reset = function() {
 };
 
 // Matrix multiply this = a * b
-Mat4.prototype.mult2 = function(a, b) {
+Mat4.prototype.mul2 = function(a, b) {
   var a11 = a.a11, a12 = a.a12, a13 = a.a13, a14 = a.a14,
       a21 = a.a21, a22 = a.a22, a23 = a.a23, a24 = a.a24,
       a31 = a.a31, a32 = a.a32, a33 = a.a33, a34 = a.a34,
@@ -976,16 +976,16 @@ Mat4.prototype.mult2 = function(a, b) {
 };
 
 // Matrix multiply this = this * b
-Mat4.prototype.mult = function(b) {
-  return this.mult2(this, b);
+Mat4.prototype.mul = function(b) {
+  return this.mul2(this, b);
 };
 
 // Multiply the current matrix by 16 elements that would compose a Mat4
 // object, but saving on creating the object.  this = this * b.
-// The elements are specific in row major order.  TODO(deanm): mult4x4c.
+// The elements are specific in row major order.  TODO(deanm): mul4x4c.
 // TODO(deanm): It's a shame to duplicate the multiplication code.
-Mat4.prototype.mult4x4r = function(b11, b12, b13, b14, b21, b22, b23, b24,
-                                   b31, b32, b33, b34, b41, b42, b43, b44) {
+Mat4.prototype.mul4x4r = function(b11, b12, b13, b14, b21, b22, b23, b24,
+                                  b31, b32, b33, b34, b41, b42, b43, b44) {
   var a11 = this.a11, a12 = this.a12, a13 = this.a13, a14 = this.a14,
       a21 = this.a21, a22 = this.a22, a23 = this.a23, a24 = this.a24,
       a31 = this.a31, a32 = this.a32, a33 = this.a33, a34 = this.a34,
@@ -1022,7 +1022,7 @@ Mat4.prototype.rotate = function(theta, x, y, z) {
   // http://www.cs.rutgers.edu/~decarlo/428/gl_man/rotate.html
   var s = Math.sin(theta);
   var c = Math.cos(theta);
-  this.mult4x4r(
+  this.mul4x4r(
       x*x*(1-c)+c, x*y*(1-c)-z*s, x*z*(1-c)+y*s, 0,
     y*x*(1-c)+z*s,   y*y*(1-c)+c, y*z*(1-c)-x*s, 0,
     x*z*(1-c)-y*s, y*z*(1-c)+x*s,   z*z*(1-c)+c, 0,
@@ -1034,10 +1034,10 @@ Mat4.prototype.rotate = function(theta, x, y, z) {
 // Multiply by a translation of x, y, and z.
 Mat4.prototype.translate = function(dx, dy, dz) {
   // TODO(deanm): Special case the multiply since most goes unchanged.
-  this.mult4x4r(1, 0, 0, dx,
-                0, 1, 0, dy,
-                0, 0, 1, dz,
-                0, 0, 0,  1);
+  this.mul4x4r(1, 0, 0, dx,
+               0, 1, 0, dy,
+               0, 0, 1, dz,
+               0, 0, 0,  1);
 
   return this;
 };
@@ -1045,10 +1045,10 @@ Mat4.prototype.translate = function(dx, dy, dz) {
 // Multiply by a scale of x, y, and z.
 Mat4.prototype.scale = function(sx, sy, sz) {
   // TODO(deanm): Special case the multiply since most goes unchanged.
-  this.mult4x4r(sx,  0,  0, 0,
-                 0, sy,  0, 0,
-                 0,  0, sz, 0,
-                 0,  0,  0, 1);
+  this.mul4x4r(sx,  0,  0, 0,
+                0, sy,  0, 0,
+                0,  0, sz, 0,
+                0,  0,  0, 1);
 
   return this;
 };
@@ -1060,10 +1060,10 @@ Mat4.prototype.lookAt = function(ex, ey, ez, cx, cy, cz, ux, uy, uz) {
   var y = z.dup().cross(x).normalize();
   // The new axis basis is formed as row vectors since we are transforming
   // the coordinate system (alias not alibi).
-  this.mult4x4r(x.x, x.y, x.z, 0,
-                y.x, y.y, y.z, 0,
-                z.x, z.y, z.z, 0,
-                  0,   0,   0, 1);
+  this.mul4x4r(x.x, x.y, x.z, 0,
+               y.x, y.y, y.z, 0,
+               z.x, z.y, z.z, 0,
+                 0,   0,   0, 1);
   this.translate(-ex, -ey, -ez);
 
   return this;
@@ -1072,7 +1072,7 @@ Mat4.prototype.lookAt = function(ex, ey, ez, cx, cy, cz, ux, uy, uz) {
 // Multiply by a frustum matrix computed from left, right, bottom, top,
 // near, and far.
 Mat4.prototype.frustum = function(l, r, b, t, n, f) {
-  this.mult4x4r(
+  this.mul4x4r(
       (n+n)/(r-l),           0, (r+l)/(r-l),             0,
                 0, (n+n)/(t-b), (t+b)/(t-b),             0,
                 0,           0, (f+n)/(n-f), (2*f*n)/(n-f),
@@ -1094,7 +1094,7 @@ Mat4.prototype.perspective = function(fovy, aspect, znear, zfar) {
   // return makeFrustumAffine(xmin, xmax, ymin, ymax, znear, zfar);
 
   var f = 1.0 / Math.tan(fovy * kPI / 360.0);
-  this.mult4x4r(
+  this.mul4x4r(
       f/aspect, 0,                         0,                         0,
              0, f,                         0,                         0,
              0, 0, (zfar+znear)/(znear-zfar), 2*znear*zfar/(znear-zfar),
@@ -1105,10 +1105,10 @@ Mat4.prototype.perspective = function(fovy, aspect, znear, zfar) {
 
 // Multiply by a orthographic matrix, computed from the clipping planes.
 Mat4.prototype.ortho = function(l, r, b, t, n, f) {
-  this.mult4x4r(2/(r-l),        0,        0,  (r+l)/(l-r),
-                      0,  2/(t-b),        0,  (t+b)/(b-t),
-                      0,        0,  2/(n-f),  (f+n)/(n-f),
-                      0,        0,        0,            1);
+  this.mul4x4r(2/(r-l),        0,        0,  (r+l)/(l-r),
+                     0,  2/(t-b),        0,  (t+b)/(b-t),
+                     0,        0,  2/(n-f),  (f+n)/(n-f),
+                     0,        0,        0,            1);
 
   return this;
 };
@@ -1174,7 +1174,7 @@ Mat4.prototype.transpose = function() {
 };
 
 // Multiply Vec3 |v| by the current matrix, returning a Vec3 of this * v.
-Mat4.prototype.multVec3 = function(v) {
+Mat4.prototype.mulVec3 = function(v) {
   var x = v.x, y = v.y, z = v.z;
   return new Vec3(this.a14 + this.a11*x + this.a12*y + this.a13*z,
                   this.a24 + this.a21*x + this.a22*y + this.a23*z,
@@ -1182,7 +1182,7 @@ Mat4.prototype.multVec3 = function(v) {
 };
 
 // Multiply Vec4 |v| by the current matrix, returning a Vec4 of this * v.
-Mat4.prototype.multVec4 = function(v) {
+Mat4.prototype.mulVec4 = function(v) {
   var x = v.x, y = v.y, z = v.z, w = v.w;
   return new Vec4(this.a14*w + this.a11*x + this.a12*y + this.a13*z,
                   this.a24*w + this.a21*x + this.a22*y + this.a23*z,
