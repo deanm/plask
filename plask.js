@@ -180,6 +180,12 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
                                 note: msg[1],
                                 vel: msg[2]});
           break;
+        case 0xb0:  // Controller message.
+          this_.emit('controller', {type:'controller',
+                                    chan: msg[0] & 0x0f,
+                                    num: msg[1],
+                                    val: msg[2]});
+          break;
         default:
           console.log('Unhandled MIDI status byte: 0x' + msg[0].toString(16));
           break;
