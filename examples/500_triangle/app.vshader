@@ -1,3 +1,5 @@
+// (c) dean@gmail.com
+
 uniform mat4 u_p;  // Projection.
 uniform mat4 u_mv;  // Model view.
 
