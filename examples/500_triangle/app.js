@@ -1,4 +1,3 @@
-var sys = require('sys');
 var plask = require('plask');
 
 plask.simpleWindow({
