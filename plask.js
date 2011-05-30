@@ -20,6 +20,7 @@
 // IN THE SOFTWARE.
 
 var sys = require('sys');
+var fs = require('fs');
 var events = require('events');
 var dgram = require('dgram');
 var inherits = sys.inherits;
@@ -1248,6 +1249,118 @@ Mat4.prototype.debugString = function() {
 };
 
 
+var kFragmentShaderPrefix = "#ifdef GL_ES\n" +
+                            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                            "  precision highp float;\n" +
+                            "#else\n" +
+                            "  precision mediump float;\n" +
+                            "#endif\n" +
+                            "#endif\n";
+
+// Given a string of GLSL source |source| of type |type|, create the shader
+// and compile |source| to the shader.  Throws on error.  Returns the newly
+// created WebGLShader.  Automatically compiles GL_ES default precision
+// qualifiers before a fragment source.
+function webGLcreateAndCompilerShader(gl, source, type) {
+  var shader = gl.createShader(type);
+  // NOTE(deanm): We're not currently running on ES, so we don't need this.
+  // if (type === gl.FRAGMENT_SHADER) source = kFragmentShaderPrefix + source;
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) !== true)
+    throw gl.getShaderInfoLog(shader);
+  return shader;
+}
+
+// Given the source text of the vertex shader |vsource| and fragment shader
+// |fsource|, create a new program with the shaders together.  Throws on
+// error.  Returns the newly created WebGLProgram.  Does not call useProgram.
+// Automatically compiles GL_ES default precision qualifiers before a
+// fragment source.
+function webGLcreateProgramFromShaderSources(gl, vsource, fsource) {
+  var vshader = webGLcreateAndCompilerShader(gl, vsource, gl.VERTEX_SHADER);
+  var fshader = webGLcreateAndCompilerShader(gl, fsource, gl.FRAGMENT_SHADER);
+  var program = gl.createProgram();
+  gl.attachShader(program, vshader);
+  gl.attachShader(program, fshader);
+  gl.linkProgram(program);
+  if (gl.getProgramParameter(program, gl.LINK_STATUS) !== true)
+    throw gl.getProgramInfoLog(program);
+  return program;
+}
+
+
+function MagicProgram(gl, program) {
+  this.gl = gl;
+  this.program = program;
+
+  this.use = function() {
+    gl.useProgram(program);
+  };
+
+  function makeSetter(type, loc) {
+    switch (type) {
+      case gl.BOOL:  // NOTE: bool could be set with 1i or 1f.
+      case gl.INT:
+      case gl.SAMPLER_2D:
+      case gl.SAMPLER_CUBE:
+        return function(value) {
+          gl.uniform1i(loc, value);
+          return this;
+        };
+      case gl.FLOAT:
+        return function(value) {
+          gl.uniform1f(loc, value);
+          return this;
+        };
+      case gl.FLOAT_VEC2:
+        return function(v) {
+          gl.uniform2f(loc, v.x, v.y);
+        };
+      case gl.FLOAT_VEC3:
+        return function(v) {
+          gl.uniform3f(loc, v.x, v.y, v.z);
+        };
+      case gl.FLOAT_VEC4:
+        return function(v) {
+          gl.uniform4f(loc, v.x, v.y, v.z, v.w);
+        };
+      case gl.FLOAT_MAT4:
+        return function(mat4) {
+          gl.uniformMatrix4fv(loc, false, mat4.toFloat32Array());
+        };
+      default:
+        break;
+    }
+
+    return function() {
+      throw "MagicProgram doesn't know how to set type: " + type;
+    };
+  }
+
+  var num_uniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+  for (var i = 0; i < num_uniforms; ++i) {
+    var info = gl.getActiveUniform(program, i);
+    var name = info.name;
+    var loc = gl.getUniformLocation(program, name);
+    this['set_' + name] = makeSetter(info.type, loc);
+    this['location_' + name] = loc;
+  }
+
+  var num_attribs = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+  for (var i = 0; i < num_attribs; ++i) {
+    var info = gl.getActiveAttrib(program, i);
+    var name = info.name;
+    var loc = gl.getAttribLocation(program, name);
+    this['location_' + name] = loc;
+  }
+}
+
+function createMagicProgramFromFiles(gl, vfn, ffn) {
+  return new MagicProgram(gl, webGLcreateProgramFromShaderSources(
+      gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8')));
+}
+
 exports.kPI  = kPI;
 exports.kPI2 = kPI2;
 exports.kPI4 = kPI4;
@@ -1262,3 +1375,8 @@ exports.Vec3 = Vec3;
 exports.Vec2 = Vec2;
 exports.Vec4 = Vec4;
 exports.Mat4 = Mat4;
+
+exports.gl = {
+  MagicProgram: MagicProgram,
+  createMagicProgramFromFiles: createMagicProgramFromFiles
+};
