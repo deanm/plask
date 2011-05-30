@@ -16,7 +16,7 @@ plask.simpleWindow({
 
     this.framerate(30);
 
-    this.mprogram = plask.gl.createMagicProgramFromFiles(
+    this.mprogram = plask.gl.MagicProgram.createFromFiles(
         gl,
         path.join(__dirname, 'app.vshader'),
         path.join(__dirname, 'app.fshader'));

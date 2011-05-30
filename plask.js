@@ -1356,7 +1356,7 @@ function MagicProgram(gl, program) {
   }
 }
 
-function createMagicProgramFromFiles(gl, vfn, ffn) {
+MagicProgram.createFromFiles = function(gl, vfn, ffn) {
   return new MagicProgram(gl, webGLcreateProgramFromShaderSources(
       gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8')));
 }
@@ -1376,7 +1376,4 @@ exports.Vec2 = Vec2;
 exports.Vec4 = Vec4;
 exports.Mat4 = Mat4;
 
-exports.gl = {
-  MagicProgram: MagicProgram,
-  createMagicProgramFromFiles: createMagicProgramFromFiles
-};
+exports.gl = {MagicProgram: MagicProgram};
