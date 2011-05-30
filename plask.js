@@ -21,6 +21,7 @@
 
 var sys = require('sys');
 var fs = require('fs');
+var path = require('path');
 var events = require('events');
 var dgram = require('dgram');
 var inherits = sys.inherits;
@@ -1359,6 +1360,13 @@ function MagicProgram(gl, program) {
 MagicProgram.createFromFiles = function(gl, vfn, ffn) {
   return new MagicProgram(gl, webGLcreateProgramFromShaderSources(
       gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8')));
+}
+
+MagicProgram.createFromBasename = function(gl, directory, base) {
+  return MagicProgram.createFromFiles(
+      gl,
+      path.join(directory, base + '.vshader'),
+      path.join(directory, base + '.fshader'));
 }
 
 exports.kPI  = kPI;

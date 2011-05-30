@@ -1,7 +1,4 @@
 var sys = require('sys');
-var path = require('path');
-var fs = require('fs');
-
 var plask = require('plask');
 
 plask.simpleWindow({
@@ -16,10 +13,8 @@ plask.simpleWindow({
 
     this.framerate(30);
 
-    this.mprogram = plask.gl.MagicProgram.createFromFiles(
-        gl,
-        path.join(__dirname, 'app.vshader'),
-        path.join(__dirname, 'app.fshader'));
+    this.mprogram = plask.gl.MagicProgram.createFromBasename(
+        gl, __dirname, 'app');
 
     function makeMesh() {
       var buffer = gl.createBuffer();
