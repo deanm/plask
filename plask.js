@@ -159,7 +159,7 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
         console.log('Received zero length midi message.');
         return;
       }
-      
+
       if ((msg[0] & 0x80) !== 0x80) {
         console.log('First MIDI byte not a status byte.');
         return;
@@ -716,6 +716,30 @@ Vec3.prototype.subbed = function(b) {
   return this.subbed2(this, b);
 };
 
+// Multiply two Vec3s, this = a * b.
+Vec3.prototype.mul2 = function(a, b) {
+  this.x = a.x * b.x;
+  this.y = a.y * b.y;
+  this.z = a.z * b.z;
+
+  return this;
+};
+
+Vec3.prototype.mulled2 = function(a, b) {
+  return new Vec3(a.x * b.x,
+                  a.y * b.y,
+                  a.z * b.z);
+};
+
+// Multiply by another Vec3, this = this * b.
+Vec3.prototype.mul = function(b) {
+  return this.mul2(this, b);
+};
+
+Vec3.prototype.mulled = function(b) {
+  return this.mulled2(this, b);
+};
+
 // Multiply by a scalar.
 Vec3.prototype.scale = function(s) {
   this.x *= s; this.y *= s; this.z *= s;
@@ -836,6 +860,28 @@ Vec2.prototype.sub = function(b) {
 
 Vec2.prototype.subbed = function(b) {
   return this.subbed2(this, b);
+};
+
+// Multiply two Vec2s, this = a * b.
+Vec2.prototype.mul2 = function(a, b) {
+  this.x = a.x * b.x;
+  this.y = a.y * b.y;
+
+  return this;
+};
+
+Vec2.prototype.mulled2 = function(a, b) {
+  return new Vec2(a.x * b.x,
+                  a.y * b.y);
+};
+
+// Multiply by another Vec2, this = this * b.
+Vec2.prototype.mul = function(b) {
+  return this.mul2(this, b);
+};
+
+Vec2.prototype.mulled = function(b) {
+  return this.mulled2(this, b);
 };
 
 // Multiply by a scalar.
