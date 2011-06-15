@@ -357,8 +357,8 @@ exports.Window = function(width, height, opts) {
         this_.emit('mouseDragged', te);
         break;
       case PlaskRawMac.NSEvent.NSTabletPoint:
-        var loc = e.locationInWindow();
         var mods = e.modifierFlags();
+        var loc = e.locationInWindow();
         var te = {
           type: nsEventNameToEmitName(type),
           x: loc.x,
@@ -395,6 +395,7 @@ exports.Window = function(width, height, opts) {
         this_.emit(te.type, te);
         break;
       case PlaskRawMac.NSEvent.NSMouseMoved:
+        var mods = e.modifierFlags();
         var loc = e.locationInWindow();
         var te = {
           type: 'mouseMoved',
@@ -402,7 +403,12 @@ exports.Window = function(width, height, opts) {
           y: height - loc.y,
           dx: e.deltaX(),
           dy: e.deltaY(),  // Doesn't need flipping since it's in device space.
-          dz: e.deltaZ()
+          dz: e.deltaZ(),
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0
         };
         this_.emit(te.type, te);
         break;
