@@ -176,6 +176,50 @@ class WebGLActiveInfo {
   }
 };
 
+class WebGLProgram {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLProgram::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLProgram"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint ID.
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromID(GLuint id) {
+    v8::Local<v8::Object> obj = WebGLProgram::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(id));
+    return obj;
+  }
+
+  static GLuint ExtractIDFromValue(v8::Handle<v8::Value> value) {
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    // TODO(deanm): How to throw an exception when called from JavaScript but
+    // not from NewFromID?
+    //return v8_utils::ThrowTypeError("Type error.");
+    return args.This();
+  }
+};
+
 
 class SyphonServerWrapper {
  public:
@@ -1045,7 +1089,12 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> attachShader(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glAttachShader(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    glAttachShader(program, args[1]->Uint32Value());
     return v8::Undefined();
   }
 
@@ -1053,8 +1102,13 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindAttribLocation(const v8::Arguments& args) {
     if (args.Length() != 3)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     v8::String::Utf8Value name(args[2]->ToString());
-    glBindAttribLocation(args[0]->Uint32Value(), args[1]->Uint32Value(), *name);
+    glBindAttribLocation(program, args[1]->Uint32Value(), *name);
     return v8::Undefined();
   }
 
@@ -1261,7 +1315,7 @@ class NSOpenGLContextWrapper {
 
   // WebGLProgram createProgram()
   static v8::Handle<v8::Value> createProgram(const v8::Arguments& args) {
-    return v8::Integer::NewFromUnsigned(glCreateProgram());
+    return WebGLProgram::NewFromID(glCreateProgram());
   }
 
   // WebGLRenderbuffer createRenderbuffer()
@@ -1320,7 +1374,11 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glDeleteProgram(args[0]->Uint32Value());
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    glDeleteProgram(program);
     return v8::Undefined();
   }
 
@@ -1385,7 +1443,11 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glDetachShader(args[0]->Uint32Value(), args[1]->Uint32Value());
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    glDetachShader(program, args[1]->Uint32Value());
     return v8::Undefined();
   }
 
@@ -1518,11 +1580,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     char namebuf[1024];
     GLint size;
     GLenum type;
 
-    glGetActiveAttrib(args[0]->Uint32Value(), args[1]->Uint32Value(),
+    glGetActiveAttrib(program, args[1]->Uint32Value(),
                       sizeof(namebuf), NULL, &size, &type, namebuf);
 
     return WebGLActiveInfo::NewFromSizeTypeName(size, type, namebuf);
@@ -1533,11 +1599,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     char namebuf[1024];
     GLint size;
     GLenum type;
 
-    glGetActiveUniform(args[0]->Uint32Value(), args[1]->Uint32Value(),
+    glGetActiveUniform(program, args[1]->Uint32Value(),
                        sizeof(namebuf), NULL, &size, &type, namebuf);
 
     return WebGLActiveInfo::NewFromSizeTypeName(size, type, namebuf);
@@ -1556,8 +1626,12 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     v8::String::Utf8Value name(args[1]->ToString());
-    return v8::Integer::New(glGetAttribLocation(args[0]->Uint32Value(), *name));
+    return v8::Integer::New(glGetAttribLocation(program, *name));
   }
 
   // Helper for getParameter, based on
@@ -1883,7 +1957,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint program = args[0]->Uint32Value();
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
@@ -1910,7 +1987,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint program = args[0]->Uint32Value();
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     GLint length = 0;
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
@@ -1997,9 +2077,13 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
     v8::String::Utf8Value name(args[1]->ToString());
     return v8::Integer::NewFromUnsigned(
-        glGetUniformLocation(args[0]->Uint32Value(), *name));
+        glGetUniformLocation(program, *name));
   }
 
   // any getVertexAttrib(GLuint index, GLenum pname)
@@ -2052,7 +2136,11 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsProgram(args[0]->Uint32Value()));
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    return v8::Boolean::New(glIsProgram(program));
   }
 
   // GLboolean isRenderbuffer(WebGLRenderbuffer renderbuffer)
@@ -2093,7 +2181,11 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glLinkProgram(args[0]->Uint32Value());
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    glLinkProgram(program);
     return v8::Undefined();
   }
 
@@ -2639,7 +2731,11 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glUseProgram(args[0]->Uint32Value());
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    glUseProgram(program);
     return v8::Undefined();
   }
 
@@ -2648,7 +2744,11 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glValidateProgram(args[0]->Uint32Value());
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+
+    glValidateProgram(program);
     return v8::Undefined();
   }
 
