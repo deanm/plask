@@ -2528,6 +2528,9 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
+
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
@@ -2558,6 +2561,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniformiHelper(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
 
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
@@ -2590,6 +2596,9 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
+
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
@@ -2609,6 +2618,9 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
+
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
@@ -2627,6 +2639,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform2f(const v8::Arguments& args) {
     if (args.Length() != 3)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
 
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
@@ -2648,6 +2663,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform2i(const v8::Arguments& args) {
     if (args.Length() != 3)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
 
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
@@ -2671,6 +2689,9 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 4)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
+
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
@@ -2692,6 +2713,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform3i(const v8::Arguments& args) {
     if (args.Length() != 4)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
 
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
@@ -2715,6 +2739,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform4f(const v8::Arguments& args) {
     if (args.Length() != 5)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
 
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
@@ -2740,6 +2767,9 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 5)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
+
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
@@ -2762,6 +2792,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniformMatrixHelper(const v8::Arguments& args) {
     if (args.Length() != 3)
       return v8_utils::ThrowError("Wrong number of arguments.");
+
+    if (args[0]->IsNull())  // null location is silently ignored.
+      return v8::Undefined();
 
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
