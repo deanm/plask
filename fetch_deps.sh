@@ -1,4 +1,4 @@
 rm -rf deps
-curl -O http://cloud.github.com/downloads/deanm/plask/deps3.tar.bz2
-tar jxvf deps3.tar.bz2
-rm deps3.tar.bz2
+curl -O http://cloud.github.com/downloads/deanm/plask/deps4.tar.bz2
+tar jxvf deps4.tar.bz2
+rm deps4.tar.bz2
