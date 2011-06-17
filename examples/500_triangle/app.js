@@ -3,11 +3,13 @@
 var plask = require('plask');
 
 plask.simpleWindow({
-  width: 800,
-  height: 600,
-  type: '3d',  // Create an OpenGL window.
-  vsync: true,  // Prevent tearing.
-  multisample: true,  // Anti-alias.
+  settings: {
+    width: 800,
+    height: 600,
+    type: '3d',  // Create an OpenGL window.
+    vsync: true,  // Prevent tearing.
+    multisample: true  // Anti-alias.
+  },
 
   init: function() {
     var gl = this.gl;

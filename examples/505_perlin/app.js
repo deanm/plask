@@ -144,11 +144,13 @@ function makePerlinDataTextures(gl) {
 
 
 plask.simpleWindow({
-  width: 800,
-  height: 600,
-  type: '3d',
-  vsync: true,  // Prevent tearing.
-  multisample: true,  // Anti-alias.
+  settings: {
+    width: 800,
+    height: 600,
+    type: '3d',
+    vsync: true,  // Prevent tearing.
+    multisample: true  // Anti-alias.
+  },
 
   init: function() {
     var gl = this.gl;

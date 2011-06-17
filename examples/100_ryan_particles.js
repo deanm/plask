@@ -40,8 +40,10 @@ Particle.prototype = {
 var dots = [];
 
 plask.simpleWindow({
-  width: 1000,
-  height: 600,
+  settings: {
+    width: 1000,
+    height: 600
+  },
 
   init: function() {
     var canvas = this.canvas, paint = this.paint;
