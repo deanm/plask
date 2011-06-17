@@ -33,23 +33,23 @@ exports.SkCanvas = PlaskRawMac.SkCanvas;
 // NOTE(deanm): The SkCanvas constructor has become too complicated in
 // supporting different types of canvases and ways to create them.  Use one of
 // the following factory functions instead of calling the constructor directly.
-exports.makeSkCanvasFromImage = function(path) {
+exports.SkCanvas.createFromImage = function(path) {
   return new exports.SkCanvas(path);
 };
 
-exports.makeSkCanvasOfSize = function(width, height) {
+exports.SkCanvas.create = function(width, height) {
   return new exports.SkCanvas(width, height);
 };
 
-exports.makeSkCanvasBackedToNSWindow = function(nswindow) {
+exports.SkCanvas.createNSWindowBacked = function(nswindow) {
   return new exports.SkCanvas(nswindow);
 };
 
 // Sizes are in points, at 72 points per inch, letter would be 612x792.
 // That makes A4 about 595x842.
 // TODO(deanm): The sizes are integer, check the right size to use for A4.
-exports.makePDFSkCanvas = function(page_width, page_height,
-                                   content_width, content_height) {
+exports.SkCanvas.createForPDF = function(page_width, page_height,
+                                         content_width, content_height) {
   return new exports.SkCanvas(
       '%PDF',
       page_width, page_height,
@@ -109,7 +109,7 @@ flipper_paint.setXfermodeMode(flipper_paint.kSrcMode);
 
 PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvas = function(a, b, c) {
   var width = c.width, height = c.height;
-  var flipped = exports.makeSkCanvasOfSize(width, height);
+  var flipped = exports.SkCanvas.create(width, height);
   flipped.translate(0, height);
   flipped.scale(1, -1);
   flipped.drawCanvas(flipper_paint, c, 0, 0, width, height);
@@ -488,7 +488,7 @@ exports.Window = function(width, height, opts) {
   };
 
   this.makeWindowBackedCanvas = function() {
-    return exports.makeSkCanvasBackedToNSWindow(nswindow_);
+    return exports.SkCanvas.createNSWindowBacked(nswindow_);
   };
 
   this.blit = function() {
@@ -560,7 +560,7 @@ exports.simpleWindow = function(obj) {
       obj.gl = gl_;
     } else {  // Create a canvas and paint for 3d2d windows.
       obj.paint = new exports.SkPaint;
-      canvas = exports.makeSkCanvasOfSize(width, height);  // Offscreen.
+      canvas = exports.SkCanvas.create(width, height);  // Offscreen.
       obj.canvas = canvas;
     }
     if (obj.syphon_server !== undefined) {
