@@ -30,6 +30,21 @@ exports.SkPath = PlaskRawMac.SkPath;
 exports.SkPaint = PlaskRawMac.SkPaint;
 exports.SkCanvas = PlaskRawMac.SkCanvas;
 
+// NOTE(deanm): The SkCanvas constructor has become too complicated in
+// supporting different types of canvases and ways to create them.  Use one of
+// the following factory functions instead of calling the constructor directly.
+exports.newSkCanvasFromImage = function(path) {
+  return new exports.SkCanvas(path);
+};
+
+exports.newSkCanvasOfSize = function(width, height) {
+  return new exports.SkCanvas(width, height);
+};
+
+exports.newSkCanvasBackedToNSWindow = function(nswindow) {
+  return new exports.SkCanvas(nswindow);
+};
+
 var kPI  = 3.14159265358979323846264338327950288;
 var kPI2 = 1.57079632679489661923132169163975144;
 var kPI4 = 0.785398163397448309615660845819875721;
@@ -82,7 +97,7 @@ flipper_paint.setXfermodeMode(flipper_paint.kSrcMode);
 
 PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvas = function(a, b, c) {
   var width = c.width, height = c.height;
-  var flipped = new exports.SkCanvas(width, height);
+  var flipped = exports.newSkCanvasOfSize(width, height);
   flipped.translate(0, height);
   flipped.scale(1, -1);
   flipped.drawCanvas(flipper_paint, c, 0, 0, width, height);
@@ -461,7 +476,7 @@ exports.Window = function(width, height, opts) {
   };
 
   this.makeWindowBackedCanvas = function() {
-    return new PlaskRawMac.SkCanvas(nswindow_);
+    return exports.newSkCanvasBackedToNSWindow(nswindow_);
   };
 
   this.blit = function() {
@@ -528,7 +543,7 @@ exports.simpleWindow = function(obj) {
       obj.gl = gl_;
     } else {  // Create a canvas and paint for 3d2d windows.
       obj.paint = new exports.SkPaint;
-      canvas = new exports.SkCanvas(width, height);  // Offscreen.
+      canvas = exports.newSkCanvasOfSize(width, height);  // Offscreen.
       obj.canvas = canvas;
     }
     if (obj.syphon_server !== undefined) {
