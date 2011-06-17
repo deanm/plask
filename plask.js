@@ -488,7 +488,12 @@ inherits(exports.Window, events.EventEmitter);
 exports.simpleWindow = function(obj) {
   // NOTE(deanm): Moving to a settings object to reduce the pollution of the
   // main simpleWindow object.  For now fall back for compat.
-  var settings = obj.settings === undefined ? obj : obj.settings;
+  var settings = obj.settings;
+  if (settings === undefined) {
+    settings = obj;
+    if (obj.width !== undefined)
+      console.log('Warning, using legacy settings, use the settings object.');
+  }
 
   var wintype = (settings.type === '3d' || settings.type === '3d2d') ? '3d' :
                                                                        '2d';
