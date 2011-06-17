@@ -49,6 +49,8 @@
 #include "third_party/skia/include/core/SkXfermode.h"
 #include "third_party/skia/include/utils/SkParsePath.h"
 #include "third_party/skia/include/effects/SkGradientShader.h"
+#include "third_party/skia/include/pdf/SkPDFDevice.h"
+#include "third_party/skia/include/pdf/SkPDFDocument.h"
 
 #import <Syphon/Syphon.h>
 
@@ -4048,6 +4050,7 @@ class SkCanvasWrapper {
       { "restore", &SkCanvasWrapper::restore },
       { "writeImage", &SkCanvasWrapper::writeImage },
       { "dispose", &SkCanvasWrapper::dispose },
+      { "writePDF", &SkCanvasWrapper::writePDF },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4085,7 +4088,15 @@ class SkCanvasWrapper {
     SkBitmap* bitmap = &tbitmap;
 
     SkCanvas* canvas;
-    if (args.Length() == 2) {  // width / height offscreen constructor.
+    if (args[0]->StrictEquals(v8::String::New("%PDF"))) {  // PDF constructor.
+      SkMatrix initial_matrix;
+      initial_matrix.reset();
+      SkPDFDevice* pdf_device = new SkPDFDevice(
+          SkISize::Make(args[1]->Int32Value(), args[2]->Int32Value()),
+          SkISize::Make(args[3]->Int32Value(), args[4]->Int32Value()),
+          initial_matrix);
+      canvas = new SkCanvas(pdf_device);
+    } else if (args.Length() == 2) {  // width / height offscreen constructor.
       unsigned int width = args[0]->Uint32Value();
       unsigned int height = args[1]->Uint32Value();
       tbitmap.setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
@@ -4536,6 +4547,25 @@ class SkCanvasWrapper {
     SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
     delete canvas;
     args.This()->SetPointerInInternalField(0, NULL);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> writePDF(const v8::Arguments& args) {
+    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    v8::String::Utf8Value filename(args[0]->ToString());
+
+    SkFILEWStream stream(*filename);
+    SkPDFDocument document;
+    // You shouldn't be calling this with an SkDevice (bitmap) backed SkCanvas.
+    document.appendPage(reinterpret_cast<SkPDFDevice*>(canvas->getDevice()));
+
+    if (!document.emitPDF(&stream))
+      return v8_utils::ThrowError("Error writing PDF.");
+
     return v8::Undefined();
   }
 };

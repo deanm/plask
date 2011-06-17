@@ -45,6 +45,18 @@ exports.newSkCanvasBackedToNSWindow = function(nswindow) {
   return new exports.SkCanvas(nswindow);
 };
 
+// Sizes are in points, at 72 points per inch, letter would be 612x792.
+// That makes A4 about 595x842.
+// TODO(deanm): The sizes are integer, check the right size to use for A4.
+exports.newPDFSkCanvas = function(page_width, page_height,
+                                  content_width, content_height) {
+  return new exports.SkCanvas(
+      '%PDF',
+      page_width, page_height,
+      content_width === undefined ? page_width : content_width,
+      content_height === undefined ? page_height : content_height);
+};
+
 var kPI  = 3.14159265358979323846264338327950288;
 var kPI2 = 1.57079632679489661923132169163975144;
 var kPI4 = 0.785398163397448309615660845819875721;
