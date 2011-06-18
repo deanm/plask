@@ -4100,7 +4100,7 @@ class SkCanvasWrapper {
       canvas = new SkCanvas(pdf_device);
       // Bit of a hack to get the width and height properties set.
       tbitmap.setConfig(
-          SkBitmap::kNo_Config, content_size.width(), content_size.height());
+          SkBitmap::kNo_Config, pdf_device->width(), pdf_device->height());
     } else if (args.Length() == 2) {  // width / height offscreen constructor.
       unsigned int width = args[0]->Uint32Value();
       unsigned int height = args[1]->Uint32Value();
