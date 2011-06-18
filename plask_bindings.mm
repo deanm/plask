@@ -4091,11 +4091,16 @@ class SkCanvasWrapper {
     if (args[0]->StrictEquals(v8::String::New("%PDF"))) {  // PDF constructor.
       SkMatrix initial_matrix;
       initial_matrix.reset();
+      SkISize page_size =
+          SkISize::Make(args[1]->Int32Value(), args[2]->Int32Value());
+      SkISize content_size =
+          SkISize::Make(args[3]->Int32Value(), args[4]->Int32Value());
       SkPDFDevice* pdf_device = new SkPDFDevice(
-          SkISize::Make(args[1]->Int32Value(), args[2]->Int32Value()),
-          SkISize::Make(args[3]->Int32Value(), args[4]->Int32Value()),
-          initial_matrix);
+          page_size, content_size, initial_matrix);
       canvas = new SkCanvas(pdf_device);
+      // Bit of a hack to get the width and height properties set.
+      tbitmap.setConfig(
+          SkBitmap::kNo_Config, content_size.width(), content_size.height());
     } else if (args.Length() == 2) {  // width / height offscreen constructor.
       unsigned int width = args[0]->Uint32Value();
       unsigned int height = args[1]->Uint32Value();
