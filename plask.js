@@ -804,6 +804,22 @@ Vec3.prototype.lengthSquared = function() {
   return x*x + y*y + z*z;
 };
 
+// Distance to Vec3 |b|
+Vec3.prototype.distance = function(b) {
+  var x = b.x - this.x;
+  var y = b.y - this.y;
+  var z = b.z - this.z;
+  return Math.sqrt(x*x + y*y + z*z);
+}
+
+// Squared Distance to Vec3 |b|
+Vec3.prototype.distanceSquared = function(b) {
+  var x = b.x - this.x;
+  var y = b.y - this.y;
+  var z = b.z - this.z;
+  return x*x + y*y + z*z;
+}
+
 // Normalize, scaling so the magnitude is 1.  Invalid for a zero vector.
 Vec3.prototype.normalize = function() {
   return this.scale(1/this.length());
@@ -933,6 +949,20 @@ Vec2.prototype.lengthSquared = function() {
   var x = this.x, y = this.y;
   return x*x + y*y;
 };
+
+// Distance to Vec2 |b|
+Vec2.prototype.distance = function(b) {
+  var x = b.x - this.x;
+  var y = b.y - this.y;
+  return Math.sqrt(x*x + y*y);
+}
+
+// Squared Distance to Vec2 |b|
+Vec2.prototype.distanceSquared = function(b) {
+  var x = b.x - this.x;
+  var y = b.y - this.y;
+  return x*x + y*y;
+}
 
 // Normalize, scaling so the magnitude is 1.  Invalid for a zero vector.
 Vec2.prototype.normalize = function() {
