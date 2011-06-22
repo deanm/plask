@@ -1220,7 +1220,7 @@ Mat4.prototype.ortho = function(l, r, b, t, n, f) {
   return this;
 };
 
-// Invert the matrix.  The matrix must be invertable.
+// Invert the matrix.  The matrix must be invertible.
 Mat4.prototype.invert = function() {
   // Based on the math at:
   //   http://www.geometrictools.com/LibMathematics/Algebra/Wm5Matrix4.inl
