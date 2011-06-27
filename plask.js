@@ -529,7 +529,8 @@ exports.simpleWindow = function(obj) {
     if (position_x < 0 || isNegZero(position_x))
       position_x = window_.screenSize().width + position_x;
     window_.setFrameTopLeftPoint(position_x, position_y);
-  } else if (settings.center !== false) {
+  } else if (settings.center === true ||
+             (settings.fullscreen !== true && settings.center !== false)) {
     window_.center();
   }
 
