@@ -3759,6 +3759,7 @@ class SkPaintWrapper {
       { "setLinearGradientShader", &SkPaintWrapper::setLinearGradientShader },
       { "setRadialGradientShader", &SkPaintWrapper::setRadialGradientShader },
       { "clearShader", &SkPaintWrapper::clearShader },
+      { "measureText", &SkPaintWrapper::measureText },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3982,6 +3983,14 @@ class SkPaintWrapper {
     SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
     paint->setShader(NULL);
     return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> measureText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+
+    v8::String::Utf8Value utf8(args[0]->ToString());
+    SkScalar width = paint->measureText(*utf8, utf8.length());
+    return v8::Number::New(width);
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
