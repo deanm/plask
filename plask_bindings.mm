@@ -3537,6 +3537,7 @@ class SkPathWrapper {
       { "rLineTo", &SkPathWrapper::rLineTo },
       { "quadTo", &SkPathWrapper::quadTo },
       { "cubicTo", &SkPathWrapper::cubicTo },
+      { "addCircle", &SkPathWrapper::addCircle },
       { "close", &SkPathWrapper::close },
       { "offset", &SkPathWrapper::offset },
       { "getBounds", &SkPathWrapper::getBounds },
@@ -3624,6 +3625,15 @@ class SkPathWrapper {
                   SkDoubleToScalar(args[3]->NumberValue()),
                   SkDoubleToScalar(args[4]->NumberValue()),
                   SkDoubleToScalar(args[5]->NumberValue()));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> addCircle(const v8::Arguments& args) {
+    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+
+    path->addCircle(SkDoubleToScalar(args[0]->NumberValue()),
+                  SkDoubleToScalar(args[1]->NumberValue()),
+                  SkDoubleToScalar(args[2]->NumberValue()));
     return v8::Undefined();
   }
 
