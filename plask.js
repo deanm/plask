@@ -974,6 +974,18 @@ Vec2.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
+// Rotate around the z axis by |theta| radians.
+Vec2.prototype.rotate = function(theta){
+  var st = Math.sin(theta);
+  var ct = Math.cos(theta);
+  return this.set(this.x * ct - this.y * st,
+                  this.x * st + this.y * ct);
+};
+
+Vec2.prototype.rotated = function(theta){
+  return this.dup().rotate(theta);
+};
+
 Vec2.prototype.dup = function() {
   return new Vec2(this.x, this.y);
 };
