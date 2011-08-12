@@ -978,9 +978,9 @@ Vec2.prototype.normalized = function() {
 Vec2.prototype.rotate = function(theta) {
   var st = Math.sin(theta);
   var ct = Math.cos(theta);
-  var y = this.x * st + this.y * ct;
-  this.x = this.x * ct - this.y * st;
-  this.y = y;
+  var x = this.x, y = this.y;
+  this.x = x * ct - y * st;
+  this.y = x * st + y * ct;
   return this;
 };
 
