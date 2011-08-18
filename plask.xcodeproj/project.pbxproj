@@ -254,7 +254,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "mkdir -p \"$BUILT_PRODUCTS_DIR/plask.app/Contents/lib/node/\"\nln -sf ../../../../../../plask.js \"$BUILT_PRODUCTS_DIR/plask.app/Contents/lib/node/plask.js\"";
+			shellScript = "mkdir -p \"$BUILT_PRODUCTS_DIR/plask.app/Contents/lib/node/\"\nln -sf \"$SRCROOT/plask.js\" \"$BUILT_PRODUCTS_DIR/plask.app/Contents/lib/node/plask.js\"";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
