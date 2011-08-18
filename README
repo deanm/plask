@@ -1,6 +1,16 @@
 Plask is a programming environment for multimedia and computational design.
 
-- Building
+  www.plask.org
+
+
+- Getting Plask
+
+For the common user, it is best to use the binary distribution provided at
+www.plask.org.  If you're interested in building and running from source, the
+following section should help you get started.
+
+
+- Building and running from source
 
 Plask integrates together quite a few pieces of technology, which unfortunately
 makes the build process more complicated.  It is possible to do a boostrapped
@@ -10,9 +20,42 @@ extract a copy of these prebuilt dependencies.  When fetching new source
 changes to Plask, you will have to be aware if there have been any changes to
 the prebuilt dependencies, and if so, to run fetch_deps.sh again.
 
+For example, to build from a completely new checkout would look something like:
+
+  $ sh fetch_deps.sh
+  $ (cd plask.xcodeproj/; xcodebuild -configuration Release -target Plask)
+
+This should produce Plask.app.  For some technical and design reasons, Plask.app
+is effectively a commandline application inside a bundle.  For example, running
+Plask.app/Contents/MacOS/Plask on the command line will start a Node-style REPL
+loop, an interactive JavaScript shell of sorts.
+
+Pass a filename on the command line to run that JavaScript file.
+
+NOTE: To ease development, the Plask.app built has a symlink to plask.js in
+the source.  This allows you to edit plask.js in the source repository without
+having to rebuild the project.
+
+A separate project, PlaskLauncher, creates the UI application for launching
+Plask by dragging/dropping or File->Open.
+
+
+- Creating standalone applications
+
+When Plask.app is launched, it will look for a file named main.js inside of
+the bundle (in Contents/Resources).  This allows you to easily create
+standalone applications by copying Plask.app and putting your JavaScript source
+inside of the bundle.
+
+NOTE: When running "bundled", the current working directory will likely be
+different from running Plask on the command line.  Generally this means if you
+open files you should open a path relative to __dirname, which is Node's global
+variable for the directory that your JavaScript file is in.
+
+
 - Credits
 
-Released under the BSD license.
+Released under the BSD license.  Full details in the included LICENSE file.
 
 (c) 2010, Dean McNamee <dean@gmail.com>
 
