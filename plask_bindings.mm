@@ -5364,11 +5364,14 @@ class CAMIDIDestinationWrapper {
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender {
   NSPasteboard* board = [sender draggingPasteboard];
   NSArray* paths = [board propertyListForType:NSFilenamesPboardType];
-  v8::Local<v8::Array> res = v8::Array::New([paths count]);
+  v8::Local<v8::Array> jspaths = v8::Array::New([paths count]);
   for (int i = 0; i < [paths count]; ++i) {
-    res->Set(v8::Integer::New(i), v8::String::New(
+    jspaths->Set(v8::Integer::New(i), v8::String::New(
         [[paths objectAtIndex:i] UTF8String]));
   }
+
+  v8::Local<v8::Object> res = v8::Object::New();
+  res->Set(v8::String::New("paths"), jspaths);
 
   v8::Handle<v8::Value> argv[] = { v8::Number::New(1), res };
   v8::TryCatch try_catch;
