@@ -34,7 +34,11 @@ exports.SkCanvas = PlaskRawMac.SkCanvas;
 // supporting different types of canvases and ways to create them.  Use one of
 // the following factory functions instead of calling the constructor directly.
 exports.SkCanvas.createFromImage = function(path) {
-  return new exports.SkCanvas(path);
+  return new exports.SkCanvas('^IMG', path);
+};
+
+exports.SkCanvas.createFromImageData = function(data) {
+  return new exports.SkCanvas('^IMG', data);
 };
 
 exports.SkCanvas.create = function(width, height) {

@@ -4120,41 +4120,52 @@ class SkCanvasWrapper {
       // Bit of a hack to get the width and height properties set.
       tbitmap.setConfig(
           SkBitmap::kNo_Config, pdf_device->width(), pdf_device->height());
-    } else if (args.Length() == 2) {  // width / height offscreen constructor.
-      unsigned int width = args[0]->Uint32Value();
-      unsigned int height = args[1]->Uint32Value();
-      tbitmap.setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
-      tbitmap.allocPixels();
-      tbitmap.eraseARGB(0, 0, 0, 0);
-      canvas = new SkCanvas(tbitmap);
-    } else if (args.Length() == 1 && NSWindowWrapper::HasInstance(args[0])) {
-      bitmap = NSWindowWrapper::ExtractSkBitmapPointer(
-          v8::Handle<v8::Object>::Cast(args[0]));
-      canvas = new SkCanvas(*bitmap);
-    } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(args[0])) {
-      SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
-      const SkBitmap& pbitmap = pcanvas->getDevice()->accessBitmap(false);
-      tbitmap = pbitmap;
-      // Allocate a new block of pixels with a copy from pbitmap.
-      pbitmap.copyTo(&tbitmap, pbitmap.config(), NULL);
-
-      canvas = new SkCanvas(tbitmap);
-    } else if (args.Length() == 1 && args[0]->IsString()) {
+    } else if (args[0]->StrictEquals(v8::String::New("^IMG"))) {
+      // Load an image, either a path to a file on disk, or a TypedArray or
+      // other external array data backed JS object.
       // TODO(deanm): This is all super inefficent, we copy / flip / etc.
-      v8::String::Utf8Value filename(args[0]->ToString());
 
-      FREE_IMAGE_FORMAT format = FreeImage_GetFileType(*filename, 0);
-      // Some formats don't have a signature so we're supposed to guess from the
-      // extension.
-      if (format == FIF_UNKNOWN)
-        format = FreeImage_GetFIFFromFilename(*filename);
+      FIBITMAP* fbitmap = NULL;
 
-      if (format == FIF_UNKNOWN || !FreeImage_FIFSupportsReading(format))
-        return v8_utils::ThrowError("Couldn't detect image type.");
+      if (args[1]->IsString()) {  // Path on disk.
+        v8::String::Utf8Value filename(args[1]->ToString());
 
-      FIBITMAP* fbitmap = FreeImage_Load(format, *filename, 0);
-      if (!fbitmap)
-        return v8_utils::ThrowError("Couldn't load image.");
+        FREE_IMAGE_FORMAT format = FreeImage_GetFileType(*filename, 0);
+        // Some formats don't have a signature so we're supposed to guess from
+        // the extension.
+        if (format == FIF_UNKNOWN)
+          format = FreeImage_GetFIFFromFilename(*filename);
+
+        if (format == FIF_UNKNOWN || !FreeImage_FIFSupportsReading(format))
+          return v8_utils::ThrowError("Couldn't detect image type.");
+
+        fbitmap = FreeImage_Load(format, *filename, 0);
+        if (!fbitmap)
+          return v8_utils::ThrowError("Couldn't load image.");
+      } else if (args[1]->IsObject()) {
+        v8::Local<v8::Object> data = v8::Local<v8::Object>::Cast(args[1]);
+        if (!data->HasIndexedPropertiesInExternalArrayData())
+          return v8_utils::ThrowError("Data must be an ExternalArrayData.");
+        int element_size = v8_typed_array::SizeOfArrayElementForType(
+            data->GetIndexedPropertiesExternalArrayDataType());
+        // FreeImage's annoying Windows types...
+        DWORD size = data->GetIndexedPropertiesExternalArrayDataLength() *
+            element_size;
+        BYTE* datadata = reinterpret_cast<BYTE*>(
+            data->GetIndexedPropertiesExternalArrayData());
+
+        FIMEMORY* mem = FreeImage_OpenMemory(datadata, size);
+        FREE_IMAGE_FORMAT format = FreeImage_GetFileTypeFromMemory(mem, 0);
+        if (format == FIF_UNKNOWN || !FreeImage_FIFSupportsReading(format))
+          return v8_utils::ThrowError("Couldn't detect image type.");
+
+        fbitmap = FreeImage_LoadFromMemory(format, mem, 0);
+        FreeImage_CloseMemory(mem);
+        if (!fbitmap)
+          return v8_utils::ThrowError("Couldn't load image.");
+      } else {
+        return v8_utils::ThrowError("SkCanvas image not path or data.");
+      }
 
       if (FreeImage_GetBPP(fbitmap) != 32) {
         FIBITMAP* old_bitmap = fbitmap;
@@ -4185,6 +4196,25 @@ class SkCanvasWrapper {
                                  fbitmap, tbitmap.rowBytes(),
                                  32, 0, 0, 0, TRUE);
       FreeImage_Unload(fbitmap);
+
+      canvas = new SkCanvas(tbitmap);
+    } else if (args.Length() == 2) {  // width / height offscreen constructor.
+      unsigned int width = args[0]->Uint32Value();
+      unsigned int height = args[1]->Uint32Value();
+      tbitmap.setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
+      tbitmap.allocPixels();
+      tbitmap.eraseARGB(0, 0, 0, 0);
+      canvas = new SkCanvas(tbitmap);
+    } else if (args.Length() == 1 && NSWindowWrapper::HasInstance(args[0])) {
+      bitmap = NSWindowWrapper::ExtractSkBitmapPointer(
+          v8::Handle<v8::Object>::Cast(args[0]));
+      canvas = new SkCanvas(*bitmap);
+    } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(args[0])) {
+      SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
+      const SkBitmap& pbitmap = pcanvas->getDevice()->accessBitmap(false);
+      tbitmap = pbitmap;
+      // Allocate a new block of pixels with a copy from pbitmap.
+      pbitmap.copyTo(&tbitmap, pbitmap.config(), NULL);
 
       canvas = new SkCanvas(tbitmap);
     } else {
