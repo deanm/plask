@@ -622,7 +622,7 @@ exports.simpleWindow = function(obj) {
   }
 
   var draw = null;
-  var frameid = 0;
+  var framenum = 0;
   var frame_start_time = Date.now();
 
   if ('draw' in obj)
@@ -632,7 +632,7 @@ exports.simpleWindow = function(obj) {
     if (gl_ !== undefined)
       gl_.makeCurrentContext();
     if (draw !== null) {
-      obj.frameid = frameid;
+      obj.framenum = framenum;
       obj.frametime = (Date.now() - frame_start_time) / 1000;  // Secs.
       try {
         obj.draw();
@@ -640,7 +640,7 @@ exports.simpleWindow = function(obj) {
         sys.error('Exception caught in simpleWindow draw:\n' +
                   ex + '\n' + ex.stack);
       }
-      frameid++;
+      framenum++;
     }
     if (gl_ !== undefined && canvas !== null) {  // 3d2d
       // Blit to Syphon.
