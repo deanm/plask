@@ -3755,10 +3755,22 @@ class SkPaintWrapper {
       { "reset", &SkPaintWrapper::reset },
       { "getFlags", &SkPaintWrapper::getFlags },
       { "setFlags", &SkPaintWrapper::setFlags },
-      { "getStrokeWidth", &SkPaintWrapper::getStrokeWidth },
+      { "setAntiAlias", &SkPaintWrapper::setAntiAlias },
+      { "setFilterBitmap", &SkPaintWrapper::setFilterBitmap },
+      { "setDither", &SkPaintWrapper::setDither },
+      { "setUnderlineText", &SkPaintWrapper::setUnderlineText },
+      { "setStrikeThruText", &SkPaintWrapper::setStrikeThruText },
+      { "setFakeBoldText", &SkPaintWrapper::setFakeBoldText },
+      { "setSubpixelText", &SkPaintWrapper::setSubpixelText },
+      { "setDevKernText", &SkPaintWrapper::setDevKernText },
+      { "setLCDRenderText", &SkPaintWrapper::setLCDRenderText },
+      { "setAutohinted", &SkPaintWrapper::setAutohinted },
       { "setStrokeWidth", &SkPaintWrapper::setStrokeWidth },
       { "getStyle", &SkPaintWrapper::getStyle },
       { "setStyle", &SkPaintWrapper::setStyle },
+      { "setFill", &SkPaintWrapper::setFill },
+      { "setStroke", &SkPaintWrapper::setStroke },
+      { "setFillAndStroke", &SkPaintWrapper::setFillAndStroke },
       { "getStrokeCap", &SkPaintWrapper::getStrokeCap },
       { "setStrokeCap", &SkPaintWrapper::setStrokeCap },
       { "setColor", &SkPaintWrapper::setColor },
@@ -3815,6 +3827,66 @@ class SkPaintWrapper {
     return v8::Undefined();
   }
 
+  static v8::Handle<v8::Value> setAntiAlias(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setAntiAlias(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setFilterBitmap(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setFilterBitmap(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setDither(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setDither(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setUnderlineText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setUnderlineText(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setStrikeThruText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setStrikeThruText(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setFakeBoldText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setFakeBoldText(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setSubpixelText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setSubpixelText(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setDevKernText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setDevKernText(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setLCDRenderText(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setLCDRenderText(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setAutohinted(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setAutohinted(args[0]->BooleanValue());
+    return v8::Undefined();
+  }
+
   static v8::Handle<v8::Value> getStrokeWidth(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
     return v8::Number::New(SkScalarToDouble(paint->getStrokeWidth()));
@@ -3834,6 +3906,26 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> setStyle(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
     paint->setStyle(static_cast<SkPaint::Style>(v8_utils::ToInt32(args[0])));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setFill(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setStyle(SkPaint::kFill_Style);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setStroke(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    paint->setStyle(SkPaint::kStroke_Style);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> setFillAndStroke(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    // We flip the name around because it makes more sense, generally you think
+    // of the stroke happening after the fill.
+    paint->setStyle(SkPaint::kStrokeAndFill_Style);
     return v8::Undefined();
   }
 
