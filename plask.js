@@ -118,7 +118,6 @@ PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvas = function(a, b, c) {
   flipped.scale(1, -1);
   flipped.drawCanvas(flipper_paint, c, 0, 0, width, height);
   var result = this.texImage2DSkCanvasB(a, b, flipped);
-  flipped.dispose();
   return result;
 };
 

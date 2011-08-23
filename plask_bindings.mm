@@ -4068,7 +4068,6 @@ class SkCanvasWrapper {
       { "save", &SkCanvasWrapper::save },
       { "restore", &SkCanvasWrapper::restore },
       { "writeImage", &SkCanvasWrapper::writeImage },
-      { "dispose", &SkCanvasWrapper::dispose },
       { "writePDF", &SkCanvasWrapper::writePDF },
     };
 
@@ -4098,6 +4097,22 @@ class SkCanvasWrapper {
   }
 
  private:
+  static void WeakCallback(v8::Persistent<v8::Value> value, void* data) {
+    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(obj);
+    SkCanvas* canvas = ExtractPointer(obj);
+
+    int size_bytes = canvas->getDevice()->width() *
+                     canvas->getDevice()->height() * 4;
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(-size_bytes);
+
+    value.ClearWeak();
+    value.Dispose();
+
+    // Delete the backing SkCanvas object.  Skia reference counting should
+    // handle cleaning up deeper resources (for example the backing pixels).
+    delete canvas;
+  }
+
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
     // We have a level of indirection (tbitmap vs bitmap) so that we don't need
     // to copy and create a new SkBitmap in the case it already exists (for
@@ -4229,6 +4244,16 @@ class SkCanvasWrapper {
                      v8::Integer::NewFromUnsigned(bitmap->width()));
     args.This()->Set(v8::String::New("height"),
                      v8::Integer::NewFromUnsigned(bitmap->height()));
+
+    // Notify the GC that we have a possibly large amount of data allocated
+    // behind this object.  This is sometimes a bit of a lie, for example for
+    // a PDF surface or an NSWindow surface.  Anyway, it's just a heuristic.
+    int size_bytes = bitmap->width() * bitmap->height() * 4;
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(size_bytes);
+
+    v8::Persistent<v8::Object> persistent =
+        v8::Persistent<v8::Object>::New(args.This());
+    persistent.MakeWeak(NULL, &SkCanvasWrapper::WeakCallback);
 
     return v8::Undefined();
   }
@@ -4590,17 +4615,6 @@ class SkCanvasWrapper {
     if (!saved)
       return v8_utils::ThrowError("Failed to save png.");
 
-    return v8::Undefined();
-  }
-
-  // Delete the backing SkCanvas object.  Skia reference counting should handle
-  // cleaning up deeper resources (for example the backing pixels).
-  // Calling functions on the SkCanvas object after dispose() will currently
-  // lead to a NULL pointer crash.
-  static v8::Handle<v8::Value> dispose(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
-    delete canvas;
-    args.This()->SetPointerInInternalField(0, NULL);
     return v8::Undefined();
   }
 
