@@ -125,55 +125,23 @@ PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvasNoFlip = function() {
   return this.texImage2DSkCanvasB.apply(this, arguments);
 };
 
-// Depricated, use MidiOut.
-function MidiSource(name) {
-  name = name === undefined ? 'Plask' : name;
-  this.casource_ = new PlaskRawMac.CAMIDISource();
-  this.casource_.createVirtual(name);
-}
-
-MidiSource.prototype.sendData = function(bytes) {
-  return this.casource_.sendData(bytes);
-};
-
-MidiSource.prototype.noteOn = function(chan, note, vel) {
+PlaskRawMac.CAMIDISource.prototype.noteOn = function(chan, note, vel) {
   return this.sendData([0x90 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
 };
 
-MidiSource.prototype.noteOff = function(chan, note, vel) {
+PlaskRawMac.CAMIDISource.prototype.noteOff = function(chan, note, vel) {
   return this.sendData([0x80 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
 };
 
 // Pitch wheel takes a value between -1 .. 1, and will be mapped to 14-bit midi.
-MidiSource.prototype.pitchWheel = function(chan, val) {
+PlaskRawMac.CAMIDISource.prototype.pitchWheel = function(chan, val) {
   var bits = clamp((val * 0.5 + 0.5) * 16384, 0, 16383);  // Not perfect at +1.
   return this.sendData([0xe0 | (chan & 0xf), bits & 0x7f, (bits >> 7) & 0x7f]);
 };
 
-MidiSource.prototype.controller = function(chan, con, val) {
+PlaskRawMac.CAMIDISource.prototype.controller = function(chan, con, val) {
   return this.sendData([0xb0 | (chan & 0xf), con & 0x7f, val & 0x7f]);
 };
-
-// Depricated, use MidiIn.
-function MidiDestination(name) {
-  name = name === undefined ? 'Plask' : name;
-  this.cadest_ = new PlaskRawMac.CAMIDIDestination();
-  this.cadest_.createVirtual(name);
-}
-
-MidiDestination.prototype.syncClocks = function() {
-  return this.cadest_.syncClocks();
-};
-
-MidiDestination.prototype.setDgramPath = function(path) {
-  return this.cadest_.setDgramPath(path);
-};
-
-exports.MidiSource = MidiSource;
-exports.MidiDestination = MidiDestination;
-
-exports.MidiIn = PlaskRawMac.CAMIDIDestination;
-exports.MidiOut = PlaskRawMac.CAMIDISource;
 
 inherits(PlaskRawMac.CAMIDIDestination, events.EventEmitter);
 
@@ -229,6 +197,9 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
 
   events.EventEmitter.prototype.on.call(this, evname, callback);
 };
+
+exports.MidiIn = PlaskRawMac.CAMIDIDestination;
+exports.MidiOut = PlaskRawMac.CAMIDISource;
 
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
