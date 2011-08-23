@@ -5414,8 +5414,12 @@ class CAMIDIDestinationWrapper {
         [[paths objectAtIndex:i] UTF8String]));
   }
 
+  NSPoint location = [sender draggingLocation];
+
   v8::Local<v8::Object> res = v8::Object::New();
   res->Set(v8::String::New("paths"), jspaths);
+  res->Set(v8::String::New("x"), v8::Number::New(location.x));
+  res->Set(v8::String::New("y"), v8::Number::New(location.y));
 
   v8::Handle<v8::Value> argv[] = { v8::Number::New(1), res };
   v8::TryCatch try_catch;

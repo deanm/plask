@@ -473,7 +473,10 @@ exports.Window = function(width, height, opts) {
       if (msgtype === 0) {  // Cocoa NSEvent.
         handleRawNSEvent(msgdata);
       } else if (msgtype === 1) {  // File drag.
-        this_.emit('filesDropped', msgdata);
+        this_.emit('filesDropped', {type: 'filesDropped',
+                                    paths: msgdata.paths,
+                                    x: msgdata.x,
+                                    y: height - msgdata.y});
       }
     } catch(ex) {
       sys.puts(ex.stack);
