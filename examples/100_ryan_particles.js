@@ -48,7 +48,7 @@ plask.simpleWindow({
   init: function() {
     var canvas = this.canvas, paint = this.paint;
 
-    canvas.drawColor(0, 0, 0);
+    canvas.clear(0, 0, 0, 255);
     paint.setFlags(paint.kAntiAliasFlag);
     paint.setXfermodeMode(paint.kPlusMode);
 
@@ -84,7 +84,7 @@ plask.simpleWindow({
   draw: function() {
     var canvas = this.canvas, paint = this.paint;
 
-    canvas.drawColor(0, 0, 0);
+    canvas.clear(0, 0, 0, 255);
     
     paint.setStyle(paint.kFillStyle);
     paint.setXfermodeMode(paint.kPlusMode);

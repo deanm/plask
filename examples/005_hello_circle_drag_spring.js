@@ -39,7 +39,7 @@ plask.simpleWindow({
 
   draw: function() {
     var canvas = this.canvas, paint = this.paint;
-    canvas.drawColor(230, 230, 230, 255);
+    canvas.clear(230, 230, 230, 255);
     canvas.drawCircle(paint, this.center.x, this.center.y, 100);
     if (this.mouse_down === false) {
       // Not proper physics, but a simple non-linear tween.

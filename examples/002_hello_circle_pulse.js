@@ -22,7 +22,7 @@ plask.simpleWindow({
   draw: function() {
     var canvas = this.canvas, paint = this.paint;
 
-    canvas.drawColor(230, 230, 230, 255);
+    canvas.clear(230, 230, 230, 255);
 
     // The frametime property is automatically computed by simpleWindow(), and
     // contains the number of seconds since the window was created.

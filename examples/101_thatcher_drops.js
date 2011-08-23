@@ -74,7 +74,7 @@ plask.simpleWindow({
 
     this.framerate(60);
 
-    canvas.drawColor(100, 100, 100);  // Initial background.
+    canvas.clear(100, 100, 100, 255);  // Initial background.
     paint.setFlags(paint.kAntiAliasFlag);
     paint.setXfermodeMode(paint.kPlusMode);  // Additive blending.
 

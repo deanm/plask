@@ -21,7 +21,7 @@ plask.simpleWindow({
     var canvas = this.canvas, paint = this.paint;
 
     // Draw the light gray background.
-    canvas.drawColor(230, 230, 230, 255);
+    canvas.clear(230, 230, 230, 255);
 
     // By default our window will be 400x300, so our center is at 200x150.
     // Using the settings on our paint set above, draw a circle of radius 100px.
