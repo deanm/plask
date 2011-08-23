@@ -337,7 +337,7 @@ class SyphonServerWrapper {
     if (args.Length() != 9)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     [server publishFrameTexture:args[0]->Uint32Value()
             textureTarget:args[1]->Uint32Value()
             imageRegion:NSMakeRect(args[2]->Int32Value(),
@@ -354,20 +354,20 @@ class SyphonServerWrapper {
       const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     BOOL res = [server bindToDrawFrameOfSize:NSMakeSize(args[0]->Int32Value(),
                                                         args[1]->Int32Value())];
     return v8::Boolean::New(res);
   }
 
   static v8::Handle<v8::Value> unbindAndPublish(const v8::Arguments& args) {
-    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     [server unbindAndPublish];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> hasClients(const v8::Arguments& args) {
-    SyphonServer* server = ExtractSyphonServerPointer(args.This());
+    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     return v8::Boolean::New([server hasClients]);
   }
 };
@@ -1018,7 +1018,7 @@ class NSOpenGLContextWrapper {
   }
 
   static v8::Handle<v8::Value> makeCurrentContext(const v8::Arguments& args) {
-    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     [context makeCurrentContext];
     return v8::Undefined();
   }
@@ -1027,7 +1027,7 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     v8::String::Utf8Value name(args[0]->ToString());
     SyphonServer* server = [[SyphonServer alloc]
         initWithName:[NSString stringWithUTF8String:*name]
@@ -1038,7 +1038,7 @@ class NSOpenGLContextWrapper {
 
   // aka vsync.
   static v8::Handle<v8::Value> setSwapInterval(const v8::Arguments& args) {
-    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     GLint interval = args[0]->Int32Value();
     [context setValues:&interval forParameter:NSOpenGLCPSwapInterval];
     return v8::Undefined();
@@ -1053,7 +1053,7 @@ class NSOpenGLContextWrapper {
     if (args.Length() < 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     // TODO(deanm): There should be a better way to get the width and height.
     NSRect frame = [[context view] frame];
     int width = frame.size.width;
@@ -3201,8 +3201,8 @@ class NSWindowWrapper {
   }
 
   static v8::Handle<v8::Value> blit(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
-    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     if (context) {  // 3d, swap the buffers.
       [context flushBuffer];
     } else {  // 2d, redisplay the view.
@@ -3213,7 +3213,7 @@ class NSWindowWrapper {
 
   static v8::Handle<v8::Value> mouseLocationOutsideOfEventStream(
       const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     NSPoint pos = [window mouseLocationOutsideOfEventStream];
     v8::Local<v8::Object> res = v8::Object::New();
     res->Set(v8::String::New("x"), v8::Number::New(pos.x));
@@ -3223,14 +3223,14 @@ class NSWindowWrapper {
 
   static v8::Handle<v8::Value> setAcceptsMouseMovedEvents(
       const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window setAcceptsMouseMovedEvents:args[0]->BooleanValue()];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setAcceptsFileDrag(
       const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     if (args[0]->BooleanValue()) {
       [window registerForDraggedTypes:
           [NSArray arrayWithObject:NSFilenamesPboardType]];
@@ -3244,19 +3244,19 @@ class NSWindowWrapper {
   static v8::Handle<v8::Value> setEventCallback(const v8::Arguments& args) {
     if (args.Length() != 1 || !args[0]->IsFunction())
       return v8_utils::ThrowError("Incorrect invocation of setEventCallback.");
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window setEventCallbackWithHandle:v8::Handle<v8::Function>::Cast(args[0])];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setTitle(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     v8::String::Utf8Value title(args[0]->ToString());
     [window setTitle:[NSString stringWithUTF8String:*title]];
     return v8::Undefined();
   }
   static v8::Handle<v8::Value> setFrameTopLeftPoint(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
     [window setFrameTopLeftPoint:NSMakePoint(args[0]->NumberValue(),
@@ -3265,7 +3265,7 @@ class NSWindowWrapper {
   }
 
   static v8::Handle<v8::Value> center(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window center];
     return v8::Undefined();
   }
@@ -3281,13 +3281,13 @@ class NSWindowWrapper {
   }
 
   static v8::Handle<v8::Value> hide(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window orderOut:nil];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> show(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     switch (args[0]->Uint32Value()) {
       case 0:  // Also when no argument was passed.
         [window makeKeyAndOrderFront:nil];
@@ -3307,7 +3307,7 @@ class NSWindowWrapper {
   }
 
   static v8::Handle<v8::Value> screenSize(const v8::Arguments& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.This());
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     NSRect frame = [[window screen] frame];
     v8::Local<v8::Object> res = v8::Object::New();
     res->Set(v8::String::New("width"), v8::Number::New(frame.size.width));
@@ -3440,17 +3440,17 @@ class NSEventWrapper {
   }
 
   static v8::Handle<v8::Value> type(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event type]);
   }
 
   static v8::Handle<v8::Value> buttonNumber(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event buttonNumber]);
   }
 
   static v8::Handle<v8::Value> characters(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     NSString* characters = [event characters];
     return v8::String::New(
         [characters UTF8String],
@@ -3458,12 +3458,12 @@ class NSEventWrapper {
   }
 
   static v8::Handle<v8::Value> keyCode(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event keyCode]);
   }
 
   static v8::Handle<v8::Value> locationInWindow(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     // If window is nil we'll instead get screen coordinates.
     if ([event window] == nil)
       return v8_utils::ThrowError("Calling locationInWindow with nil window.");
@@ -3475,32 +3475,32 @@ class NSEventWrapper {
   }
 
   static v8::Handle<v8::Value> deltaX(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Number::New([event deltaX]);
   }
 
   static v8::Handle<v8::Value> deltaY(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Number::New([event deltaY]);
   }
 
   static v8::Handle<v8::Value> deltaZ(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Number::New([event deltaZ]);
   }
 
   static v8::Handle<v8::Value> pressure(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Number::New([event pressure]);
   }
 
   static v8::Handle<v8::Value> isEnteringProximity(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Boolean::New([event isEnteringProximity]);
   }
 
   static v8::Handle<v8::Value> modifierFlags(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.This());
+    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event modifierFlags]);
   }
 };
@@ -3571,19 +3571,19 @@ class SkPathWrapper {
 
  private:
   static v8::Handle<v8::Value> reset(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
     path->reset();
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> rewind(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
     path->rewind();
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> moveTo(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
 
     path->moveTo(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
@@ -3591,7 +3591,7 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> lineTo(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
 
     path->lineTo(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
@@ -3599,7 +3599,7 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> rLineTo(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
 
     path->rLineTo(SkDoubleToScalar(args[0]->NumberValue()),
                   SkDoubleToScalar(args[1]->NumberValue()));
@@ -3607,7 +3607,7 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> quadTo(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
 
     path->quadTo(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()),
@@ -3617,7 +3617,7 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> cubicTo(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
 
     path->cubicTo(SkDoubleToScalar(args[0]->NumberValue()),
                   SkDoubleToScalar(args[1]->NumberValue()),
@@ -3629,7 +3629,7 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> addCircle(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
 
     path->addCircle(SkDoubleToScalar(args[0]->NumberValue()),
                   SkDoubleToScalar(args[1]->NumberValue()),
@@ -3638,20 +3638,20 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> close(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
     path->close();
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> offset(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
     path->offset(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> getBounds(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
     SkRect bounds = path->getBounds();
     v8::Local<v8::Array> res = v8::Array::New(4);
     res->Set(v8::Integer::New(0), v8::Number::New(bounds.fLeft));
@@ -3662,7 +3662,7 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> toSVGString(const v8::Arguments& args) {
-    SkPath* path = ExtractPointer(args.This());  // TODO should be holder?
+    SkPath* path = ExtractPointer(args.Holder());
     SkString str;
     SkParsePath::ToSVGString(*path, &str);
     return v8::String::New(str.c_str(), str.size());
@@ -3811,118 +3811,118 @@ class SkPaintWrapper {
 
  private:
   static v8::Handle<v8::Value> reset(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->reset();
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> getFlags(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     return v8::Uint32::New(paint->getFlags());
   }
 
   static v8::Handle<v8::Value> setFlags(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFlags(v8_utils::ToInt32(args[0]));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setAntiAlias(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAntiAlias(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setFilterBitmap(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFilterBitmap(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setDither(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setDither(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setUnderlineText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setUnderlineText(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setStrikeThruText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrikeThruText(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setFakeBoldText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFakeBoldText(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setSubpixelText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setSubpixelText(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setDevKernText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setDevKernText(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setLCDRenderText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setLCDRenderText(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setAutohinted(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAutohinted(args[0]->BooleanValue());
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> getStrokeWidth(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     return v8::Number::New(SkScalarToDouble(paint->getStrokeWidth()));
   }
 
   static v8::Handle<v8::Value> setStrokeWidth(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeWidth(SkDoubleToScalar(args[0]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> getStyle(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     return v8::Uint32::New(paint->getStyle());
   }
 
   static v8::Handle<v8::Value> setStyle(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(static_cast<SkPaint::Style>(v8_utils::ToInt32(args[0])));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setFill(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(SkPaint::kFill_Style);
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setStroke(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(SkPaint::kStroke_Style);
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setFillAndStroke(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     // We flip the name around because it makes more sense, generally you think
     // of the stroke happening after the fill.
     paint->setStyle(SkPaint::kStrokeAndFill_Style);
@@ -3930,19 +3930,19 @@ class SkPaintWrapper {
   }
 
   static v8::Handle<v8::Value> getStrokeCap(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     return v8::Uint32::New(paint->getStrokeCap());
   }
 
   static v8::Handle<v8::Value> setStrokeCap(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeCap(static_cast<SkPaint::Cap>(v8_utils::ToInt32(args[0])));
     return v8::Undefined();
   }
 
   // We wrap it as 4 params instead of 1 to try to keep things as SMIs.
   static v8::Handle<v8::Value> setColor(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
     int g = Clamp(v8_utils::ToInt32WithDefault(args[1], 0), 0, 255);
@@ -3954,7 +3954,7 @@ class SkPaintWrapper {
   }
 
   static v8::Handle<v8::Value> setColorHSV(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     // TODO(deanm): Clamp.
     SkScalar hsv[] = { SkDoubleToScalar(args[0]->NumberValue()),
@@ -3967,14 +3967,14 @@ class SkPaintWrapper {
   }
 
   static v8::Handle<v8::Value> setTextSize(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     paint->setTextSize(SkDoubleToScalar(args[0]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> setXfermodeMode(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     // TODO(deanm): Memory management.
     paint->setXfermodeMode(
@@ -3986,7 +3986,7 @@ class SkPaintWrapper {
     if (args.Length() < 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     v8::String::Utf8Value family_name(args[0]->ToString());
     paint->setTypeface(SkTypeface::CreateFromName(
         *family_name, static_cast<SkTypeface::Style>(args[1]->Uint32Value())));
@@ -3998,7 +3998,7 @@ class SkPaintWrapper {
     if (args.Length() != 5)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     SkPoint points[2] = {{SkDoubleToScalar(args[0]->NumberValue()),
                           SkDoubleToScalar(args[1]->NumberValue())},
@@ -4042,7 +4042,7 @@ class SkPaintWrapper {
     if (args.Length() != 4)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     SkPoint center = {SkDoubleToScalar(args[0]->NumberValue()),
                       SkDoubleToScalar(args[1]->NumberValue())};
@@ -4082,13 +4082,13 @@ class SkPaintWrapper {
   }
 
   static v8::Handle<v8::Value> clearShader(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
     paint->setShader(NULL);
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> measureText(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.This());  // TODO should be holder?
+    SkPaint* paint = ExtractPointer(args.Holder());
 
     v8::String::Utf8Value utf8(args[0]->ToString());
     SkScalar width = paint->measureText(*utf8, utf8.length());
@@ -4352,13 +4352,13 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> resetMatrix(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->resetMatrix();
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> clipRect(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
 
     SkRect rect = { SkDoubleToScalar(args[0]->NumberValue()),
                     SkDoubleToScalar(args[1]->NumberValue()),
@@ -4369,7 +4369,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> clipPath(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
 
     if (!SkPathWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4382,7 +4382,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawCircle(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4398,7 +4398,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawLine(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4415,7 +4415,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawPaint(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4434,7 +4434,7 @@ class SkCanvasWrapper {
     if (!SkCanvasWrapper::HasInstance(args[1]))
       return v8_utils::ThrowError("Bad arguments.");
 
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     SkPaint* paint = NULL;
     if (SkPaintWrapper::HasInstance(args[0])) {
       paint = SkPaintWrapper::ExtractPointer(
@@ -4464,7 +4464,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawColor(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
     int g = Clamp(v8_utils::ToInt32WithDefault(args[1], 0), 0, 255);
@@ -4477,7 +4477,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> eraseColor(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
     int g = Clamp(v8_utils::ToInt32WithDefault(args[1], 0), 0, 255);
@@ -4490,7 +4490,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawPath(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4509,7 +4509,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawPoints(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4542,7 +4542,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawRect(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4559,7 +4559,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawRoundRect(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4579,7 +4579,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawText(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4596,7 +4596,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> drawTextOnPathHV(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
     if (!SkPaintWrapper::HasInstance(args[0]))
       return v8::Undefined();
@@ -4619,40 +4619,40 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> translate(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->translate(SkDoubleToScalar(args[0]->NumberValue()),
                       SkDoubleToScalar(args[1]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> scale(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->scale(SkDoubleToScalar(args[0]->NumberValue()),
                   SkDoubleToScalar(args[1]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> rotate(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->rotate(SkDoubleToScalar(args[0]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> skew(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->skew(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> save(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->save();
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> restore(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->restore();
     return v8::Undefined();
   }
@@ -4665,7 +4665,7 @@ class SkCanvasWrapper {
     if (args.Length() < 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    SkCanvas* canvas = ExtractPointer(args.This());
+    SkCanvas* canvas = ExtractPointer(args.Holder());
     const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
 
     v8::String::Utf8Value type(args[0]->ToString());
@@ -4713,7 +4713,7 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> writePDF(const v8::Arguments& args) {
-    SkCanvas* canvas = ExtractPointer(args.This());  // TODO should be holder?
+    SkCanvas* canvas = ExtractPointer(args.Holder());
 
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
@@ -4806,32 +4806,32 @@ class NSSoundWrapper {
   }
 
   static v8::Handle<v8::Value> isPlaying(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Boolean::New([sound isPlaying]);
   }
 
   static v8::Handle<v8::Value> pause(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Boolean::New([sound pause]);
   }
 
   static v8::Handle<v8::Value> play(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Boolean::New([sound play]);
   }
 
   static v8::Handle<v8::Value> resume(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Boolean::New([sound resume]);
   }
 
   static v8::Handle<v8::Value> stop(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Boolean::New([sound stop]);
   }
 
   static v8::Handle<v8::Value> volume(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Number::New([sound volume]);
   }
 
@@ -4839,13 +4839,13 @@ class NSSoundWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setVolume:args[0]->NumberValue()];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> currentTime(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Number::New([sound currentTime]);
   }
 
@@ -4853,13 +4853,13 @@ class NSSoundWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setCurrentTime:args[0]->NumberValue()];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> loops(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Boolean::New([sound loops]);
   }
 
@@ -4867,13 +4867,13 @@ class NSSoundWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setLoops:args[0]->BooleanValue()];
     return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> duration(const v8::Arguments& args) {
-    NSSound* sound = ExtractNSSoundPointer(args.This());
+    NSSound* sound = ExtractNSSoundPointer(args.Holder());
     return v8::Number::New([sound duration]);
   }
 };
@@ -5133,13 +5133,13 @@ class CAMIDISourceWrapper {
     if (!args[0]->IsArray())
       return v8::Undefined();
 
-    MIDIEndpointRef endpoint = ExtractEndpoint(args.This());
+    MIDIEndpointRef endpoint = ExtractEndpoint(args.Holder());
 
     if (!endpoint) {
       return v8_utils::ThrowError("Can't send on midi without an endpoint.");
     }
 
-    MIDIPortRef port = ExtractPort(args.This());
+    MIDIPortRef port = ExtractPort(args.Holder());
     MIDITimeStamp timestamp = AudioGetCurrentHostTime();
     ByteCount pl_count;
     MIDIPacketList* pl = AllocateMIDIPacketList(1, &pl_count);
@@ -5343,7 +5343,7 @@ class CAMIDIDestinationWrapper {
   }
 
   static v8::Handle<v8::Value> syncClocks(const v8::Arguments& args) {
-    State* state = ExtractPointer(args.This());
+    State* state = ExtractPointer(args.Holder());
     return v8::Integer::New(state->clocks);
   }
 
@@ -5351,7 +5351,7 @@ class CAMIDIDestinationWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    State* state = ExtractPointer(args.This());
+    State* state = ExtractPointer(args.Holder());
     v8::String::Utf8Value path(args[0]->ToString());
     memset(&state->dgram_un, 0, sizeof(state->dgram_un));
     state->dgram_un.sun_family = AF_UNIX;
@@ -5391,7 +5391,7 @@ class CAMIDIDestinationWrapper {
     CFStringRef name =
         CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
-    State* state = ExtractPointer(args.This());
+    State* state = ExtractPointer(args.Holder());
 
     MIDIEndpointRef endpoint;
     result = MIDIDestinationCreate(
@@ -5425,7 +5425,7 @@ class CAMIDIDestinationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     OSStatus result;
-    State* state = ExtractPointer(args.This());
+    State* state = ExtractPointer(args.Holder());
 
     ItemCount num_sources = MIDIGetNumberOfSources();
     ItemCount index = args[0]->Uint32Value();
