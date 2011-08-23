@@ -4484,7 +4484,8 @@ class SkCanvasWrapper {
     int b = Clamp(v8_utils::ToInt32WithDefault(args[2], 0), 0, 255);
     int a = Clamp(v8_utils::ToInt32WithDefault(args[3], 255), 0, 255);
 
-    canvas->getDevice()->eraseColor(SkColorSetARGB(a, r, g, b));
+    canvas->getDevice()->accessBitmap(true).eraseColor(
+        SkColorSetARGB(a, r, g, b));
     return v8::Undefined();
   }
 
