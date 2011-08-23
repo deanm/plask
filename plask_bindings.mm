@@ -2256,7 +2256,7 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // void readPixels(GLint x, GLint y, GLsizei width, GLsizei height, 
+  // void readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
   //                 GLenum format, GLenum type, ArrayBufferView pixels)
   static v8::Handle<v8::Value> readPixels(
       const v8::Arguments& args) {
@@ -2288,7 +2288,7 @@ class NSOpenGLContextWrapper {
     // TODO(deanm):  From the spec (requires synthesizing gl errors):
     //   If pixels is non-null, but is not large enough to retrieve all of the
     //   pixels in the specified rectangle taking into account pixel store
-    //   modes, an INVALID_OPERATION value is generated. 
+    //   modes, an INVALID_OPERATION value is generated.
     if (data->GetIndexedPropertiesExternalArrayDataLength() < width*height*4)
       return v8_utils::ThrowError("Uint8Array buffer too small.");
 
@@ -2297,7 +2297,7 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // void renderbufferStorage(GLenum target, GLenum internalformat, 
+  // void renderbufferStorage(GLenum target, GLenum internalformat,
   //                          GLsizei width, GLsizei height)
   static v8::Handle<v8::Value> renderbufferStorage(const v8::Arguments& args) {
     if (args.Length() != 4)
@@ -2410,7 +2410,7 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // void texImage2D(GLenum target, GLint level, GLenum internalformat, 
+  // void texImage2D(GLenum target, GLint level, GLenum internalformat,
   //                 GLsizei width, GLsizei height, GLint border,
   //                 GLenum format, GLenum type, ArrayBufferView pixels)
   // void texImage2D(GLenum target, GLint level, GLenum internalformat,
@@ -2479,20 +2479,20 @@ class NSOpenGLContextWrapper {
   }
 
   // void texSubImage2D(GLenum target, GLint level,
-  //                    GLint xoffset, GLint yoffset, 
-  //                    GLsizei width, GLsizei height, 
+  //                    GLint xoffset, GLint yoffset,
+  //                    GLsizei width, GLsizei height,
   //                    GLenum format, GLenum type, ArrayBufferView pixels)
   // void texSubImage2D(GLenum target, GLint level,
-  //                    GLint xoffset, GLint yoffset, 
+  //                    GLint xoffset, GLint yoffset,
   //                    GLenum format, GLenum type, ImageData pixels)
   // void texSubImage2D(GLenum target, GLint level,
-  //                    GLint xoffset, GLint yoffset, 
+  //                    GLint xoffset, GLint yoffset,
   //                    GLenum format, GLenum type, HTMLImageElement image)
   // void texSubImage2D(GLenum target, GLint level,
-  //                    GLint xoffset, GLint yoffset, 
+  //                    GLint xoffset, GLint yoffset,
   //                    GLenum format, GLenum type, HTMLCanvasElement canvas)
   // void texSubImage2D(GLenum target, GLint level,
-  //                    GLint xoffset, GLint yoffset, 
+  //                    GLint xoffset, GLint yoffset,
   //                    GLenum format, GLenum type, HTMLVideoElement video)
 
   static v8::Handle<v8::Value> texSubImage2D(const v8::Arguments& args) {
@@ -2536,7 +2536,7 @@ class NSOpenGLContextWrapper {
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
-    
+
     int length = 0;
     if (!args[1]->IsObject())
       return v8_utils::ThrowError("value must be an Sequence.");
@@ -2570,7 +2570,7 @@ class NSOpenGLContextWrapper {
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
-    
+
     int length = 0;
     if (!args[1]->IsObject())
       return v8_utils::ThrowError("value must be an Sequence.");
@@ -2614,7 +2614,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform1fv(const v8::Arguments& args) {
     return uniformfHelper<glUniform1fv>(args);
   }
-  
+
   // void uniform1i(WebGLUniformLocation location, GLint x)
   static v8::Handle<v8::Value> uniform1i(const v8::Arguments& args) {
     if (args.Length() != 2)
@@ -2630,7 +2630,7 @@ class NSOpenGLContextWrapper {
     glUniform1i(location, args[1]->Int32Value());
     return v8::Undefined();
   }
-  
+
   // void uniform1iv(WebGLUniformLocation location, Int32Array v)
   // void uniform1iv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform1iv(const v8::Arguments& args) {
@@ -2648,7 +2648,7 @@ class NSOpenGLContextWrapper {
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
-    
+
     glUniform2f(location,
                 args[1]->NumberValue(),
                 args[2]->NumberValue());
@@ -2660,7 +2660,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform2fv(const v8::Arguments& args) {
     return uniformfHelper<glUniform2fv>(args);
   }
-  
+
   // void uniform2i(WebGLUniformLocation location, GLint x, GLint y)
   static v8::Handle<v8::Value> uniform2i(const v8::Arguments& args) {
     if (args.Length() != 3)
@@ -2684,7 +2684,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform2iv(const v8::Arguments& args) {
     return uniformiHelper<glUniform2iv>(args);
   }
-  
+
   // void uniform3f(WebGLUniformLocation location, GLfloat x, GLfloat y,
   //                GLfloat z)
   static v8::Handle<v8::Value> uniform3f(const v8::Arguments& args) {
@@ -2710,7 +2710,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform3fv(const v8::Arguments& args) {
     return uniformfHelper<glUniform3fv>(args);
   }
-  
+
   // void uniform3i(WebGLUniformLocation location, GLint x, GLint y, GLint z)
   static v8::Handle<v8::Value> uniform3i(const v8::Arguments& args) {
     if (args.Length() != 4)
@@ -2735,7 +2735,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform3iv(const v8::Arguments& args) {
     return uniformiHelper<glUniform3iv>(args);
   }
-  
+
   // void uniform4f(WebGLUniformLocation location, GLfloat x, GLfloat y,
   //                GLfloat z, GLfloat w)
   static v8::Handle<v8::Value> uniform4f(const v8::Arguments& args) {
@@ -2762,7 +2762,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> uniform4fv(const v8::Arguments& args) {
     return uniformfHelper<glUniform4fv>(args);
   }
-  
+
   // void uniform4i(WebGLUniformLocation location, GLint x, GLint y,
   //                GLint z, GLint w)
   static v8::Handle<v8::Value> uniform4i(const v8::Arguments& args) {
@@ -2801,7 +2801,7 @@ class NSOpenGLContextWrapper {
     if (!WebGLUniformLocation::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
-    
+
     int length = 0;
     if (!args[2]->IsObject())
       return v8_utils::ThrowError("value must be an Sequence.");
@@ -2826,25 +2826,25 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose, 
+  // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose,
   //                       Float32Array value)
-  // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose, 
+  // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix2fv(const v8::Arguments& args) {
     return uniformMatrixHelper<glUniformMatrix2fv>(args);
   }
-  
-  // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose, 
+
+  // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
   //                       Float32Array value)
-  // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose, 
+  // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix3fv(const v8::Arguments& args) {
     return uniformMatrixHelper<glUniformMatrix3fv>(args);
   }
-  
-  // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose, 
+
+  // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
   //                       Float32Array value)
-  // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose, 
+  // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix4fv(const v8::Arguments& args) {
     return uniformMatrixHelper<glUniformMatrix4fv>(args);
@@ -2933,7 +2933,7 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  // void vertexAttribPointer(GLuint indx, GLint size, GLenum type, 
+  // void vertexAttribPointer(GLuint indx, GLint size, GLenum type,
   //                          GLboolean normalized, GLsizei stride,
   //                          GLsizeiptr offset)
   static v8::Handle<v8::Value> vertexAttribPointer(const v8::Arguments& args) {
@@ -4815,12 +4815,12 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::drawSkCanvas(
 // MIDI notes (pun pun):
 // Like UTF-8, there is tagging to identify the begin of a message.
 // All first bytes are in the range of 0x80 - 0xff, the MSB is set.
-// 8 = Note Off 
-// 9 = Note On 
-// A = AfterTouch (ie, key pressure) 
-// B = Control Change 
-// C = Program (patch) change 
-// D = Channel Pressure 
+// 8 = Note Off
+// 9 = Note On
+// A = AfterTouch (ie, key pressure)
+// B = Control Change
+// C = Program (patch) change
+// D = Channel Pressure
 // E = Pitch Wheel
 
 // TODO(deanm): Global MIDIClientCreate, lazily initialized, ever torn down?
@@ -4949,7 +4949,7 @@ static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
   // Here, either the endpoint had no connections, or we failed to obtain names
   return EndpointName( endpoint, false );
 }
-  
+
 
 class CAMIDISourceWrapper {
  public:
@@ -5062,7 +5062,7 @@ class CAMIDISourceWrapper {
     return v8::Undefined();
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
     OSStatus result;
 
     if (!g_midi_client) {
@@ -5077,7 +5077,7 @@ class CAMIDISourceWrapper {
     return args.This();
   }
 
-  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -5100,7 +5100,7 @@ class CAMIDISourceWrapper {
     return v8::Undefined();
   }
 
-  static v8::Handle<v8::Value> openDestination(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> openDestination(const v8::Arguments& args) {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -5127,7 +5127,7 @@ class CAMIDISourceWrapper {
   }
 
   // NOTE(deanm): See API notes about sources(), same comments apply here.
-  static v8::Handle<v8::Value> destinations(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> destinations(const v8::Arguments& args) {
     ItemCount num_destinations = MIDIGetNumberOfDestinations();
     v8::Local<v8::Array> arr = v8::Array::New(num_destinations);
     for (ItemCount i = 0; i < num_destinations; ++i) {
@@ -5255,7 +5255,7 @@ class CAMIDIDestinationWrapper {
     return v8::Undefined();
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
     OSStatus result;
 
     if (!g_midi_client) {
@@ -5274,7 +5274,7 @@ class CAMIDIDestinationWrapper {
   }
 
 
-  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -5300,7 +5300,7 @@ class CAMIDIDestinationWrapper {
   // you query for sourceName(index), but really, do you ever want the index
   // without the name?  This could be a little extra work if you don't, but
   // really it seems to make sense in most of the use cases.
-  static v8::Handle<v8::Value> sources(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> sources(const v8::Arguments& args) {
     ItemCount num_sources = MIDIGetNumberOfSources();
     v8::Local<v8::Array> arr = v8::Array::New(num_sources);
     for (ItemCount i = 0; i < num_sources; ++i) {
@@ -5312,7 +5312,7 @@ class CAMIDIDestinationWrapper {
     return arr;
   }
 
-  static v8::Handle<v8::Value> openSource(const v8::Arguments& args) {   
+  static v8::Handle<v8::Value> openSource(const v8::Arguments& args) {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -5410,7 +5410,7 @@ class CAMIDIDestinationWrapper {
   if (try_catch.HasCaught()) {
     printf("Exception in event callback, TODO(deanm): print something.\n");
   }
-  
+
   return YES;
 }
 
