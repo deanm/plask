@@ -4054,6 +4054,7 @@ class SkCanvasWrapper {
       { "drawCanvas", &SkCanvasWrapper::drawCanvas },
       { "drawColor", &SkCanvasWrapper::drawColor },
       { "eraseColor", &SkCanvasWrapper::eraseColor },
+      { "clear", &SkCanvasWrapper::eraseColor },
       { "drawPath", &SkCanvasWrapper::drawPath },
       { "drawPoints", &SkCanvasWrapper::drawPoints },
       { "drawRect", &SkCanvasWrapper::drawRect },
