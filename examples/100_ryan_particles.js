@@ -49,7 +49,7 @@ plask.simpleWindow({
     var canvas = this.canvas, paint = this.paint;
 
     canvas.clear(0, 0, 0, 255);
-    paint.setFlags(paint.kAntiAliasFlag);
+    paint.setAntiAlias(true);
     paint.setXfermodeMode(paint.kPlusMode);
 
     this.framerate(60);
@@ -86,7 +86,7 @@ plask.simpleWindow({
 
     canvas.clear(0, 0, 0, 255);
     
-    paint.setStyle(paint.kFillStyle);
+    paint.setFill();
     paint.setXfermodeMode(paint.kPlusMode);
 
     for (var i = dots.length; --i >= 0;) {

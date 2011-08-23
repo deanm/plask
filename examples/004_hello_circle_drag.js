@@ -25,8 +25,8 @@ plask.simpleWindow({
     this.on('leftMouseDown', updatePosition);
     this.on('leftMouseDragged', updatePosition);
 
-    paint.setStyle(paint.kFillStyle);
-    paint.setFlags(paint.kAntiAliasFlag);
+    paint.setFill();
+    paint.setAntiAlias(true);
     paint.setColor(80, 0, 0, 255);
   },
 

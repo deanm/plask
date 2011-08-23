@@ -27,8 +27,8 @@ plask.simpleWindow({
       this.center.y = e.y;
     });
 
-    paint.setStyle(paint.kFillStyle);
-    paint.setFlags(paint.kAntiAliasFlag);
+    paint.setFill();
+    paint.setAntiAlias(true);
     paint.setColor(80, 0, 0, 255);
   },
 

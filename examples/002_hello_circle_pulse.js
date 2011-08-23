@@ -14,8 +14,8 @@ plask.simpleWindow({
     // is the number of frames that should be drawn every second.
     this.framerate(30);
 
-    paint.setStyle(paint.kFillStyle);
-    paint.setFlags(paint.kAntiAliasFlag);
+    paint.setFill();
+    paint.setAntiAlias(true);
     paint.setColor(80, 0, 0, 255);
   },
 

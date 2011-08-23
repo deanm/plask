@@ -12,8 +12,8 @@ plask.simpleWindow({
     var canvas = this.canvas, paint = this.paint;
 
     // Set the paint to fill an anti-aliased dark red.
-    paint.setStyle(paint.kFillStyle);
-    paint.setFlags(paint.kAntiAliasFlag);
+    paint.setFill();  // Fill is the default, so this is just for clarity.
+    paint.setAntiAlias(true);
     paint.setColor(80, 0, 0, 255);
   },
 
