@@ -102,6 +102,9 @@ T Clamp(T v, T a, T b) {
 
 namespace {
 
+const char kMsgNonConstructCall[] =
+    "Constructor cannot be called as a function.";
+
 #if 0
 // A CGDataProvider that just provides from a pointer.
 const void* PointerProviderGetBytePointer(void* info) {
@@ -174,6 +177,9 @@ class WebGLActiveInfo {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     return args.This();
   }
 };
@@ -215,6 +221,9 @@ class WebGLProgram {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     // TODO(deanm): How to throw an exception when called from JavaScript but
     // not from NewFromID?
     //return v8_utils::ThrowTypeError("Type error.");
@@ -260,6 +269,9 @@ class WebGLUniformLocation {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     // TODO(deanm): How to throw an exception when called from JavaScript but
     // not from NewFromLocation?
     //return v8_utils::ThrowTypeError("Type error.");
@@ -330,6 +342,9 @@ class SyphonServerWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     return args.This();
   }
 
@@ -1013,6 +1028,9 @@ class NSOpenGLContextWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(NULL));
     return args.This();
   }
@@ -3085,6 +3103,9 @@ class NSWindowWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     if (args.Length() != 6)
       return v8_utils::ThrowError("Wrong number of arguments.");
     uint32_t type = args[0]->Uint32Value();
@@ -3430,6 +3451,9 @@ class NSEventWrapper {
   // template, wrapping a NSEvent*.  It can also be called directly from
   // JavaScript, which is a bit of a problem, but we'll survive.
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(NULL));
     return args.This();
   }
@@ -3669,6 +3693,9 @@ class SkPathWrapper {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     SkPath* prev_path = NULL;
     if (SkPathWrapper::HasInstance(args[0])) {
       prev_path = SkPathWrapper::ExtractPointer(
@@ -4096,6 +4123,9 @@ class SkPaintWrapper {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     SkPaint* paint = NULL;
     if (SkPaintWrapper::HasInstance(args[0])) {
       paint = new SkPaint(*SkPaintWrapper::ExtractPointer(
@@ -4207,6 +4237,9 @@ class SkCanvasWrapper {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     // We have a level of indirection (tbitmap vs bitmap) so that we don't need
     // to copy and create a new SkBitmap in the case it already exists (for
     // example for an NSWindow which has already has an SkBitmap).  This is
@@ -4794,6 +4827,9 @@ class NSSoundWrapper {
 
  private:
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -5171,6 +5207,9 @@ class CAMIDISourceWrapper {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     OSStatus result;
 
     if (!g_midi_client) {
@@ -5364,6 +5403,9 @@ class CAMIDIDestinationWrapper {
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
     OSStatus result;
 
     if (!g_midi_client) {
