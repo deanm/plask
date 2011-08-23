@@ -994,6 +994,25 @@ Vec2.prototype.rotated = function(theta) {
   return this.dup().rotate(theta);
 };
 
+// Reflect a vector about the normal |n|.  The vectors should both be unit.
+Vec2.prototype.reflect = function(n) {
+  // r = u - 2(u.n)n
+  // This could could basically be:
+  //   this.sub(n.scaled(this.dot(n) * 2));
+  // But we avoid some extra object allocated / etc and just flatten it.
+  var s = this.dot(n) * 2;
+  this.x -= n.x * s;
+  this.y -= n.y * s;
+
+  return this;
+};
+
+Vec2.prototype.reflected = function(n) {
+  var s = this.dot(n) * 2;
+  return Vec2(this.x - n.x * s,
+              this.y - n.y * s);
+};
+
 Vec2.prototype.dup = function() {
   return new Vec2(this.x, this.y);
 };
