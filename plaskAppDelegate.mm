@@ -79,4 +79,19 @@ static void InitMenuBar() {
 -(void)applicationDidFinishLaunching:(NSNotification *)aNotification {
 }
 
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)app {
+  // Handle shutdown by leaving the main loop instead of the default behavior
+  // of exit() being called.
+  [app postEvent:[NSEvent otherEventWithType:NSApplicationDefined
+                                    location:NSMakePoint(0, 0)
+                               modifierFlags:0
+                                   timestamp:0
+                                windowNumber:0
+                                     context:nil
+                                     subtype:37  // Arbitrary
+                                       data1:0
+                                       data2:0] atStart:YES];
+  return NSTerminateCancel;
+}
+
 @end

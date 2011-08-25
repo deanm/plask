@@ -86,6 +86,11 @@ static void RunMainLoop() {
                             dequeue:YES];
     if (event != nil) {  // event is nil on a timeout.
       // NSLog(@"Event: %@\n", event);
+
+      // A custom event to terminate, see applicationShouldTerminate.
+      if ([event type] == NSApplicationDefined && [event subtype] == 37)
+        return;
+
       [event retain];
       [NSApp sendEvent:event];
       [event release];
