@@ -143,6 +143,10 @@ PlaskRawMac.CAMIDISource.prototype.controller = function(chan, con, val) {
   return this.sendData([0xb0 | (chan & 0xf), con & 0x7f, val & 0x7f]);
 };
 
+PlaskRawMac.CAMIDISource.prototype.programChange = function(chan, val) {
+  return this.sendData([0xc0 | (chan & 0xf), val & 0x7f]);
+};
+
 inherits(PlaskRawMac.CAMIDIDestination, events.EventEmitter);
 
 PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
