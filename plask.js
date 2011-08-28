@@ -1462,17 +1462,22 @@ function MagicProgram(gl, program) {
   }
 }
 
-MagicProgram.createFromFiles = function(gl, vfn, ffn) {
+MagicProgram.createFromStrings = function(gl, vstr, fstr) {
   return new MagicProgram(gl, webGLcreateProgramFromShaderSources(
-      gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8')));
-}
+      gl, vstr, fstr));
+};
+
+MagicProgram.createFromFiles = function(gl, vfn, ffn) {
+  return MagicProgram.createFromStrings(
+      gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8'));
+};
 
 MagicProgram.createFromBasename = function(gl, directory, base) {
   return MagicProgram.createFromFiles(
       gl,
       path.join(directory, base + '.vshader'),
       path.join(directory, base + '.fshader'));
-}
+};
 
 exports.kPI  = kPI;
 exports.kPI2 = kPI2;
