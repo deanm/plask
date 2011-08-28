@@ -38,6 +38,9 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreAudio/CoreAudio.h>
 #include <CoreMIDI/CoreMIDI.h>
+#include <ScriptingBridge/SBApplication.h>
+#include <Foundation/NSObjCRuntime.h>
+#include <objc/runtime.h>
 
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
@@ -5503,6 +5506,204 @@ class CAMIDIDestinationWrapper {
   }
 };
 
+
+class SBApplicationWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&SBApplicationWrapper::V8New));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // id.
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "kDummy", 1 },
+    };
+
+    static BatchedMethods methods[] = {
+      { "objcMethods", &SBApplicationWrapper::objcMethods },
+      { "invokeVoid0", &SBApplicationWrapper::invokeVoid0 },
+      { "invokeVoid1s", &SBApplicationWrapper::invokeVoid1s },
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      instance->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    return ft_cache;
+  }
+
+  static id ExtractID(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<id>(obj->GetPointerFromInternalField(0));
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+ private:
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    v8::String::Utf8Value bundleid(args[0]->ToString());
+    id obj = [SBApplication applicationWithBundleIdentifier:
+        [NSString stringWithUTF8String:*bundleid]];
+    [obj retain];
+
+    if (obj == nil)
+      return v8_utils::ThrowError("Unable to create SBApplication.");
+
+    args.This()->SetPointerInInternalField(0, obj);
+
+    return args.This();
+  }
+
+  static v8::Handle<v8::Value> objcMethods(const v8::Arguments& args) {
+    id obj = ExtractID(args.Holder());
+    unsigned int num_methods;
+    Method* methods = class_copyMethodList(obj->isa, &num_methods);
+    v8::Local<v8::Array> res = v8::Array::New(num_methods);
+
+    for (unsigned int i = 0; i < num_methods; ++i) {
+      unsigned num_args = method_getNumberOfArguments(methods[i]);
+      v8::Local<v8::Array> sig = v8::Array::New(num_args + 1);
+      char rettype[256];
+      method_getReturnType(methods[i], rettype, sizeof(rettype));
+      sig->Set(v8::Integer::NewFromUnsigned(0),
+               v8::String::New(sel_getName(method_getName(methods[i]))));
+      sig->Set(v8::Integer::NewFromUnsigned(1),
+               v8::String::New(rettype));
+      for (unsigned j = 0; j < num_args; ++j) {
+        char argtype[256];
+        method_getArgumentType(methods[i], j, argtype, sizeof(argtype));
+        sig->Set(v8::Integer::NewFromUnsigned(j + 2),
+                 v8::String::New(argtype));
+      }
+      res->Set(v8::Integer::NewFromUnsigned(i), sig);
+    }
+
+    return res;
+  }
+
+  static v8::Handle<v8::Value> invokeVoid0(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    id obj = ExtractID(args.Holder());
+    v8::String::Utf8Value method_name(args[0]->ToString());
+    [obj performSelector:sel_getUid(*method_name)];
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> invokeVoid1s(const v8::Arguments& args) {
+    if (args.Length() != 2)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    id obj = ExtractID(args.Holder());
+    v8::String::Utf8Value method_name(args[0]->ToString());
+    v8::String::Utf8Value arg(args[1]->ToString());
+    [obj performSelector:sel_getUid(*method_name) withObject:
+        [NSString stringWithUTF8String:*arg]];
+    return v8::Undefined();
+  }
+};
+
+
+class NSAppleScriptWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&NSAppleScriptWrapper::V8New));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // NSAppleScript*.
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "kDummy", 1 },
+    };
+
+    static BatchedMethods methods[] = {
+      { "execute", &NSAppleScriptWrapper::execute },
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      instance->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    return ft_cache;
+  }
+
+  static NSAppleScript* ExtractNSAppleScript(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<NSAppleScript*>(
+        obj->GetPointerFromInternalField(0));
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+ private:
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    v8::String::Utf8Value src(args[0]->ToString());
+    NSAppleScript* ascript = [[NSAppleScript alloc] initWithSource:
+        [NSString stringWithUTF8String:*src]];
+
+    if (ascript == nil)
+      return v8_utils::ThrowError("Unable to create NSAppleScript.");
+
+    args.This()->SetPointerInInternalField(0, ascript);
+
+    return args.This();
+  }
+
+  static v8::Handle<v8::Value> execute(const v8::Arguments& args) {
+    NSAppleScript* ascript = ExtractNSAppleScript(args.Holder());
+    if ([ascript executeAndReturnError:nil] == nil)
+      return v8_utils::ThrowError("Error executing AppleScript.");
+    return v8::Undefined();
+  }
+};
+
 }  // namespace
 
 @implementation WrappedNSWindow
@@ -5657,4 +5858,8 @@ void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj) {
   obj->Set(v8::String::New("CAMIDISource"), CAMIDISourceWrapper::GetTemplate());
   obj->Set(v8::String::New("CAMIDIDestination"),
            CAMIDIDestinationWrapper::GetTemplate());
+  obj->Set(v8::String::New("SBApplication"),
+           SBApplicationWrapper::GetTemplate());
+  obj->Set(v8::String::New("NSAppleScript"),
+           NSAppleScriptWrapper::GetTemplate());
 }

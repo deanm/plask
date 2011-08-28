@@ -205,6 +205,31 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
 exports.MidiIn = PlaskRawMac.CAMIDIDestination;
 exports.MidiOut = PlaskRawMac.CAMIDISource;
 
+exports.SBApplication = function(bundleid) {
+  var sbapp = new PlaskRawMac.SBApplication(bundleid);
+  var methods = sbapp.objcMethods();
+  for (var i = 0, il = methods.length; i < il; ++i) {
+    var sig = methods[i];
+    if (sig.length === 4) {
+      this[sig[0].replace(/:/g, '_')] = (function(name) {
+        return function() {
+          return sbapp.invokeVoid0(name);
+        };
+      })(sig[0]);
+    }
+    if (sig.length === 5 && sig[4] === '@') {  // Assume arg is a string.
+      this[sig[0].replace(/:/g, '_')] = (function(name) {
+        return function(arg) {
+          return sbapp.invokeVoid1s(name, arg);
+        };
+      })(sig[0]);
+    }
+  }
+  console.log(methods);
+};
+
+exports.AppleScript = PlaskRawMac.NSAppleScript;
+
 exports.Window = function(width, height, opts) {
   var nswindow_ = new PlaskRawMac.NSWindow(
       opts.type === '3d' ? 1 : 0,
