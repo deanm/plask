@@ -4948,11 +4948,22 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::drawSkCanvas(
   SkCanvas* canvas = SkCanvasWrapper::ExtractPointer(
       v8::Handle<v8::Object>::Cast(args[0]));
   const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
+
+  GLfloat save_zoom_x, save_zoom_y;
+  glGetFloatv(GL_ZOOM_X, &save_zoom_x);
+  glGetFloatv(GL_ZOOM_Y, &save_zoom_y);
+  glRasterPos2i(-1, 1);
+  glPixelZoom(1, -1);
   glDrawPixels(bitmap.width(),
                bitmap.height(),
                GL_BGRA,  // We have to swizzle, so this technically isn't ES.
                GL_UNSIGNED_INT_8_8_8_8_REV,
                bitmap.getPixels());
+  glPixelZoom(save_zoom_x, save_zoom_y);
+  // TODO(deanm): We should also restore the raster position, but it's not as
+  // simple since it goes through the transforms.  This should hopefully put us
+  // back to the default (0, 0, 0, 1) at least.
+  glRasterPos2i(-1, -1);
   return v8::Undefined();
 }
 
