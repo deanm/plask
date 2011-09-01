@@ -87,6 +87,12 @@ function lerp(a, b, t) {
   return a + (b-a)*t;
 }
 
+// GLSL smoothstep().  NOTE: Undefined if edge0 == edge1.
+function smoothstep(edge0, edge1, x) {
+  var t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - t - t);
+}
+
 // Test if |num| is a floating point -0.
 function isNegZero(num) {
   return 1/num === -Infinity;
@@ -1513,6 +1519,7 @@ exports.min = min;
 exports.max = max;
 exports.clamp = clamp;
 exports.lerp = lerp;
+exports.smoothstep = smoothstep;
 
 exports.Vec3 = Vec3;
 exports.Vec2 = Vec2;
