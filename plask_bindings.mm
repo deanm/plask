@@ -4384,7 +4384,7 @@ class SkCanvasWrapper {
         v8::Persistent<v8::Object>::New(args.This());
     persistent.MakeWeak(NULL, &SkCanvasWrapper::WeakCallback);
 
-    return v8::Undefined();
+    return args.This();
   }
 
   static v8::Handle<v8::Value> resetMatrix(const v8::Arguments& args) {
