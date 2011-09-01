@@ -4224,7 +4224,7 @@ class SkCanvasWrapper {
 
  private:
   static void WeakCallback(v8::Persistent<v8::Value> value, void* data) {
-    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(obj);
+    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(value);
     SkCanvas* canvas = ExtractPointer(obj);
 
     int size_bytes = canvas->getDevice()->width() *
