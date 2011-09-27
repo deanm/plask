@@ -117,6 +117,8 @@
 				1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */,
 				C5A5260A12561A2200C0F632 /* OpenGL.framework */,
 				C5C83E11140A9D78006E6DAE /* ScriptingBridge.framework */,
+				C58108C812FC55920053FB3A /* CoreMIDI.framework */,
+				C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */,
 			);
 			name = "Linked Frameworks";
 			sourceTree = "<group>";
@@ -147,8 +149,6 @@
 				29B97317FDCFA39411CA2CEA /* Resources */,
 				29B97323FDCFA39411CA2CEA /* Frameworks */,
 				19C28FACFE9D520D11CA2CBB /* Products */,
-				C58108C812FC55920053FB3A /* CoreMIDI.framework */,
-				C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */,
 			);
 			name = plask;
 			sourceTree = "<group>";
