@@ -69,7 +69,9 @@ static void InitMenuBar() {
   [container_item setSubmenu:menu];
   [[NSApp mainMenu] addItem:container_item];
   // Call the undocumented setAppleMenu to make the menu the "Apple Menu".
-  [NSApp setAppleMenu:menu];
+  if ([NSApp respondsToSelector:@selector(setAppleMenu:)]) {
+    [NSApp performSelector:@selector(setAppleMenu:) withObject:menu];
+  }
   [container_item release];
   [menu release];
 }
