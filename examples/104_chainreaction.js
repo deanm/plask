@@ -124,8 +124,10 @@ function step(dt) {
 }
 
 plask.simpleWindow({
-  width: 400,
-  height: 300,
+  settings: {
+    width: 400,
+    height: 300
+  },
 
   init: function() {
     this.framerate(60);
