@@ -31,8 +31,10 @@
 // it programmatically.  For example, see:
 //    http://lapcatsoftware.com/blog/2007/06/17/
 static void InitMenuBar() {
-  // Our NSApplication is created with a nil mainMenu.
-  [NSApp setMainMenu:[[NSMenu alloc] init]];
+  // Our NSApplication is created with an empty mainMenu.
+  NSMenu* mainMenu = [[NSMenu alloc] init];
+  [NSApp setMainMenu:mainMenu];
+  [mainMenu release];
 
   NSMenu* menu = [[NSMenu alloc] initWithTitle:@""];
 
