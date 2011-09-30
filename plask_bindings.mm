@@ -5070,7 +5070,7 @@ static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
   int nConnected = 0;
   bool anyStrings = false;
   err = MIDIObjectGetDataProperty( endpoint, kMIDIPropertyConnectionUniqueID, &connections );
-  if ( connections != NULL ) {
+  if ( err == noErr && connections != NULL ) {
     // It has connections, follow them
     // Concatenate the names of all connected devices
     nConnected = CFDataGetLength( connections ) / sizeof(MIDIUniqueID);
