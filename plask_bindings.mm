@@ -4987,6 +4987,7 @@ MIDIClientRef g_midi_client = NULL;
 
 // This function was submitted by Douglas Casey Tucker and apparently
 // derived largely from PortMidi.  (From RtMidi).
+static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal ) CF_RETURNS_RETAINED;
 static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal )
 {
   CFMutableStringRef result = CFStringCreateMutable( NULL, 0 );
@@ -5057,6 +5058,7 @@ static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal )
 
 // This function was submitted by Douglas Casey Tucker and apparently
 // derived largely from PortMidi.  (From RtMidi).
+static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint ) CF_RETURNS_RETAINED;
 static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
 {
   CFMutableStringRef result = CFStringCreateMutable( NULL, 0 );
@@ -5104,6 +5106,9 @@ static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
   }
   if ( anyStrings )
     return result;
+
+  if ( result )
+    CFRelease( result );
 
   // Here, either the endpoint had no connections, or we failed to obtain names
   return EndpointName( endpoint, false );
