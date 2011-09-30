@@ -144,7 +144,9 @@ int main(int argc, char** argv) {
   context.Dispose();
   v8::V8::Dispose();
 #endif  // NDEBUG
-  
+
+  [app_delegate release];
+
   [pool release];
   return 0;
 }
