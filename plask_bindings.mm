@@ -3164,6 +3164,7 @@ class NSWindowWrapper {
           NSOpenGLPFADepthSize, 16,
           NSOpenGLPFADoubleBuffer,
           NSOpenGLPFAAccelerated,
+          NSOpenGLPFAStencilSize, 1,
           // Truncate here for non-multisampling
           NSOpenGLPFAMultisample,
           NSOpenGLPFASampleBuffers, 1,
