@@ -23,7 +23,7 @@ the prebuilt dependencies, and if so, to run fetch_deps.sh again.
 For example, to build from a completely new checkout would look something like:
 
   $ sh fetch_deps.sh
-  $ (cd plask.xcodeproj/; xcodebuild -configuration Release -target Plask)
+  $ xcodebuild -project plask.xcodeproj -configuration Release -target Plask
 
 This should produce Plask.app.  For some technical and design reasons, Plask.app
 is effectively a commandline application inside a bundle.  For example, running
