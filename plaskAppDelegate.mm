@@ -31,8 +31,10 @@
 // it programmatically.  For example, see:
 //    http://lapcatsoftware.com/blog/2007/06/17/
 static void InitMenuBar() {
-  // Our NSApplication is created with a nil mainMenu.
-  [NSApp setMainMenu:[[NSMenu alloc] init]];
+  // Our NSApplication is created with an empty mainMenu.
+  NSMenu* mainMenu = [[NSMenu alloc] init];
+  [NSApp setMainMenu:mainMenu];
+  [mainMenu release];
 
   NSMenu* menu = [[NSMenu alloc] initWithTitle:@""];
 
@@ -67,7 +69,9 @@ static void InitMenuBar() {
   [container_item setSubmenu:menu];
   [[NSApp mainMenu] addItem:container_item];
   // Call the undocumented setAppleMenu to make the menu the "Apple Menu".
-  [NSApp setAppleMenu:menu];
+  if ([NSApp respondsToSelector:@selector(setAppleMenu:)]) {
+    [NSApp performSelector:@selector(setAppleMenu:) withObject:menu];
+  }
   [container_item release];
   [menu release];
 }

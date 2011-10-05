@@ -5799,9 +5799,11 @@ class NSAppleScriptWrapper {
 @implementation BlitImageView
 
 -(id)initWithSkBitmap:(SkBitmap*)bitmap {
-  bitmap_ = bitmap;
-  [self initWithFrame:NSMakeRect(0.0, 0.0,
-                                 bitmap->width(), bitmap->height())];
+  self = [super initWithFrame:NSMakeRect(
+      0.0, 0.0, bitmap->width(), bitmap->height())];
+  if (self) {
+    bitmap_ = bitmap;
+  }
   return self;
 }
 
