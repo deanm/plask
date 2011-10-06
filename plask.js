@@ -842,6 +842,32 @@ Vec3.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
+// Rotate around |axis| by |theta| radians.
+Vec3.prototype.rotate = function(axis, theta){
+  var  x = this.x,  y = this.y,  z = this.z,
+      ax = axis.x, ay = axis.y, az = axis.z,
+      ux = ax * x, uy = ax * y, uz = ax * z,
+      vx = ay * x, vy = ay * y, vz = ay * z,
+      wx = az * x, wy = az * y, wz = az * z;
+
+  var st = Math.sin(theta);
+  var ct = Math.cos(theta);
+
+  var rx = (ax * (ux + vy + wz) + (x * (ay * ay + az * az) - ax * (vy + wz)) * ct + (-wy + vz) * st);
+  var ry = (ay * (ux + vy + wz) + (y * (ax * ax + az * az) - ay * (ux + wz)) * ct + ( wx - uz) * st);
+  var rz = (az * (ux + vy + wz) + (z * (ax * ax + ay * ay) - az * (ux + vy)) * ct + (-vx + uy) * st);
+
+  this.x = rx;
+  this.y = ry;
+  this.z = rz;
+
+  return this;
+};
+
+Vec3.prototype.rotated = function(axis, theta){
+  return this.dup().rotate(axis, theta);
+};
+
 Vec3.prototype.dup = function() {
   return new Vec3(this.x, this.y, this.z);
 };
