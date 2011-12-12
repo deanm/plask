@@ -1769,22 +1769,30 @@ class NSOpenGLContextWrapper {
   }
 
   static v8::Handle<v8::Value> getWebGLIntArrayParameter(unsigned long pname) {
-    return v8_utils::ThrowError("Unimplemented.");
-//    int value[4] = {0};
-//    m_context->getIntegerv(pname, value);
-//    unsigned length = 0;
-//    switch (pname) {
-//      case GL_MAX_VIEWPORT_DIMS:
-//        length = 2;
-//        break;
-//      case GL_SCISSOR_BOX:
-//      case GL_VIEWPORT:
-//        length = 4;
-//        break;
-//      default:
-//        notImplemented();
-//    }
-//    return static v8::Handle<v8::Value>(Int32Array::create(value, length));
+    int value[4] = {0};
+    glGetIntegerv(pname, value);
+    int length = 0;
+    switch (pname) {
+      case GL_MAX_VIEWPORT_DIMS:
+        length = 2;
+        break;
+      case GL_SCISSOR_BOX:
+      case GL_VIEWPORT:
+        length = 4;
+        break;
+      default:
+        return v8_utils::ThrowError("Unimplemented.");
+    }
+    v8::Handle<v8::Value> ta_args[1] = {v8::Integer::New(length)};
+    // TODO(deanm): A better way of getting the TypedArray constructors.
+    v8::Handle<v8::Object> ta = v8::Handle<v8::Function>::Cast(
+        v8::Context::GetCurrent()->Global()->
+           Get(v8::String::New("Int32Array")))->NewInstance(1, ta_args);
+    for (int i = 0; i < length; ++i) {
+      ta->Set(i, v8::Integer::New(value[i]));
+    }
+
+    return ta;
   }
 
   // any getParameter(GLenum pname)
