@@ -986,7 +986,7 @@ Vec2.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
-// Rotate around the origin by |theta| radians.
+// Rotate around the origin by |theta| radians (counter-clockwise).
 Vec2.prototype.rotate = function(theta) {
   var st = Math.sin(theta);
   var ct = Math.cos(theta);
@@ -1514,6 +1514,8 @@ exports.kPI  = kPI;
 exports.kPI2 = kPI2;
 exports.kPI4 = kPI4;
 exports.k2PI = k2PI;
+exports.kRadToDeg = 180/kPI;
+exports.kDegToRad = kPI/180;
 
 exports.min = min;
 exports.max = max;
