@@ -168,37 +168,47 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
         return;
       }
 
-      if ((msg[0] & 0x80) !== 0x80) {
-        console.log('First MIDI byte not a status byte.');
-        return;
-      }
+      // NOTE(deanm): I would have assumed that every MIDI message should come
+      // in as its own 'packet', but for example sending a snapshot from a
+      // UC-33e sends some of the controller messages back to back in the same
+      // packet.  I'm not sure if this is the expected behavior, but we'll
+      // try to handle it...
+      var j = 0;
+      while (j < msg.length) {
+        if ((msg[j] & 0x80) !== 0x80) {
+          console.log('First MIDI byte not a status byte.');
+          return;
+        }
 
-      // NOTE(deanm): We expect MIDI packets are the correct length, for
-      // example 3 bytes for note on and off.  Instead of error checking, we'll
-      // get undefined from msg[] if the message is shorter, maybe should
-      // handle this better, but loads of length checking is annoying.
-      switch (msg[0] & 0xf0) {
-        case 0x90:  // Note on.
-          this_.emit('noteOn', {type:'noteOn',
-                                chan: msg[0] & 0x0f,
-                                note: msg[1],
-                                vel: msg[2]});
-          break;
-        case 0x80:  // Note off.
-          this_.emit('noteOff', {type:'noteOff',
-                                chan: msg[0] & 0x0f,
-                                note: msg[1],
-                                vel: msg[2]});
-          break;
-        case 0xb0:  // Controller message.
-          this_.emit('controller', {type:'controller',
-                                    chan: msg[0] & 0x0f,
-                                    num: msg[1],
-                                    val: msg[2]});
-          break;
-        default:
-          console.log('Unhandled MIDI status byte: 0x' + msg[0].toString(16));
-          break;
+        // NOTE(deanm): We expect MIDI packets are the correct length, for
+        // example 3 bytes for note on and off.  Instead of error checking,
+        // we'll get undefined from msg[] if the message is shorter, maybe
+        // should handle this better, but loads of length checking is annoying.
+        switch (msg[j] & 0xf0) {
+          case 0x90:  // Note on.
+            this_.emit('noteOn', {type:'noteOn',
+                                  chan: msg[j+0] & 0x0f,
+                                  note: msg[j+1],
+                                  vel: msg[j+2]});
+            break;
+          case 0x80:  // Note off.
+            this_.emit('noteOff', {type:'noteOff',
+                                  chan: msg[j+0] & 0x0f,
+                                  note: msg[j+1],
+                                  vel: msg[j+2]});
+            break;
+          case 0xb0:  // Controller message.
+            this_.emit('controller', {type:'controller',
+                                      chan: msg[j+0] & 0x0f,
+                                      num: msg[j+1],
+                                      val: msg[j+2]});
+            break;
+          default:
+            console.log('Unhandled MIDI status byte: 0x' + msg[0].toString(16));
+            return;
+        }
+
+        j += 3;  // NOTE: Careful, some day we'll handle longer messages?
       }
     });
     this.setDgramPath(path);
