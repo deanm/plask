@@ -252,6 +252,7 @@ exports.Window = function(width, height, opts) {
       width, height,
       opts.multisample === true,
       opts.display === undefined ? -1 : opts.display,
+      opts.borderless === true,
       opts.fullscreen === true);
   var this_ = this;
 
@@ -541,6 +542,8 @@ exports.simpleWindow = function(obj) {
       width, height, {type: wintype,
                       multisample: settings.multisample === true,
                       display: settings.display,
+                      borderless: settings.borderless === undefined ?
+                          settings.fullscreen : settings.borderless,
                       fullscreen: settings.fullscreen});
 
   if (settings.position !== undefined) {

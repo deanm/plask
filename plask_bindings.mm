@@ -3117,14 +3117,15 @@ class NSWindowWrapper {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(kMsgNonConstructCall);
 
-    if (args.Length() != 6)
+    if (args.Length() != 7)
       return v8_utils::ThrowError("Wrong number of arguments.");
     uint32_t type = args[0]->Uint32Value();
     uint32_t width = args[1]->Uint32Value();
     uint32_t height = args[2]->Uint32Value();
     bool multisample = args[3]->BooleanValue();
     int display = args[4]->Int32Value();
-    bool fullscreen = args[5]->BooleanValue();
+    bool borderless = args[5]->BooleanValue();
+    bool fullscreen = args[6]->BooleanValue();
 
     NSScreen* screen = [NSScreen mainScreen];
     NSArray* screens = [NSScreen screens];
@@ -3136,7 +3137,7 @@ class NSWindowWrapper {
 
     int style_mask = NSTitledWindowMask; // | NSClosableWindowMask
 
-    if (fullscreen)
+    if (borderless)
       style_mask = NSBorderlessWindowMask;
 
     WrappedNSWindow* window = [[WrappedNSWindow alloc]
