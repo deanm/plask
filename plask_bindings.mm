@@ -2884,9 +2884,14 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+    GLuint program = 0;
+    // Break the WebGL spec by allowing you to pass 'null' to unbind
+    // the shader, handy for drawSkCanvas, for example.
+    if (!args[0]->IsNull()) {
+      if (!WebGLProgram::HasInstance(args[0]))
+        return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
+      program = WebGLProgram::ExtractIDFromValue(args[0]);
+    }
 
     glUseProgram(program);
     return v8::Undefined();
