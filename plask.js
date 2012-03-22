@@ -589,8 +589,8 @@ exports.simpleWindow = function(obj) {
       canvas = exports.SkCanvas.create(width, height);  // Offscreen.
       obj.canvas = canvas;
     }
-    if (obj.syphon_server !== undefined) {
-      syphon_server = gl_.createSyphonServer(obj.syphon_server);
+    if (settings.syphon_server !== undefined) {
+      syphon_server = gl_.createSyphonServer(settings.syphon_server);
     }
   } else {
     obj.paint = new exports.SkPaint;
