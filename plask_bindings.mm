@@ -1294,6 +1294,26 @@ class NSOpenGLContextWrapper {
   // void bufferSubData(GLenum target, GLsizeiptr offset, ArrayBuffer data)
   static v8::Handle<v8::Value> bufferSubData(
       const v8::Arguments& args) {
+    if (args.Length() != 3)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    GLsizeiptr size = 0;
+    GLintptr offset = args[1]->Int32Value();
+    GLvoid* data = NULL;
+
+    if (args[2]->IsObject()) {
+      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[2]);
+      if (!obj->HasIndexedPropertiesInExternalArrayData())
+        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
+      int element_size = v8_typed_array::SizeOfArrayElementForType(
+          obj->GetIndexedPropertiesExternalArrayDataType());
+      size = obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
+      data = obj->GetIndexedPropertiesExternalArrayData();
+    } else {
+      size = args[1]->Uint32Value();
+    }
+
+    glBufferSubData(args[0]->Uint32Value(), offset, size, data);
     return v8::Undefined();
   }
 
