@@ -1059,6 +1059,17 @@ Vec4.prototype.setVec4 = function(v) {
   return this;
 };
 
+// Multiply by a scalar.
+Vec4.prototype.scale = function(s) {
+  this.x *= s; this.y *= s; this.z *= s; this.w *= s;
+
+  return this;
+};
+
+Vec4.prototype.scaled = function(s) {
+  return new Vec3(this.x * s, this.y * s, this.z * s, this.w * s);
+};
+
 Vec4.prototype.dup = function() {
   return new Vec4(this.x, this.y, this.z, this.w);
 };
