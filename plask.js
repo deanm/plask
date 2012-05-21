@@ -93,6 +93,14 @@ function smoothstep(edge0, edge1, x) {
   return t * t * (3 - t - t);
 }
 
+// Ken Perlin's "smoother" step function, with zero 1st and 2nd derivatives at
+// the endpoints (whereas smoothstep has a 2nd derivative of +/- 6).  This is
+// also for example used by Patel and Taylor in smooth simulation noise.
+function smootherstep(edge0, edge1, x) {
+  var t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
 // Test if |num| is a floating point -0.
 function isNegZero(num) {
   return 1/num === -Infinity;
@@ -1546,6 +1554,7 @@ exports.max = max;
 exports.clamp = clamp;
 exports.lerp = lerp;
 exports.smoothstep = smoothstep;
+exports.smootherstep = smootherstep;
 
 exports.Vec3 = Vec3;
 exports.Vec2 = Vec2;
