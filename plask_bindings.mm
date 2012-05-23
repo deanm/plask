@@ -3854,6 +3854,11 @@ class SkPaintWrapper {
       { "setFillAndStroke", &SkPaintWrapper::setFillAndStroke },
       { "getStrokeCap", &SkPaintWrapper::getStrokeCap },
       { "setStrokeCap", &SkPaintWrapper::setStrokeCap },
+      { "getStrokeJoin", &SkPaintWrapper::getStrokeJoin },
+      { "setStrokeJoin", &SkPaintWrapper::setStrokeJoin },
+      { "getStrokeMiter", &SkPaintWrapper::getStrokeMiter },
+      { "setStrokeMiter", &SkPaintWrapper::setStrokeMiter },
+      { "getFillPath", &SkPaintWrapper::getFillPath },
       { "setColor", &SkPaintWrapper::setColor },
       { "setColorHSV", &SkPaintWrapper::setColorHSV },
       { "setTextSize", &SkPaintWrapper::setTextSize },
@@ -4019,6 +4024,45 @@ class SkPaintWrapper {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeCap(static_cast<SkPaint::Cap>(v8_utils::ToInt32(args[0])));
     return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> getStrokeJoin(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+    return v8::Uint32::New(paint->getStrokeJoin());
+  }
+
+  static v8::Handle<v8::Value> setStrokeJoin(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setStrokeJoin(static_cast<SkPaint::Join>(v8_utils::ToInt32(args[0])));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> getStrokeMiter(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+    return v8::Number::New(SkScalarToDouble(paint->getStrokeMiter()));
+  }
+
+  static v8::Handle<v8::Value> setStrokeMiter(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setStrokeMiter(SkDoubleToScalar(args[0]->NumberValue()));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> getFillPath(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    if (!SkPathWrapper::HasInstance(args[0]))
+      return v8::Undefined();
+
+    if (!SkPathWrapper::HasInstance(args[1]))
+      return v8::Undefined();
+
+    SkPath* src = SkPathWrapper::ExtractPointer(
+        v8::Handle<v8::Object>::Cast(args[0]));
+    SkPath* dst = SkPathWrapper::ExtractPointer(
+        v8::Handle<v8::Object>::Cast(args[1]));
+
+    return v8::Boolean::New(paint->getFillPath(*src, dst));
   }
 
   // We wrap it as 4 params instead of 1 to try to keep things as SMIs.
