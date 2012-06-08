@@ -1257,19 +1257,15 @@ Mat3.prototype.pmapSquareQuad = function(x0, y0, x1, y1, x2, y2, x3, y3) {
   this.a22 = y3-y0+this.a32*y3;
   this.a23 = y0;
 
-  z = this.dup();
-  z.invert();
-  var t0 = new Vec2(x0, y0); t0 = z.mulVec2(t0);
-  var t1 = new Vec2(x1, y1); t1 = z.mulVec2(t1);
-  var t2 = new Vec2(x2, y2); t2 = z.mulVec2(t2);
-  var t3 = new Vec2(x3, y3); t3 = z.mulVec2(t3);
-  console.log([t0, t1, t2, t3]);
+  return this;
 };
 
 Mat3.prototype.negate = function() {
   this.a11 = -this.a11; this.a12 = -this.a12; this.a13 = -this.a13;
   this.a21 = -this.a21; this.a22 = -this.a22; this.a23 = -this.a23;
   this.a31 = -this.a31; this.a32 = -this.a32; this.a33 = -this.a33;
+
+  return this;
 };
 
 // Overwrite |this| with a matrix that maps from (x0,y0) .. (x3,y3) to
