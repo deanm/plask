@@ -106,9 +106,6 @@ int main(int argc, char** argv) {
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
   [NSApp setDelegate:app_delegate];
 
-  v8::V8::Initialize();
-  v8::HandleScope handle_scope;
-
   char* bundled_argv[] = {argv[0], NULL};
   NSString* bundled_main_js =
       [[NSBundle mainBundle] pathForResource:@"main" ofType:@"js"];
@@ -120,6 +117,8 @@ int main(int argc, char** argv) {
   }
 
   argv = node::Init(argc, argv);
+  v8::V8::Initialize();
+  v8::HandleScope handle_scope;
 
   // Create the one and only Context.
   v8::Persistent<v8::Context> context = v8::Context::New();
