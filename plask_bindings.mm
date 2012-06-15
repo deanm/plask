@@ -390,6 +390,107 @@ class SyphonServerWrapper {
   }
 };
 
+class SyphonClientWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&SyphonClientWrapper::V8New));
+    ft_cache->SetClassName(v8::String::New("SyphonClient"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(2);  // SyphonClient, CGLContextObj
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "kValue", 12 },
+    };
+
+    static BatchedMethods methods[] = {
+      { "newFrameImage", &SyphonClientWrapper::newFrameImage },
+      { "isValid", &SyphonClientWrapper::isValid },
+      { "hasNewFrame", &SyphonClientWrapper::hasNewFrame },
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      ft_cache->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::New(constants[i].name),
+                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::New(methods[i].name),
+                    v8::FunctionTemplate::New(methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static SyphonClient* ExtractSyphonClientPointer(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<SyphonClient*>(obj->GetPointerFromInternalField(0));
+  }
+
+  static CGLContextObj ExtractContextObj(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<CGLContextObj>(obj->GetPointerFromInternalField(1));
+  }
+
+  static v8::Handle<v8::Value> NewFromSyphonClient(SyphonClient* client,
+                                                   CGLContextObj context) {
+    v8::Local<v8::Object> obj = SyphonClientWrapper::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetPointerInInternalField(0, client);
+    obj->SetPointerInInternalField(1, context);
+    return obj;
+  }
+
+ private:
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    return args.This();
+  }
+
+  static v8::Handle<v8::Value> newFrameImage(const v8::Arguments& args) {
+    if (args.Length() != 0)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
+    CGLContextObj context = ExtractContextObj(args.Holder());
+    SyphonImage* image = [client newFrameImageForContext:context];
+    v8::Local<v8::Object> res = v8::Object::New();
+    res->Set(v8::String::New("name"),
+             v8::Integer::NewFromUnsigned([image textureName]));
+    res->Set(v8::String::New("width"),
+             v8::Number::New([image textureSize].width));
+    res->Set(v8::String::New("height"),
+             v8::Number::New([image textureSize].height));
+    return res;
+  }
+
+  static v8::Handle<v8::Value> isValid(const v8::Arguments& args) {
+    SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
+    return v8::Boolean::New([client isValid]);
+  }
+
+  static v8::Handle<v8::Value> hasNewFrame(const v8::Arguments& args) {
+    SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
+    return v8::Boolean::New([client hasNewFrame]);
+  }
+};
+
 
 class NSOpenGLContextWrapper {
  public:
@@ -1006,6 +1107,7 @@ class NSOpenGLContextWrapper {
       { "drawSkCanvas", &NSOpenGLContextWrapper::drawSkCanvas },
       // Syphon.
       { "createSyphonServer", &NSOpenGLContextWrapper::createSyphonServer },
+      { "createSyphonClient", &NSOpenGLContextWrapper::createSyphonClient },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -1055,6 +1157,42 @@ class NSOpenGLContextWrapper {
         context:reinterpret_cast<CGLContextObj>([context CGLContextObj])
         options:nil];
     return SyphonServerWrapper::NewFromSyphonServer(server);
+  }
+
+  static v8::Handle<v8::Value> createSyphonClient(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    NSOpenGLContext* context = ExtractContextPointer(args.This());
+    //v8::String::Utf8Value uuid(args[0]->ToString());
+    v8::String::Utf8Value name(args[0]->ToString());
+
+    NSArray* servers = [[SyphonServerDirectory sharedDirectory] servers];
+    NSLog(@"Servers: %@", servers);
+
+    NSDictionary* found_server = NULL;
+    for (NSUInteger i = 0, il = [servers count]; i < il; ++i) {
+      NSDictionary* server = reinterpret_cast<NSDictionary*>(
+          [servers objectAtIndex:i]);
+      //NSString* suuid = [server objectForKey:SyphonServerDescriptionUUIDKey];
+      //NSLog(@"UUID: %@", suuid);
+      NSString* sname = [server objectForKey:SyphonServerDescriptionNameKey];
+      NSLog(@"Name: %@", sname);
+      if (strcmp([sname UTF8String], *name) == 0) {
+        found_server = server;
+        break;
+      }
+    }
+
+    if (!found_server)
+      return v8_utils::ThrowError("No server found matching given name.");
+
+    SyphonClient* client = [[SyphonClient alloc]
+        initWithServerDescription:found_server
+        options:nil
+        newFrameHandler:nil];
+    return SyphonClientWrapper::NewFromSyphonClient(
+        client, reinterpret_cast<CGLContextObj>([context CGLContextObj]));
   }
 
   // aka vsync.
