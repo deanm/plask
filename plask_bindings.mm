@@ -470,7 +470,9 @@ class SyphonClientWrapper {
     SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
     CGLContextObj context = ExtractContextObj(args.Holder());
     SyphonImage* image = [client newFrameImageForContext:context];
+
     if (!image) return v8::Null();
+
     v8::Local<v8::Object> res = v8::Object::New();
     res->Set(v8::String::New("name"),
              v8::Integer::NewFromUnsigned([image textureName]));
@@ -478,6 +480,11 @@ class SyphonClientWrapper {
              v8::Number::New([image textureSize].width));
     res->Set(v8::String::New("height"),
              v8::Number::New([image textureSize].height));
+
+    // The SyphonImage is just a container of the data.  The lifetime of it has
+    // no relationship with the lifetime of the texture.
+    [image release];
+
     return res;
   }
 
