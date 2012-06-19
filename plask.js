@@ -1701,6 +1701,7 @@ function MagicProgram(gl, program) {
       case gl.BOOL:  // NOTE: bool could be set with 1i or 1f.
       case gl.INT:
       case gl.SAMPLER_2D:
+      case gl.SAMPLER_2D_RECT:
       case gl.SAMPLER_CUBE:
         return function(value) {
           gl.uniform1i(loc, value);

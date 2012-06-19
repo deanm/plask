@@ -964,6 +964,11 @@ class NSOpenGLContextWrapper {
       { "DEPTH_COMPONENT32", 0x81A7 },
       { "DRAW_FRAMEBUFFER", GL_DRAW_FRAMEBUFFER },
       { "READ_FRAMEBUFFER", GL_READ_FRAMEBUFFER },
+      // Rectangle textures (used by Syphon, for example).
+      { "TEXTURE_RECTANGLE", 0x84F5 },
+      { "TEXTURE_BINDING_RECTANGLE", 0x84F6 },
+      { "MAX_RECTANGLE_TEXTURE_SIZE", 0x84F8 },
+      { "SAMPLER_2D_RECT", 0x8B63 },
     };
 
     static BatchedMethods methods[] = {
