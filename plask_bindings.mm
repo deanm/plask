@@ -42,6 +42,7 @@
 #include <Foundation/NSObjCRuntime.h>
 #include <objc/runtime.h>
 
+#define SK_RELEASE 1  // Hmmmm, really? SkPreConfig is thinking we are debug.
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColorPriv.h"  // For color ordering.
@@ -4471,6 +4472,8 @@ class SkCanvasWrapper {
       { "drawRoundRect", &SkCanvasWrapper::drawRoundRect },
       { "drawText", &SkCanvasWrapper::drawText },
       { "drawTextOnPathHV", &SkCanvasWrapper::drawTextOnPathHV },
+      { "concatMatrix", &SkCanvasWrapper::concatMatrix },
+      { "setMatrix", &SkCanvasWrapper::setMatrix },
       { "resetMatrix", &SkCanvasWrapper::resetMatrix },
       { "translate", &SkCanvasWrapper::translate },
       { "scale", &SkCanvasWrapper::scale },
@@ -4670,6 +4673,37 @@ class SkCanvasWrapper {
     persistent.MakeWeak(NULL, &SkCanvasWrapper::WeakCallback);
 
     return args.This();
+  }
+
+  static v8::Handle<v8::Value> concatMatrix(const v8::Arguments& args) {
+    SkCanvas* canvas = ExtractPointer(args.Holder());
+    SkMatrix matrix;
+    matrix.setAll(SkDoubleToScalar(args[0]->NumberValue()),
+                  SkDoubleToScalar(args[1]->NumberValue()),
+                  SkDoubleToScalar(args[2]->NumberValue()),
+                  SkDoubleToScalar(args[3]->NumberValue()),
+                  SkDoubleToScalar(args[4]->NumberValue()),
+                  SkDoubleToScalar(args[5]->NumberValue()),
+                  SkDoubleToScalar(args[6]->NumberValue()),
+                  SkDoubleToScalar(args[7]->NumberValue()),
+                  SkDoubleToScalar(args[8]->NumberValue()));
+    return v8::Boolean::New(canvas->concat(matrix));
+  }
+
+  static v8::Handle<v8::Value> setMatrix(const v8::Arguments& args) {
+    SkCanvas* canvas = ExtractPointer(args.Holder());
+    SkMatrix matrix;
+    matrix.setAll(SkDoubleToScalar(args[0]->NumberValue()),
+                  SkDoubleToScalar(args[1]->NumberValue()),
+                  SkDoubleToScalar(args[2]->NumberValue()),
+                  SkDoubleToScalar(args[3]->NumberValue()),
+                  SkDoubleToScalar(args[4]->NumberValue()),
+                  SkDoubleToScalar(args[5]->NumberValue()),
+                  SkDoubleToScalar(args[6]->NumberValue()),
+                  SkDoubleToScalar(args[7]->NumberValue()),
+                  SkDoubleToScalar(args[8]->NumberValue()));
+    canvas->setMatrix(matrix);
+    return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> resetMatrix(const v8::Arguments& args) {
