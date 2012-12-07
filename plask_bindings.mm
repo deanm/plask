@@ -3750,9 +3750,10 @@ class SkPathWrapper {
       { "rLineTo", &SkPathWrapper::rLineTo },
       { "quadTo", &SkPathWrapper::quadTo },
       { "cubicTo", &SkPathWrapper::cubicTo },
-      // NOTE(deanm): The arcTo() version that acts like postscript arct
-      // doesn't really seem that useful.  For now we just expose the sweep one.
       { "arcTo", &SkPathWrapper::arcTo },
+      { "arct", &SkPathWrapper::arct },
+      { "addRect", &SkPathWrapper::addRect },
+      { "addOval", &SkPathWrapper::addOval },
       { "addCircle", &SkPathWrapper::addCircle },
       { "close", &SkPathWrapper::close },
       { "offset", &SkPathWrapper::offset },
@@ -3853,7 +3854,43 @@ class SkPathWrapper {
                     SkDoubleToScalar(args[3]->NumberValue()) };
     path->arcTo(rect,
                 SkDoubleToScalar(args[4]->NumberValue()),
-                SkDoubleToScalar(args[5]->NumberValue()), false);
+                SkDoubleToScalar(args[5]->NumberValue()),
+                args[6]->BooleanValue());
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> arct(const v8::Arguments& args) {
+    SkPath* path = ExtractPointer(args.Holder());
+
+    path->arcTo(SkDoubleToScalar(args[0]->NumberValue()),
+                SkDoubleToScalar(args[1]->NumberValue()),
+                SkDoubleToScalar(args[2]->NumberValue()),
+                SkDoubleToScalar(args[3]->NumberValue()),
+                SkDoubleToScalar(args[4]->NumberValue()));
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> addRect(const v8::Arguments& args) {
+    SkPath* path = ExtractPointer(args.Holder());
+
+    path->addRect(SkDoubleToScalar(args[0]->NumberValue()),
+                  SkDoubleToScalar(args[1]->NumberValue()),
+                  SkDoubleToScalar(args[2]->NumberValue()),
+                  SkDoubleToScalar(args[3]->NumberValue()),
+                  args[4]->BooleanValue() ? SkPath::kCCW_Direction :
+                                            SkPath::kCW_Direction);
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> addOval(const v8::Arguments& args) {
+    SkPath* path = ExtractPointer(args.Holder());
+
+    SkRect rect = { SkDoubleToScalar(args[0]->NumberValue()),
+                    SkDoubleToScalar(args[1]->NumberValue()),
+                    SkDoubleToScalar(args[2]->NumberValue()),
+                    SkDoubleToScalar(args[3]->NumberValue()) };
+    path->addOval(rect, args[4]->BooleanValue() ? SkPath::kCCW_Direction :
+                                                  SkPath::kCW_Direction);
     return v8::Undefined();
   }
 
@@ -3861,8 +3898,10 @@ class SkPathWrapper {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->addCircle(SkDoubleToScalar(args[0]->NumberValue()),
-                  SkDoubleToScalar(args[1]->NumberValue()),
-                  SkDoubleToScalar(args[2]->NumberValue()));
+                    SkDoubleToScalar(args[1]->NumberValue()),
+                    SkDoubleToScalar(args[2]->NumberValue()),
+                    args[3]->BooleanValue() ? SkPath::kCCW_Direction :
+                                              SkPath::kCW_Direction);
     return v8::Undefined();
   }
 
