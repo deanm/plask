@@ -53,6 +53,7 @@
 #include "third_party/skia/include/core/SkXfermode.h"
 #include "third_party/skia/include/utils/SkParsePath.h"
 #include "third_party/skia/include/effects/SkGradientShader.h"
+#include "third_party/skia/include/effects/SkDashPathEffect.h"
 #include "third_party/skia/include/pdf/SkPDFDevice.h"
 #include "third_party/skia/include/pdf/SkPDFDocument.h"
 
@@ -4058,6 +4059,8 @@ class SkPaintWrapper {
       { "setLinearGradientShader", &SkPaintWrapper::setLinearGradientShader },
       { "setRadialGradientShader", &SkPaintWrapper::setRadialGradientShader },
       { "clearShader", &SkPaintWrapper::clearShader },
+      { "setDashPathEffect", &SkPaintWrapper::setDashPathEffect },
+      { "clearPathEffect", &SkPaintWrapper::clearPathEffect },
       { "measureText", &SkPaintWrapper::measureText },
     };
 
@@ -4400,6 +4403,40 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> clearShader(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setShader(NULL);
+    return v8::Undefined();
+  }
+
+
+  static v8::Handle<v8::Value> setDashPathEffect(const v8::Arguments& args) {
+    if (!args[0]->IsArray())
+      return v8_utils::ThrowError("Sequence must be an Array.");
+
+    v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[0]);
+    uint32_t length = arr->Length();
+
+    if (length & 1)
+      return v8_utils::ThrowError("Sequence must be even.");
+
+    SkScalar* intervals = new SkScalar[length];
+    if (!intervals)
+      return v8_utils::ThrowError("Unabe to allocate intervals.");
+    
+    for (uint32_t i = 0; i < length; ++i) {
+      intervals[i] = SkDoubleToScalar(arr->Get(i)->NumberValue());
+    }
+
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setPathEffect(new SkDashPathEffect(
+        intervals, length,
+        SkDoubleToScalar(args[1]->IsUndefined() ? 0.0 : args[1]->NumberValue()),
+        args[2]->BooleanValue()));
+    delete[] intervals;
+    return v8::Undefined();
+  }
+
+  static v8::Handle<v8::Value> clearPathEffect(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setPathEffect(NULL);
     return v8::Undefined();
   }
 
