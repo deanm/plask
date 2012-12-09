@@ -538,10 +538,12 @@ exports.simpleWindow = function(obj) {
       console.log('Warning, using legacy settings, use the settings object.');
   }
 
-  var wintype = (settings.type === '3d' || settings.type === '3d2d') ? '3d' :
-                                                                       '2d';
+  var wintype = (settings.type === '2d') ? '2d' : '3d';
   var width = settings.width === undefined ? 400 : settings.width;
   var height = settings.height === undefined ? 300 : settings.height;
+
+  if (wintype === '2d')
+    console.log('Warning: 2d windows can undergo colorspace transformations.');
 
   var syphon_server = null;
 
