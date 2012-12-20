@@ -28,23 +28,36 @@
 #include "v8.h"
 #define EV_MULTIPLICITY 0
 #include "node.h"
-#include "ev.h"
+#include "uv.h"
+
+#include "v8_typed_array.h"
 
 static void TimerFired(CFRunLoopTimerRef timer, void* info);
 
-static void PumpNode() {
-  ev_now_update();  // Bring the clock forward since the last ev_loop().
-  ev_loop(EV_DEFAULT_UC_ EVLOOP_NONBLOCK);
-  while(ev_backend_changecount() != 0) {
-    ev_loop(EV_DEFAULT_UC_ EVLOOP_NONBLOCK);
-  }
+static int PumpNode(uv_loop_t* uvloop) {
+  // printf("  -> Pump Pump\n");
+  int res = uv_run_once_really(uvloop);
+  // printf("  %d\n", res);
+  // printf("<-\n");
+  return res;
 }
 
 static void KqueueCallback(CFFileDescriptorRef backend_cffd,
                            CFOptionFlags callBackTypes,
                            void* info) {
-  PumpNode();
+  // printf(" kqueue flagged\n");
+  PumpNode(uv_default_loop());
   CFFileDescriptorEnableCallBacks(backend_cffd, kCFFileDescriptorReadCallBack);
+
+  [NSApp postEvent:[NSEvent otherEventWithType:NSApplicationDefined
+                                      location:NSMakePoint(0, 0)
+                                 modifierFlags:0
+                                     timestamp:0
+                                  windowNumber:0
+                                       context:nil
+                                       subtype:8  // Arbitrary
+                                         data1:0
+                                         data2:0] atStart:YES];
 }
 
 static void RunMainLoop() {
@@ -52,10 +65,12 @@ static void RunMainLoop() {
   // Avoids failing on test/simple/test-eio-race3.js though
   // ev_idle_start(EV_DEFAULT_UC_ &eio_poller);
 
-  // Make sure the kqueue is initialized and the kernel state is up to date.
-  PumpNode();
+  uv_loop_t* uvloop = uv_default_loop();
 
-  int backend_fd = ev_backend_fd();
+  // Make sure the kqueue is initialized and the kernel state is up to date.
+  PumpNode(uvloop);
+
+  int backend_fd = uv_backend_fd(uvloop);
 
   CFFileDescriptorRef backend_cffd =
       CFFileDescriptorCreate(NULL, backend_fd, true, &KqueueCallback, NULL);
@@ -72,37 +87,45 @@ static void RunMainLoop() {
   [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
   [NSApp setWindowsNeedUpdate:YES];
 
-  while (true) {
+  bool do_quit = false;
+  while (!do_quit) {
     NSAutoreleasePool* pool = [NSAutoreleasePool new];
-    PumpNode();
-    double next_waittime = ev_next_waittime();
-    // TODO(deanm): Fix loop integration with newest version of Node.
-    next_waittime = 0.01;
-    NSDate* next_date = [NSDate dateWithTimeIntervalSinceNow:next_waittime];
-    // printf("Running a loop iteration with timeout %f\n", next_waittime);
+    if (PumpNode(uvloop) == 0) break;
+
+    double ts = 9999;  // Timeout in seconds.  Default to some "future".
+    int uv_waittime = uv_backend_timeout(uvloop);
+    if (uv_waittime != -1)
+      ts = uv_waittime / 1000.0;
+
+    // printf("Running a loop iteration with timeout %f\n", ts);
+
     NSEvent* event = [NSApp nextEventMatchingMask:NSAnyEventMask
-                            untilDate:next_date
+                            untilDate:[NSDate dateWithTimeIntervalSinceNow:ts]
                             inMode:NSDefaultRunLoopMode // kCFRunLoopDefaultMode
                             dequeue:YES];
+    // printf("Done done.\n");
     if (event != nil) {  // event is nil on a timeout.
       // NSLog(@"Event: %@\n", event);
 
       // A custom event to terminate, see applicationShouldTerminate.
-      if ([event type] == NSApplicationDefined && [event subtype] == 37)
-        return;
-
-      [event retain];
-      [NSApp sendEvent:event];
-      [event release];
+      if ([event type] == NSApplicationDefined && [event subtype] == 37) {
+        do_quit = true;
+      } else if ([event type] == NSApplicationDefined && [event subtype] == 8) {
+        // A wakeup after the kqueue callback.
+      } else {
+        [event retain];
+        [NSApp sendEvent:event];
+        [event release];
+      }
     }
     [pool drain];
   }
 }
 
-int main(int argc, char** argv) {  
+int main(int argc, char** argv) {
   NSAutoreleasePool* pool = [NSAutoreleasePool new];
   [NSApplication sharedApplication];  // Make sure NSApp is initialized.
-  
+
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
   [NSApp setDelegate:app_delegate];
 
@@ -116,34 +139,45 @@ int main(int argc, char** argv) {
     NSLog(@"loading from bundled: %@", bundled_main_js);
   }
 
+  argv = uv_setup_args(argc, argv);
   argv = node::Init(argc, argv);
+
   v8::V8::Initialize();
-  v8::HandleScope handle_scope;
+  {
+    v8::Locker locker;
+    v8::HandleScope handle_scope;
 
-  // Create the one and only Context.
-  v8::Persistent<v8::Context> context = v8::Context::New();
-  v8::Context::Scope context_scope(context);
+    // Create the one and only Context.
+    v8::Persistent<v8::Context> context = v8::Context::New();
+    v8::Context::Scope context_scope(context);
 
-  v8::Handle<v8::Object> process = node::SetupProcessObject(argc, argv);
+    v8::Handle<v8::Object> process = node::SetupProcessObject(argc, argv);
+    v8_typed_array::AttachBindings(context->Global());
 
-  v8::Handle<v8::ObjectTemplate> plask_raw = v8::ObjectTemplate::New();
-  plask_setup_bindings(plask_raw);
+    v8::Handle<v8::ObjectTemplate> plask_raw = v8::ObjectTemplate::New();
+    plask_setup_bindings(plask_raw);
+    context->Global()->Set(v8::String::NewSymbol("PlaskRawMac"),
+                           plask_raw->NewInstance());
 
-  context->Global()->Set(v8::String::NewSymbol("PlaskRawMac"),
-                         plask_raw->NewInstance());
+    node::Load(process);
 
-  node::Load(process);
+    // uv_run(uv_default_loop()).
+    RunMainLoop();
 
-  RunMainLoop();
+    node::EmitExit(process);
 
-  node::EmitExit(process);
+    // NOTE(deanm): Only used for DeleteSlabAllocator?
+    // RunAtExit()
 
 #ifndef NDEBUG
-  // Clean up.
-  context.Dispose();
+    context.Dispose();
+#endif  // NDEBUG
+  }
+
+#ifndef NDEBUG
   v8::V8::Dispose();
 #endif  // NDEBUG
-  
+
   [pool release];
   return 0;
 }

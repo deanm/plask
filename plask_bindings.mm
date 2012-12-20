@@ -6204,10 +6204,6 @@ class NSAppleScriptWrapper {
 @end
 
 void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj) {
-  v8::Handle<v8::Object> global(v8::Context::GetCurrent()->Global());
-
-  v8_typed_array::AttachBindings(global);
-
   obj->Set(v8::String::New("NSWindow"), NSWindowWrapper::GetTemplate());
   obj->Set(v8::String::New("NSEvent"), NSEventWrapper::GetTemplate());
   obj->Set(v8::String::New("SkPath"), SkPathWrapper::GetTemplate());
