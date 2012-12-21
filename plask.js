@@ -255,6 +255,7 @@ exports.SBApplication = function(bundleid) {
 exports.AppleScript = PlaskRawMac.NSAppleScript;
 
 exports.Window = function(width, height, opts) {
+  setInterval(function() { }, 99999999);  // Hack to prevent empty event loop.
   var nswindow_ = new PlaskRawMac.NSWindow(
       opts.type === '3d' ? 1 : 0,
       width, height,

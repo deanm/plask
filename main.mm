@@ -19,7 +19,59 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
+// This file is a bit tricky, for the following main reasons.
+//
+// - We run nib-less, so we have more control of startup and can run the main
+//   loop ourselves.  This also allows our executable to be a bit more
+//   contained and not require nibs in the bundle.
+// 
+// - We must integrate the Cocoa event loop with Node's event loop (libuv).
+//   This requires a bit of care and the general approach follows below.
+//
+// The CFRunLoop (and Cocoa's run loop) is needed for UI messages, and needs
+// to be run on the main thread.  We always want everything to run on the main
+// thread, all JavaScript, UI, etc.  It would be best if we could have a
+// completely single threaded approach to combine the two runloops.  However,
+// CFRunLoop is mach-port based, and can't wait on a mixture of both mach ports
+// and file descriptors.  The way CFSocket is implemented on a CFRunLoop uses a
+// helper process and select() to proxy over a mach message to wake up the
+// CFRunLoop.  Our approach is similar but managed manually.  In theory it
+// is possible to wrap the kqueue in a CFFileDescriptor or CFSocket, and then
+// this would be handled within the run-loop.  However, a few attempts at this
+// had some unreliable results, and it is clearer to handled the threading
+// ourselves then try to understand the implementation details of the internal
+// helper process of CFRunLoop().  This also allows us to send the NSEvent
+// required to wake up the loop directly from the helper thread, which should
+// be safe since postEvent can be called from "subthreads".
+//
+// There is one additional complication in terms of integrating with libuv.
+// We can select() on the kqueue for notifications, but we also need to make
+// sure that all pending changes (additions, removals, etc) from within libuv
+// have been committed to the kqueue.  Normally this happens during the uv loop
+// right before blocking on the kqueue.  The run through the loop can cause
+// timers to fire and other callbacks, which can create more new pending events
+// to be updated.  Instead of trying to track if there are pending events and
+// seeing if we need to run through the loop to update the kqueue, we hook into
+// libuv's kevent call.  This allows us to see when changes are being made and
+// when it's about to block.  When it goes for a blocking kevent() call, we
+// make sure any pending changes are committed and then pump the Cocoa event
+// loop while our helper thread select()s on the kqueue to see if there is
+// anything ready.  If the kqueue wakes before the Cocoa loop, we send a
+// synthentic event into the Cocoa loop to wake up the main thread, and we will
+// then again call kevent() and return back into libuv.  This effectively means
+// we've replaced libuv's core kevent() blocking call with a call to the Cocoa
+// eventloop which will be woken up also if there is any activity on the
+// kqueue, allowing us to block on the set of both Cocoa and libuv events.
+
 #import <Cocoa/Cocoa.h>
+
+// For kevent.
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/time.h>
+
+// For select.
+#include <sys/select.h>
 
 #import "plaskAppDelegate.h"
 
@@ -32,24 +84,49 @@
 
 #include "v8_typed_array.h"
 
-static void TimerFired(CFRunLoopTimerRef timer, void* info);
+#define EVENTLOOP_DEBUG 0
 
-static int PumpNode(uv_loop_t* uvloop) {
-  // printf("  -> Pump Pump\n");
-  int res = uv_run_once_really(uvloop);
-  // printf("  %d\n", res);
-  // printf("<-\n");
-  return res;
+#define EVENTLOOP_BYPASS_CUSTOM 0
+
+#if EVENTLOOP_DEBUG
+#define EVENTLOOP_DEBUG_C(x) x
+#else
+#define EVENTLOOP_DEBUG_C(x) do { } while(0)
+#endif
+
+static bool should_quit = false;
+
+void dump_kevent(const struct kevent* k) {
+  const char* f = NULL;
+  switch (k->filter) {
+    case EVFILT_READ: f = "EVFILT_READ"; break;
+    case EVFILT_WRITE: f = "EVFILT_WRITE"; break;
+    case EVFILT_AIO: f = "EVFILT_AIO"; break;
+    case EVFILT_VNODE: f = "EVFILT_VNODE"; break;
+    case EVFILT_PROC: f = "EVFILT_PROC"; break;
+    case EVFILT_SIGNAL: f = "EVFILT_SIGNAL"; break;
+    case EVFILT_TIMER: f = "EVFILT_TIMER"; break;
+    case EVFILT_MACHPORT: f = "EVFILT_MACHPORT"; break;
+    case EVFILT_FS: f = "EVFILT_FS"; break;
+    case EVFILT_USER: f = "EVFILT_USER"; break;
+    case EVFILT_VM: f = "EVFILT_VM"; break;
+  }
+  printf("%d  %s (%d) %d %d\n",
+      k->ident,
+      f, k->filter,
+      k->flags,
+      k->fflags);
 }
 
-static void KqueueCallback(CFFileDescriptorRef backend_cffd,
-                           CFOptionFlags callBackTypes,
-                           void* info) {
-  // printf(" kqueue flagged\n");
-  PumpNode(uv_default_loop());
-  CFFileDescriptorEnableCallBacks(backend_cffd, kCFFileDescriptorReadCallBack);
+static int g_kqueue_fd = 0;
+static int g_main_thread_pipe_fd = 0;
+static int g_kqueue_thread_pipe_fd = 0;
 
-  [NSApp postEvent:[NSEvent otherEventWithType:NSApplicationDefined
+void kqueue_checker_thread(void* arg) {
+  bool checking_kqueue = false;
+
+  NSAutoreleasePool* pool = [NSAutoreleasePool new];  // To avoid the warning.
+  NSEvent* e = [NSEvent otherEventWithType:NSApplicationDefined
                                       location:NSMakePoint(0, 0)
                                  modifierFlags:0
                                      timestamp:0
@@ -57,7 +134,142 @@ static void KqueueCallback(CFFileDescriptorRef backend_cffd,
                                        context:nil
                                        subtype:8  // Arbitrary
                                          data1:0
-                                         data2:0] atStart:YES];
+                                         data2:0];
+
+  while (true) {
+    int nfds = g_kqueue_thread_pipe_fd + 1;
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(g_kqueue_thread_pipe_fd, &fds);
+    if (checking_kqueue) {
+      FD_SET(g_kqueue_fd, &fds);
+      if (g_kqueue_fd + 1 > nfds) nfds = g_kqueue_fd + 1;
+    }
+
+    EVENTLOOP_DEBUG_C((printf("Calling select: %d\n", checking_kqueue)));
+    int res = select(nfds, &fds, NULL, NULL, NULL);
+    if (res <= 0) abort();  // TODO(deanm): Handle signals, etc.
+
+    if (FD_ISSET(g_kqueue_fd, &fds)) {
+      EVENTLOOP_DEBUG_C((printf("postEvent\n")));
+      [NSApp postEvent:e atStart:NO];
+      checking_kqueue = false;
+    }
+
+    if (FD_ISSET(g_kqueue_thread_pipe_fd, &fds)) {
+      char msg;
+      ssize_t amt = read(g_kqueue_thread_pipe_fd, &msg, 1);
+      if (amt != 1) abort();  // TODO(deanm): Handle errors.
+      if (msg == 'q') break;  // quit.
+      checking_kqueue = msg == '~';  // ~ - start, ! - stop.
+    }
+  }
+
+  [pool drain];
+}
+
+int
+kevent_hook(int kq, const struct kevent *changelist, int nchanges,
+            struct kevent *eventlist, int nevents,
+            const struct timespec *timeout) {
+  int res;
+
+  EVENTLOOP_DEBUG_C((printf("KQUEUE--- fd: %d changes: %d\n", kq, nchanges)));
+
+#if EVENTLOOP_DEBUG
+  for (int i = 0; i < nchanges; ++i) {
+    dump_kevent(&changelist[i]);
+  }
+#endif
+
+#if EVENTLOOP_BYPASS_CUSTOM
+  int res = kevent(kq, changelist, nchanges, eventlist, nevents, timeout);
+  printf("---> results: %d\n", res);
+  for (int i = 0; i < res; ++i) {
+    dump_kevent(&eventlist[i]);
+  }
+  return res;
+#endif
+
+  if (eventlist == NULL)  // Just updating the state.
+    return kevent(kq, changelist, nchanges, eventlist, nevents, timeout);
+
+  struct timespec zerotimeout;
+  memset(&zerotimeout, 0, sizeof(zerotimeout));
+
+  // Going for a poll.  A bit less optimial but we break it into two system
+  // calls to make sure that the kqueue state is up to date.  We might as well
+  // also peek since we basically get it for free w/ the same call.
+  EVENTLOOP_DEBUG_C((printf("-- Updating kqueue state and peek\n")));
+  res = kevent(kq, changelist, nchanges, eventlist, nevents, &zerotimeout);
+  if (res != 0) return res;
+
+  /*
+  printf("kevent() blocking\n");
+  res = kevent(kq, NULL, 0, eventlist, nevents, timeout);
+  if (res != 0) return res;
+  return res;
+  */
+
+  /*
+  printf("Going for it...\n");
+  res = kevent(kq, changelist, nchanges, eventlist, nevents, timeout);
+  printf("<- %d\n", res);
+  return res;
+  */
+
+  double ts = 9999;  // Timeout in seconds.  Default to some "future".
+  if (timeout != NULL)
+    ts = timeout->tv_sec + (timeout->tv_nsec / 1000000000.0);
+
+  // NOTE(deanm): We only ever make a single pass, because we need to make
+  // sure that any user code (which could update timers, etc) is reflected
+  // and we have a proper timeout value.  Since user code can run in response
+  // to [NSApp sendEvent] (mouse movement, keypress, etc, etc), we wind down
+  // and go back through the uv loop again to make sure to update everything.
+
+  EVENTLOOP_DEBUG_C((printf("-> Running NSApp iteration: timeout %f\n", ts)));
+
+  // Have the helper thread start select()ing on the kqueue.
+  write(g_main_thread_pipe_fd, "~", 1);
+
+  // Run the event loop (blocking on the mach port for window messages).
+  NSEvent* event = [NSApp nextEventMatchingMask:NSAnyEventMask
+                          untilDate:[NSDate dateWithTimeIntervalSinceNow:ts]
+                          inMode:NSDefaultRunLoopMode // kCFRunLoopDefaultMode
+                          dequeue:YES];
+
+  // Stop the helper thread if it hasn't already woken up (in which case it
+  // would have already stopped itself).
+  write(g_main_thread_pipe_fd, "!", 1);
+
+  EVENTLOOP_DEBUG_C((printf("<- Finished NSApp iteration\n")));
+
+  if (event != nil) {  // event is nil on a timeout.
+    EVENTLOOP_DEBUG_C((NSLog(@"Event: %@\n", event)));
+
+    // A custom event to terminate, see applicationShouldTerminate.
+    if ([event type] == NSApplicationDefined && [event subtype] == 37) {
+      EVENTLOOP_DEBUG_C((printf("* Application Terminate event.\n")));
+      should_quit = true;
+      write(g_main_thread_pipe_fd, "q", 1);
+      return 0;  // See the notes about the dummy timer.
+    } else if ([event type] == NSApplicationDefined && [event subtype] == 8) {
+      // A wakeup after the kqueue callback.
+      EVENTLOOP_DEBUG_C((printf("* Wakeup event.\n")));
+    } else {
+      [event retain];
+      [NSApp sendEvent:event];
+      [event release];
+    }
+  }
+
+  // Do the actual kqueue call now (ignore the timeout, don't block).
+  return kevent(kq, NULL, 0, eventlist, nevents, &zerotimeout);
+}
+
+static void dummy_cb(uv_timer_t* handle, int status) {
+  EVENTLOOP_DEBUG_C((printf("dummy timer actually fired, interesting...\n")));
 }
 
 static void RunMainLoop() {
@@ -65,59 +277,40 @@ static void RunMainLoop() {
   // Avoids failing on test/simple/test-eio-race3.js though
   // ev_idle_start(EV_DEFAULT_UC_ &eio_poller);
 
+  int pipefds[2];
+  if (pipe(pipefds) != 0) abort();
+
+  g_kqueue_thread_pipe_fd = pipefds[0];
+  g_main_thread_pipe_fd = pipefds[1];
+
   uv_loop_t* uvloop = uv_default_loop();
+  uvloop->keventfunc = (void*)&kevent_hook;
 
-  // Make sure the kqueue is initialized and the kernel state is up to date.
-  PumpNode(uvloop);
+  g_kqueue_fd = uv_backend_fd(uvloop);
 
-  int backend_fd = uv_backend_fd(uvloop);
+  uv_thread_t checker;
+  uv_thread_create(&checker, &kqueue_checker_thread, NULL);
 
-  CFFileDescriptorRef backend_cffd =
-      CFFileDescriptorCreate(NULL, backend_fd, true, &KqueueCallback, NULL);
-  CFRunLoopSourceRef backend_rlsr =
-      CFFileDescriptorCreateRunLoopSource(NULL, backend_cffd, 0);
-  CFRunLoopAddSource(CFRunLoopGetCurrent(),
-                     backend_rlsr,
-                     kCFRunLoopDefaultMode);
-  CFRelease(backend_rlsr);
-  CFFileDescriptorEnableCallBacks(backend_cffd, kCFFileDescriptorReadCallBack);
+  // There is an assert if the kqueue returns 0 but there was a timeout of
+  // -1 (infinite).  In order to avoid the logic of ever having no timeout
+  // set a dummy timer just to enforce some large timeout and avoid the assert.
+  uv_timer_t dummy_timer;
+  uv_timer_init(uvloop, &dummy_timer);
+  uv_timer_start(&dummy_timer, &dummy_cb, 999999999, 999999999);  // 115 days.
+
+  EVENTLOOP_DEBUG_C((printf("Kqueue fd: %d\n", uv_backend_fd(uvloop))));
 
   [NSApp finishLaunching];
 
   [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
   [NSApp setWindowsNeedUpdate:YES];
 
-  bool do_quit = false;
-  while (!do_quit) {
+  while (!should_quit && uvloop->active_handles > 1) {  // Our dummy timer is 1.
     NSAutoreleasePool* pool = [NSAutoreleasePool new];
-    if (PumpNode(uvloop) == 0) break;
-
-    double ts = 9999;  // Timeout in seconds.  Default to some "future".
-    int uv_waittime = uv_backend_timeout(uvloop);
-    if (uv_waittime != -1)
-      ts = uv_waittime / 1000.0;
-
-    // printf("Running a loop iteration with timeout %f\n", ts);
-
-    NSEvent* event = [NSApp nextEventMatchingMask:NSAnyEventMask
-                            untilDate:[NSDate dateWithTimeIntervalSinceNow:ts]
-                            inMode:NSDefaultRunLoopMode // kCFRunLoopDefaultMode
-                            dequeue:YES];
-    // printf("Done done.\n");
-    if (event != nil) {  // event is nil on a timeout.
-      // NSLog(@"Event: %@\n", event);
-
-      // A custom event to terminate, see applicationShouldTerminate.
-      if ([event type] == NSApplicationDefined && [event subtype] == 37) {
-        do_quit = true;
-      } else if ([event type] == NSApplicationDefined && [event subtype] == 8) {
-        // A wakeup after the kqueue callback.
-      } else {
-        [event retain];
-        [NSApp sendEvent:event];
-        [event release];
-      }
-    }
+    EVENTLOOP_DEBUG_C((printf("-> uv_run_once\n")));
+    uv_run_once(uvloop);
+    EVENTLOOP_DEBUG_C((printf("<- uv_run_once\n")));
+    EVENTLOOP_DEBUG_C((printf(" - handles: %d\n", uvloop->active_handles)));
     [pool drain];
   }
 }
@@ -161,8 +354,11 @@ int main(int argc, char** argv) {
 
     node::Load(process);
 
-    // uv_run(uv_default_loop()).
+#if EVENTLOOP_BYPASS_CUSTOM
+    uv_run(uv_default_loop());
+#else
     RunMainLoop();
+#endif
 
     node::EmitExit(process);
 
