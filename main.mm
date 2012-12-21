@@ -406,7 +406,6 @@ int main(int argc, char** argv) {
     uv_run(uv_default_loop());
 #else
     // [NSApp run];
-    uv_run_once_really(uv_default_loop());
     [NSApp finishLaunching];
     [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
     [NSApp setWindowsNeedUpdate:YES];

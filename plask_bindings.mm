@@ -6089,6 +6089,32 @@ class NSAppleScriptWrapper {
   }
 }
 
+// TODO(deanm): Figure out why menu item messages sometimes get here instead of
+// NSApp.  This happens if you create an NSWindow after our custom apple menu is
+// created.  We are somehow getting the new NSWindow in the wrong place, or
+// saying that we can accept something we can because we get called instead of
+// NSApp (for example, terminate:).  This is a total hack to just forward any
+// unknown messages on to NSApp.
+- (void)forwardInvocation:(NSInvocation *)anInvocation {
+  // printf("Forward invocation\n");
+  if ([NSApp respondsToSelector:[anInvocation selector]]) {
+    [anInvocation invokeWithTarget:NSApp];
+  } else {
+    [super forwardInvocation:anInvocation];
+  }
+}
+- (BOOL)respondsToSelector:(SEL)aSelector {
+  if ([super respondsToSelector:aSelector]) {
+    return YES;
+  }
+  return [NSApp respondsToSelector:aSelector];
+}
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector {
+  NSMethodSignature* signature = [super methodSignatureForSelector:selector];
+  if (!signature) signature = [NSApp methodSignatureForSelector:selector];
+  return signature;
+}
+
 // In order to receive keyboard events, we need to be able to be the key window.
 // By default this would be YES, except if we don't have a title bar, for
 // example in fullscreen mode.  We want to always be able to become the key
