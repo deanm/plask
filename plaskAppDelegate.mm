@@ -25,55 +25,8 @@
 
 @synthesize window;
 
-// We're running nibless, so we don't have the typical MainMenu.nib.  This code
-// sets up the "Apple Menu", the menu in the menu bar with your application
-// title, next to the actual apple logo menu.  It is a bit of a mess to create
-// it programmatically.  For example, see:
-//    http://lapcatsoftware.com/blog/2007/06/17/
-static void InitMenuBar() {
-  // Our NSApplication is created with a nil mainMenu.
-  [NSApp setMainMenu:[[NSMenu alloc] init]];
-
-  NSMenu* menu = [[NSMenu alloc] initWithTitle:@""];
-
-  [menu addItemWithTitle:@"About Plask"
-        action:@selector(orderFrontStandardAboutPanel:)
-        keyEquivalent:@""];
-
-  [menu addItem:[NSMenuItem separatorItem]];
-
-  [menu addItemWithTitle:@"Hide Plask"
-        action:@selector(hide:)
-        keyEquivalent:@"h"];
-
-  [menu addItemWithTitle:@"Hide Others"
-        action:@selector(hideOtherApplications:)
-        keyEquivalent:@"h"];
-
-  [menu addItemWithTitle:@"Show All"
-        action:@selector(unhideAllApplications:)
-        keyEquivalent:@""];
-
-  [menu addItem:[NSMenuItem separatorItem]];
-
-  [menu addItemWithTitle:@"Quit Plask"
-        action:@selector(terminate:)
-        keyEquivalent:@"q"];
-
-  // The actual "Apple Menu" is the first sub-menu of the mainMenu menu.
-  NSMenuItem* container_item = [[NSMenuItem alloc] initWithTitle:@""
-                                                   action: nil
-                                                   keyEquivalent:@""];
-  [container_item setSubmenu:menu];
-  [[NSApp mainMenu] addItem:container_item];
-  // Call the undocumented setAppleMenu to make the menu the "Apple Menu".
-  [NSApp setAppleMenu:menu];
-  [container_item release];
-  [menu release];
-}
 
 -(void)applicationWillFinishLaunching:(NSNotification *)aNotification {
-  InitMenuBar();
 }
 
 -(void)applicationDidFinishLaunching:(NSNotification *)aNotification {

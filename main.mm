@@ -94,8 +94,59 @@
 #define EVENTLOOP_DEBUG_C(x) do { } while(0)
 #endif
 
-static bool should_quit = false;
+static bool g_should_quit = false;
+static int g_kqueue_fd = 0;
+static int g_main_thread_pipe_fd = 0;
+static int g_kqueue_thread_pipe_fd = 0;
 
+// We're running nibless, so we don't have the typical MainMenu.nib.  This code
+// sets up the "Apple Menu", the menu in the menu bar with your application
+// title, next to the actual apple logo menu.  It is a bit of a mess to create
+// it programmatically.  For example, see:
+//    http://lapcatsoftware.com/blog/2007/06/17/
+static void InitMenuBar() {
+  // Our NSApplication is created with a nil mainMenu.
+  [NSApp setMainMenu:[[NSMenu alloc] init]];
+
+  NSMenu* menu = [[NSMenu alloc] initWithTitle:@""];
+
+  [menu addItemWithTitle:@"About Plask"
+        action:@selector(orderFrontStandardAboutPanel:)
+        keyEquivalent:@""];
+
+  [menu addItem:[NSMenuItem separatorItem]];
+
+  [menu addItemWithTitle:@"Hide Plask"
+        action:@selector(hide:)
+        keyEquivalent:@"h"];
+
+  [menu addItemWithTitle:@"Hide Others"
+        action:@selector(hideOtherApplications:)
+        keyEquivalent:@"h"];
+
+  [menu addItemWithTitle:@"Show All"
+        action:@selector(unhideAllApplications:)
+        keyEquivalent:@""];
+
+  [menu addItem:[NSMenuItem separatorItem]];
+
+  [menu addItemWithTitle:@"Quit Plask"
+        action:@selector(terminate:)
+        keyEquivalent:@"q"];
+
+  // The actual "Apple Menu" is the first sub-menu of the mainMenu menu.
+  NSMenuItem* container_item = [[NSMenuItem alloc] initWithTitle:@""
+                                                   action: nil
+                                                   keyEquivalent:@""];
+  [container_item setSubmenu:menu];
+  [[NSApp mainMenu] addItem:container_item];
+  // Call the undocumented setAppleMenu to make the menu the "Apple Menu".
+  [NSApp setAppleMenu:menu];
+  [container_item release];
+  [menu release];
+}
+
+#if EVENTLOOP_DEBUG
 void dump_kevent(const struct kevent* k) {
   const char* f = NULL;
   switch (k->filter) {
@@ -117,13 +168,10 @@ void dump_kevent(const struct kevent* k) {
       k->flags,
       k->fflags);
 }
-
-static int g_kqueue_fd = 0;
-static int g_main_thread_pipe_fd = 0;
-static int g_kqueue_thread_pipe_fd = 0;
+#endif
 
 void kqueue_checker_thread(void* arg) {
-  bool checking_kqueue = false;
+  bool check_kqueue = false;
 
   NSAutoreleasePool* pool = [NSAutoreleasePool new];  // To avoid the warning.
   NSEvent* e = [NSEvent otherEventWithType:NSApplicationDefined
@@ -141,27 +189,30 @@ void kqueue_checker_thread(void* arg) {
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(g_kqueue_thread_pipe_fd, &fds);
-    if (checking_kqueue) {
+    if (check_kqueue) {
       FD_SET(g_kqueue_fd, &fds);
       if (g_kqueue_fd + 1 > nfds) nfds = g_kqueue_fd + 1;
     }
 
-    EVENTLOOP_DEBUG_C((printf("Calling select: %d\n", checking_kqueue)));
+    EVENTLOOP_DEBUG_C((printf("Calling select: %d\n", check_kqueue)));
     int res = select(nfds, &fds, NULL, NULL, NULL);
     if (res <= 0) abort();  // TODO(deanm): Handle signals, etc.
 
     if (FD_ISSET(g_kqueue_fd, &fds)) {
       EVENTLOOP_DEBUG_C((printf("postEvent\n")));
-      [NSApp postEvent:e atStart:NO];
-      checking_kqueue = false;
+      [NSApp postEvent:e atStart:YES];
+      check_kqueue = false;
     }
 
     if (FD_ISSET(g_kqueue_thread_pipe_fd, &fds)) {
       char msg;
       ssize_t amt = read(g_kqueue_thread_pipe_fd, &msg, 1);
       if (amt != 1) abort();  // TODO(deanm): Handle errors.
-      if (msg == 'q') break;  // quit.
-      checking_kqueue = msg == '~';  // ~ - start, ! - stop.
+      if (msg == 'q') {  // quit.
+        EVENTLOOP_DEBUG_C((printf("quitting kqueue helper\n")));
+        break;
+      }
+      check_kqueue = msg == '~';  // ~ - start, ! - stop.
     }
   }
 
@@ -251,7 +302,7 @@ kevent_hook(int kq, const struct kevent *changelist, int nchanges,
     // A custom event to terminate, see applicationShouldTerminate.
     if ([event type] == NSApplicationDefined && [event subtype] == 37) {
       EVENTLOOP_DEBUG_C((printf("* Application Terminate event.\n")));
-      should_quit = true;
+      g_should_quit = true;
       write(g_main_thread_pipe_fd, "q", 1);
       return 0;  // See the notes about the dummy timer.
     } else if ([event type] == NSApplicationDefined && [event subtype] == 8) {
@@ -300,12 +351,8 @@ static void RunMainLoop() {
 
   EVENTLOOP_DEBUG_C((printf("Kqueue fd: %d\n", uv_backend_fd(uvloop))));
 
-  [NSApp finishLaunching];
-
-  [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
-  [NSApp setWindowsNeedUpdate:YES];
-
-  while (!should_quit && uvloop->active_handles > 1) {  // Our dummy timer is 1.
+  // Our dummy timer is always 1 active handle.
+  while (!g_should_quit && uvloop->active_handles > 1) {
     NSAutoreleasePool* pool = [NSAutoreleasePool new];
     EVENTLOOP_DEBUG_C((printf("-> uv_run_once\n")));
     uv_run_once(uvloop);
@@ -319,6 +366,7 @@ int main(int argc, char** argv) {
   NSAutoreleasePool* pool = [NSAutoreleasePool new];
   [NSApplication sharedApplication];  // Make sure NSApp is initialized.
 
+  InitMenuBar();
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
   [NSApp setDelegate:app_delegate];
 
@@ -357,6 +405,11 @@ int main(int argc, char** argv) {
 #if EVENTLOOP_BYPASS_CUSTOM
     uv_run(uv_default_loop());
 #else
+    // [NSApp run];
+    uv_run_once_really(uv_default_loop());
+    [NSApp finishLaunching];
+    [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
+    [NSApp setWindowsNeedUpdate:YES];
     RunMainLoop();
 #endif
 
