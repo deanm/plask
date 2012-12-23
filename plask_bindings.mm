@@ -3326,6 +3326,12 @@ class NSWindowWrapper {
         backing:NSBackingStoreBuffered
         defer:NO
         screen: screen];
+
+    // Don't really see the point of the "User Interface Preservation" (added
+    // in 10.7) for something like Plask.  Disable it on our windows.
+    if ([window respondsToSelector:@selector(setRestorable:)])
+      [window setRestorable:NO];
+
     // CGColorSpaceRef rgb_space = CGColorSpaceCreateDeviceRGB();
     // CGBitmapContextCreate(NULL, width, height, 8, width * 4, rgb_space,
     //                       kCGBitmapByteOrder32Little |
