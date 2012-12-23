@@ -3402,7 +3402,13 @@ class NSWindowWrapper {
 
     if (fullscreen)
       [window setLevel:NSMainMenuWindowLevel+1];
-    [window setDelegate:[[[WindowDelegate alloc] init] autorelease]];
+    // NOTE(deanm): We currently aren't even using the delegate for anything,
+    // so might as well leave it to nil for now.
+    // And oh yeah, setDelegate doesn't retain (because delegates could create
+    // cycles, or be the same object, etc).  There was previously a bug here
+    // where the delegate was autoreleased.  clang's memory static analysis
+    // was no help for that one either.
+    // [window setDelegate:[[WindowDelegate alloc] init]];
     [window makeKeyAndOrderFront:nil];
 
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(window));
@@ -6087,32 +6093,6 @@ class NSAppleScriptWrapper {
       printf("Exception in event callback, TODO(deanm): print something.\n");
     }
   }
-}
-
-// TODO(deanm): Figure out why menu item messages sometimes get here instead of
-// NSApp.  This happens if you create an NSWindow after our custom apple menu is
-// created.  We are somehow getting the new NSWindow in the wrong place, or
-// saying that we can accept something we can because we get called instead of
-// NSApp (for example, terminate:).  This is a total hack to just forward any
-// unknown messages on to NSApp.
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-  // printf("Forward invocation\n");
-  if ([NSApp respondsToSelector:[anInvocation selector]]) {
-    [anInvocation invokeWithTarget:NSApp];
-  } else {
-    [super forwardInvocation:anInvocation];
-  }
-}
-- (BOOL)respondsToSelector:(SEL)aSelector {
-  if ([super respondsToSelector:aSelector]) {
-    return YES;
-  }
-  return [NSApp respondsToSelector:aSelector];
-}
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector {
-  NSMethodSignature* signature = [super methodSignatureForSelector:selector];
-  if (!signature) signature = [NSApp methodSignatureForSelector:selector];
-  return signature;
 }
 
 // In order to receive keyboard events, we need to be able to be the key window.
