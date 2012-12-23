@@ -345,9 +345,12 @@ static void RunMainLoop() {
   // There is an assert if the kqueue returns 0 but there was a timeout of
   // -1 (infinite).  In order to avoid the logic of ever having no timeout
   // set a dummy timer just to enforce some large timeout and avoid the assert.
+  // NOTE(deanm): We seem to hit some internal limit (libuv?) at 1410064 secs,
+  // (16 days), so keep it under to be safe.  Doesn't matter if it fires anyway.
+  static int64_t kDummyTimerMs = 999999999L;  // ~11.5 days.
   uv_timer_t dummy_timer;
   uv_timer_init(uvloop, &dummy_timer);
-  uv_timer_start(&dummy_timer, &dummy_cb, 999999999, 999999999);  // 115 days.
+  uv_timer_start(&dummy_timer, &dummy_cb, kDummyTimerMs, kDummyTimerMs);
 
   EVENTLOOP_DEBUG_C((printf("Kqueue fd: %d\n", uv_backend_fd(uvloop))));
 
