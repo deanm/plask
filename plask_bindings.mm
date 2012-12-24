@@ -3650,6 +3650,16 @@ class NSEventWrapper {
   }
 
  private:
+  static void WeakCallback(v8::Persistent<v8::Value> value, void* data) {
+    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(value);
+    NSEvent* event = ExtractPointer(obj);
+
+    value.ClearWeak();
+    value.Dispose();
+
+    [event release];  // Okay even if event is nil.
+  }
+
   // This will be called when we create a new instance from the instance
   // template, wrapping a NSEvent*.  It can also be called directly from
   // JavaScript, which is a bit of a problem, but we'll survive.
@@ -3658,6 +3668,11 @@ class NSEventWrapper {
       return v8_utils::ThrowTypeError(kMsgNonConstructCall);
 
     args.This()->SetInternalField(0, v8_utils::WrapCPointer(NULL));
+
+    v8::Persistent<v8::Object> persistent =
+        v8::Persistent<v8::Object>::New(args.This());
+    persistent.MakeWeak(NULL, &NSEventWrapper::WeakCallback);
+
     return args.This();
   }
 
@@ -3667,17 +3682,17 @@ class NSEventWrapper {
   }
 
   static v8::Handle<v8::Value> type(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event type]);
   }
 
   static v8::Handle<v8::Value> buttonNumber(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event buttonNumber]);
   }
 
   static v8::Handle<v8::Value> characters(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     NSString* characters = [event characters];
     return v8::String::New(
         [characters UTF8String],
@@ -3685,12 +3700,12 @@ class NSEventWrapper {
   }
 
   static v8::Handle<v8::Value> keyCode(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event keyCode]);
   }
 
   static v8::Handle<v8::Value> locationInWindow(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     // If window is nil we'll instead get screen coordinates.
     if ([event window] == nil)
       return v8_utils::ThrowError("Calling locationInWindow with nil window.");
@@ -3702,32 +3717,32 @@ class NSEventWrapper {
   }
 
   static v8::Handle<v8::Value> deltaX(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Number::New([event deltaX]);
   }
 
   static v8::Handle<v8::Value> deltaY(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Number::New([event deltaY]);
   }
 
   static v8::Handle<v8::Value> deltaZ(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Number::New([event deltaZ]);
   }
 
   static v8::Handle<v8::Value> pressure(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Number::New([event pressure]);
   }
 
   static v8::Handle<v8::Value> isEnteringProximity(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Boolean::New([event isEnteringProximity]);
   }
 
   static v8::Handle<v8::Value> modifierFlags(const v8::Arguments& args) {
-    NSEvent* event = NSEventWrapper::ExtractPointer(args.Holder());
+    NSEvent* event = ExtractPointer(args.Holder());
     return v8::Integer::NewFromUnsigned([event modifierFlags]);
   }
 };
@@ -6087,11 +6102,12 @@ class NSAppleScriptWrapper {
 
 -(void)processEvent:(NSEvent *)event {
   if (*event_callback_) {
-    [event retain];  // TODO(deanm): Release this someday.
+    v8::HandleScope scope;
+    [event retain];  // Released by NSEventWrapper.
     v8::Local<v8::Object> res =
         NSEventWrapper::GetTemplate()->InstanceTemplate()->NewInstance();
     res->SetInternalField(0, v8_utils::WrapCPointer(event));
-    v8::Handle<v8::Value> argv[] = { v8::Number::New(0), res };
+    v8::Local<v8::Value> argv[] = { v8::Number::New(0), res };
     v8::TryCatch try_catch;
     event_callback_->Call(v8::Context::GetCurrent()->Global(), 2, argv);
     // Hopefully plask.js will have caught any exceptions already.
