@@ -78,7 +78,6 @@
 #include "plask_bindings.h"
 
 #include "v8.h"
-#define EV_MULTIPLICITY 0
 #include "node.h"
 #include "uv.h"
 
