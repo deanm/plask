@@ -591,7 +591,8 @@ exports.simpleWindow = function(obj) {
   var canvas = null;  // Protected from getting clobbered on obj.
 
   if (wintype === '3d') {
-    if (settings.vsync === true)
+    // Default 3d2d windows to vsync also.
+    if (settings.type !== '3d' || settings.vsync === true)
       gl_.setSwapInterval(1);
     if (settings.type === '3d') {  // Don't expose gl for 3d2d windows.
       obj.gl = gl_;
