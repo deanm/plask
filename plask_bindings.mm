@@ -2727,8 +2727,9 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
-  template<void uniformFuncT(GLint, GLsizei, const GLfloat*)>
-  static v8::Handle<v8::Value> uniformfHelper(const v8::Arguments& args) {
+  static v8::Handle<v8::Value> uniformfHelper(
+      void (*uniformFunc)(GLint, GLsizei, const GLfloat*),
+      const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -2756,13 +2757,14 @@ class NSOpenGLContextWrapper {
     for (int i = 0; i < length; ++i) {
       buffer[i] = obj->Get(i)->NumberValue();
     }
-    uniformFuncT(location, length, buffer);
+    uniformFunc(location, length, buffer);
     delete[] buffer;
     return v8::Undefined();
   }
 
-  template<void uniformFuncT(GLint, GLsizei, const GLint*)>
-  static v8::Handle<v8::Value> uniformiHelper(const v8::Arguments& args) {
+  static v8::Handle<v8::Value> uniformiHelper(
+      void (*uniformFunc)(GLint, GLsizei, const GLint*),
+      const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -2790,7 +2792,7 @@ class NSOpenGLContextWrapper {
     for (int i = 0; i < length; ++i) {
       buffer[i] = obj->Get(i)->Int32Value();
     }
-    uniformFuncT(location, length, buffer);
+    uniformFunc(location, length, buffer);
     delete[] buffer;
     return v8::Undefined();
   }
@@ -2814,7 +2816,7 @@ class NSOpenGLContextWrapper {
   // void uniform1fv(WebGLUniformLocation location, Float32Array v)
   // void uniform1fv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform1fv(const v8::Arguments& args) {
-    return uniformfHelper<glUniform1fv>(args);
+    return uniformfHelper(glUniform1fv, args);
   }
 
   // void uniform1i(WebGLUniformLocation location, GLint x)
@@ -2836,7 +2838,7 @@ class NSOpenGLContextWrapper {
   // void uniform1iv(WebGLUniformLocation location, Int32Array v)
   // void uniform1iv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform1iv(const v8::Arguments& args) {
-    return uniformiHelper<glUniform1iv>(args);
+    return uniformiHelper(glUniform1iv, args);
   }
 
   // void uniform2f(WebGLUniformLocation location, GLfloat x, GLfloat y)
@@ -2860,7 +2862,7 @@ class NSOpenGLContextWrapper {
   // void uniform2fv(WebGLUniformLocation location, Float32Array v)
   // void uniform2fv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform2fv(const v8::Arguments& args) {
-    return uniformfHelper<glUniform2fv>(args);
+    return uniformfHelper(glUniform2fv, args);
   }
 
   // void uniform2i(WebGLUniformLocation location, GLint x, GLint y)
@@ -2884,7 +2886,7 @@ class NSOpenGLContextWrapper {
   // void uniform2iv(WebGLUniformLocation location, Int32Array v)
   // void uniform2iv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform2iv(const v8::Arguments& args) {
-    return uniformiHelper<glUniform2iv>(args);
+    return uniformiHelper(glUniform2iv, args);
   }
 
   // void uniform3f(WebGLUniformLocation location, GLfloat x, GLfloat y,
@@ -2910,7 +2912,7 @@ class NSOpenGLContextWrapper {
   // void uniform3fv(WebGLUniformLocation location, Float32Array v)
   // void uniform3fv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform3fv(const v8::Arguments& args) {
-    return uniformfHelper<glUniform3fv>(args);
+    return uniformfHelper(glUniform3fv, args);
   }
 
   // void uniform3i(WebGLUniformLocation location, GLint x, GLint y, GLint z)
@@ -2935,7 +2937,7 @@ class NSOpenGLContextWrapper {
   // void uniform3iv(WebGLUniformLocation location, Int32Array v)
   // void uniform3iv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform3iv(const v8::Arguments& args) {
-    return uniformiHelper<glUniform3iv>(args);
+    return uniformiHelper(glUniform3iv, args);
   }
 
   // void uniform4f(WebGLUniformLocation location, GLfloat x, GLfloat y,
@@ -2962,7 +2964,7 @@ class NSOpenGLContextWrapper {
   // void uniform4fv(WebGLUniformLocation location, Float32Array v)
   // void uniform4fv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform4fv(const v8::Arguments& args) {
-    return uniformfHelper<glUniform4fv>(args);
+    return uniformfHelper(glUniform4fv, args);
   }
 
   // void uniform4i(WebGLUniformLocation location, GLint x, GLint y,
@@ -2989,11 +2991,12 @@ class NSOpenGLContextWrapper {
   // void uniform4iv(WebGLUniformLocation location, Int32Array v)
   // void uniform4iv(WebGLUniformLocation location, sequence v)
   static v8::Handle<v8::Value> uniform4iv(const v8::Arguments& args) {
-    return uniformiHelper<glUniform4iv>(args);
+    return uniformiHelper(glUniform4iv, args);
   }
 
-  template<void uniformFuncT(GLint, GLsizei, GLboolean, const GLfloat*)>
-  static v8::Handle<v8::Value> uniformMatrixHelper(const v8::Arguments& args) {
+  static v8::Handle<v8::Value> uniformMatrixHelper(
+      void (*uniformFunc)(GLint, GLsizei, GLboolean, const GLfloat*),
+      const v8::Arguments& args) {
     if (args.Length() != 3)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
@@ -3023,7 +3026,7 @@ class NSOpenGLContextWrapper {
     }
     // TODO(deanm): Count should probably not be hardcoded.  It should probably
     // be based on the length and the number of elements per matrix.
-    uniformFuncT(location, 1, GL_FALSE, buffer);
+    uniformFunc(location, 1, GL_FALSE, buffer);
     delete[] buffer;
     return v8::Undefined();
   }
@@ -3033,7 +3036,7 @@ class NSOpenGLContextWrapper {
   // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix2fv(const v8::Arguments& args) {
-    return uniformMatrixHelper<glUniformMatrix2fv>(args);
+    return uniformMatrixHelper(glUniformMatrix2fv, args);
   }
 
   // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
@@ -3041,7 +3044,7 @@ class NSOpenGLContextWrapper {
   // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix3fv(const v8::Arguments& args) {
-    return uniformMatrixHelper<glUniformMatrix3fv>(args);
+    return uniformMatrixHelper(glUniformMatrix3fv, args);
   }
 
   // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
@@ -3049,7 +3052,7 @@ class NSOpenGLContextWrapper {
   // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix4fv(const v8::Arguments& args) {
-    return uniformMatrixHelper<glUniformMatrix4fv>(args);
+    return uniformMatrixHelper(glUniformMatrix4fv, args);
   }
 
   // void useProgram(WebGLProgram program)
