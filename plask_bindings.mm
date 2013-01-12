@@ -2992,7 +2992,7 @@ class NSOpenGLContextWrapper {
     return uniformiHelper<glUniform4iv, 4>(args);
   }
 
-  template<void uniformFuncT(GLint, GLsizei, GLboolean, const GLfloat*)>
+  template<void uniformFuncT(GLint, GLsizei, GLboolean, const GLfloat*), GLsizei size>
   static v8::Handle<v8::Value> uniformMatrixHelper(const v8::Arguments& args) {
     if (args.Length() != 3)
       return v8_utils::ThrowError("Wrong number of arguments.");
@@ -3021,9 +3021,7 @@ class NSOpenGLContextWrapper {
     for (int i = 0; i < length; ++i) {
       buffer[i] = obj->Get(i)->NumberValue();
     }
-    // TODO(deanm): Count should probably not be hardcoded.  It should probably
-    // be based on the length and the number of elements per matrix.
-    uniformFuncT(location, 1, GL_FALSE, buffer);
+    uniformFuncT(location, length / size, GL_FALSE, buffer);
     delete[] buffer;
     return v8::Undefined();
   }
@@ -3033,7 +3031,7 @@ class NSOpenGLContextWrapper {
   // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix2fv(const v8::Arguments& args) {
-    return uniformMatrixHelper<glUniformMatrix2fv>(args);
+    return uniformMatrixHelper<glUniformMatrix2fv, 8>(args);
   }
 
   // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
@@ -3041,7 +3039,7 @@ class NSOpenGLContextWrapper {
   // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix3fv(const v8::Arguments& args) {
-    return uniformMatrixHelper<glUniformMatrix3fv>(args);
+    return uniformMatrixHelper<glUniformMatrix3fv, 12>(args);
   }
 
   // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
@@ -3049,7 +3047,7 @@ class NSOpenGLContextWrapper {
   // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
   static v8::Handle<v8::Value> uniformMatrix4fv(const v8::Arguments& args) {
-    return uniformMatrixHelper<glUniformMatrix4fv>(args);
+    return uniformMatrixHelper<glUniformMatrix4fv, 16>(args);
   }
 
   // void useProgram(WebGLProgram program)
