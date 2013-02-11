@@ -4468,7 +4468,7 @@ class SkPaintWrapper {
 
     SkScalar* intervals = new SkScalar[length];
     if (!intervals)
-      return v8_utils::ThrowError("Unabe to allocate intervals.");
+      return v8_utils::ThrowError("Unable to allocate intervals.");
     
     for (uint32_t i = 0; i < length; ++i) {
       intervals[i] = SkDoubleToScalar(arr->Get(i)->NumberValue());
