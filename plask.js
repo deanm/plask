@@ -23,7 +23,7 @@ var sys = require('sys');
 var fs = require('fs');
 var path = require('path');
 var events = require('events');
-var dgram = require('dgram');
+var net = require('net');
 var inherits = sys.inherits;
 
 exports.SkPath = PlaskRawMac.SkPath;
@@ -164,13 +164,13 @@ PlaskRawMac.CAMIDISource.prototype.programChange = function(chan, val) {
 inherits(PlaskRawMac.CAMIDIDestination, events.EventEmitter);
 
 PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
-  if (this._dgram_initialized !== true) {
-    var path = '/tmp/plask_internal_midi_socket_' +
-               process.pid + '_' + Date.now();
-    var sock = dgram.createSocket('unix_dgram');
-    sock.bind(path);
+  // TODO(deanm): Move initialization to constructor (need to shim it).
+  if (this._sock_initialized !== true) {
+    console.log(this.getPipeDescriptor());
+    var sock = new net.Socket({fd: this.getPipeDescriptor()});
+    sock.writable = false;
     var this_ = this;
-    sock.on('message', function(msg, rinfo) {
+    sock.on('data', function(msg, rinfo) {
       if (msg.length < 1) {
         console.log('Received zero length midi message.');
         return;
@@ -182,7 +182,8 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
       // packet.  I'm not sure if this is the expected behavior, but we'll
       // try to handle it...
       var j = 0;
-      while (j < msg.length) {
+      // TODO(deanm): Use framing instead of assuming atomic writes on the pipe.
+      while (j < msg.length && msg.length - j >= 3) {
         if ((msg[j] & 0x80) !== 0x80) {
           console.log('First MIDI byte not a status byte.');
           return;
@@ -219,8 +220,7 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
         j += 3;  // NOTE: Careful, some day we'll handle longer messages?
       }
     });
-    this.setDgramPath(path);
-    this._dgram_initialized = true;
+    this._sock_initialized = true;
   }
 
   events.EventEmitter.prototype.on.call(this, evname, callback);
