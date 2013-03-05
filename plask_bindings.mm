@@ -2035,7 +2035,7 @@ class NSOpenGLContextWrapper {
       case GL_ELEMENT_ARRAY_BUFFER_BINDING:
         return v8_utils::ThrowError("Unimplemented.");
       case GL_FRAMEBUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
+        return getUnsignedLongParameter(pname);
       case GL_FRONT_FACE:
         return getUnsignedLongParameter(pname);
       case GL_GENERATE_MIPMAP_HINT:
