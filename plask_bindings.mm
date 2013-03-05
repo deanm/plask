@@ -4113,6 +4113,7 @@ class SkPaintWrapper {
       { "setDashPathEffect", &SkPaintWrapper::setDashPathEffect },
       { "clearPathEffect", &SkPaintWrapper::clearPathEffect },
       { "measureText", &SkPaintWrapper::measureText },
+      { "measureTextBounds", &SkPaintWrapper::measureTextBounds },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4513,6 +4514,23 @@ class SkPaintWrapper {
     v8::String::Utf8Value utf8(args[0]->ToString());
     SkScalar width = paint->measureText(*utf8, utf8.length());
     return v8::Number::New(width);
+  }
+
+  static v8::Handle<v8::Value> measureTextBounds(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    v8::String::Utf8Value utf8(args[0]->ToString());
+
+    SkRect bounds;
+    paint->measureText(*utf8, utf8.length(), &bounds);
+
+    v8::Local<v8::Array> res = v8::Array::New(4);
+    res->Set(v8::Integer::New(0), v8::Number::New(bounds.fLeft));
+    res->Set(v8::Integer::New(1), v8::Number::New(bounds.fTop));
+    res->Set(v8::Integer::New(2), v8::Number::New(bounds.fRight));
+    res->Set(v8::Integer::New(3), v8::Number::New(bounds.fBottom));
+
+    return res;
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
