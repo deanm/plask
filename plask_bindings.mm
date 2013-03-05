@@ -4114,7 +4114,8 @@ class SkPaintWrapper {
       { "clearPathEffect", &SkPaintWrapper::clearPathEffect },
       { "measureText", &SkPaintWrapper::measureText },
       { "measureTextBounds", &SkPaintWrapper::measureTextBounds },
-      { "getFontMetrics", &SkPaintWrapper::getFontMetrics }
+      { "getFontMetrics", &SkPaintWrapper::getFontMetrics },
+      { "getTextPath", &SkPaintWrapper::getTextPath }
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4551,6 +4552,23 @@ class SkPaintWrapper {
     res->Set(v8::String::New("xMin"), v8::Number::New(metrics.fXMin));                  //!< The minimum bounding box x value for all glyphs
     res->Set(v8::String::New("xMax"), v8::Number::New(metrics.fXMax));                  //!< The maximum bounding box x value for all glyphs
     res->Set(v8::String::New("xHeight"), v8::Number::New(metrics.fXHeight));            //!< the height of an 'x' in px, or 0 if no 'x' in face
+    return res;
+  }
+
+  static v8::Handle<v8::Value> getTextPath(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    v8::String::Utf8Value utf8(args[0]->ToString());
+
+    double x = SkDoubleToScalar(args[1]->NumberValue());
+    double y = SkDoubleToScalar(args[2]->NumberValue());
+
+    SkPath* path = new SkPath();
+    paint->getTextPath(*utf8, utf8.length(), x, y, path);
+
+    v8::Local<v8::Object> res =
+    SkPathWrapper::GetTemplate()->InstanceTemplate()->NewInstance();
+    res->SetInternalField(0, v8_utils::WrapCPointer(path));
     return res;
   }
 
