@@ -4114,6 +4114,7 @@ class SkPaintWrapper {
       { "clearPathEffect", &SkPaintWrapper::clearPathEffect },
       { "measureText", &SkPaintWrapper::measureText },
       { "measureTextBounds", &SkPaintWrapper::measureTextBounds },
+      { "getFontMetrics", &SkPaintWrapper::getFontMetrics }
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4530,6 +4531,26 @@ class SkPaintWrapper {
     res->Set(v8::Integer::New(2), v8::Number::New(bounds.fRight));
     res->Set(v8::Integer::New(3), v8::Number::New(bounds.fBottom));
 
+    return res;
+  }
+
+  static v8::Handle<v8::Value> getFontMetrics(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    SkPaint::FontMetrics metrics;
+
+    paint->getFontMetrics(&metrics);
+
+    v8::Local<v8::Object> res = v8::Object::New();
+    res->Set(v8::String::New("top"), v8::Number::New(metrics.fTop));                    //!< The greatest distance above the baseline for any glyph (will be <= 0)
+    res->Set(v8::String::New("ascent"), v8::Number::New(metrics.fAscent));              //!< The recommended distance above the baseline (will be <= 0)
+    res->Set(v8::String::New("descent"), v8::Number::New(metrics.fDescent));            //!< The recommended distance below the baseline (will be >= 0)
+    res->Set(v8::String::New("bottom"), v8::Number::New(metrics.fBottom));              //!< The greatest distance below the baseline for any glyph (will be >= 0)
+    res->Set(v8::String::New("leading"), v8::Number::New(metrics.fLeading));            //!< The recommended distance to add between lines of text (will be >= 0)
+    res->Set(v8::String::New("avgCharWidth"), v8::Number::New(metrics.fAvgCharWidth));  //!< the average charactor width (>= 0)
+    res->Set(v8::String::New("xMin"), v8::Number::New(metrics.fXMin));                  //!< The minimum bounding box x value for all glyphs
+    res->Set(v8::String::New("xMax"), v8::Number::New(metrics.fXMax));                  //!< The maximum bounding box x value for all glyphs
+    res->Set(v8::String::New("xHeight"), v8::Number::New(metrics.fXHeight));            //!< the height of an 'x' in px, or 0 if no 'x' in face
     return res;
   }
 
