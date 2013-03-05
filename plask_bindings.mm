@@ -56,6 +56,7 @@
 #include "third_party/skia/include/effects/SkDashPathEffect.h"
 #include "third_party/skia/include/pdf/SkPDFDevice.h"
 #include "third_party/skia/include/pdf/SkPDFDocument.h"
+#include "third_party/skia/include/ports/SkTypeface_mac.h"  // FromCTFont.
 
 #import <Syphon/Syphon.h>
 
@@ -2034,7 +2035,7 @@ class NSOpenGLContextWrapper {
       case GL_ELEMENT_ARRAY_BUFFER_BINDING:
         return v8_utils::ThrowError("Unimplemented.");
       case GL_FRAMEBUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
+        return getUnsignedLongParameter(pname);
       case GL_FRONT_FACE:
         return getUnsignedLongParameter(pname);
       case GL_GENERATE_MIPMAP_HINT:
@@ -4105,12 +4106,16 @@ class SkPaintWrapper {
       { "setTextSize", &SkPaintWrapper::setTextSize },
       { "setXfermodeMode", &SkPaintWrapper::setXfermodeMode },
       { "setFontFamily", &SkPaintWrapper::setFontFamily },
+      { "setFontFamilyPostScript", &SkPaintWrapper::setFontFamilyPostScript },
       { "setLinearGradientShader", &SkPaintWrapper::setLinearGradientShader },
       { "setRadialGradientShader", &SkPaintWrapper::setRadialGradientShader },
       { "clearShader", &SkPaintWrapper::clearShader },
       { "setDashPathEffect", &SkPaintWrapper::setDashPathEffect },
       { "clearPathEffect", &SkPaintWrapper::clearPathEffect },
       { "measureText", &SkPaintWrapper::measureText },
+      { "measureTextBounds", &SkPaintWrapper::measureTextBounds },
+      { "getFontMetrics", &SkPaintWrapper::getFontMetrics },
+      { "getTextPath", &SkPaintWrapper::getTextPath }
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4361,6 +4366,22 @@ class SkPaintWrapper {
     return v8::Undefined();
   }
 
+   static v8::Handle<v8::Value> setFontFamilyPostScript(
+      const v8::Arguments& args) {
+    if (args.Length() < 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    SkPaint* paint = ExtractPointer(args.Holder());
+    v8::String::Utf8Value postscript_name(args[0]->ToString());
+    CFStringRef cfFontName = CFStringCreateWithCString(
+        NULL, *postscript_name, kCFStringEncodingUTF8);
+    CTFontRef ctNamed = CTFontCreateWithName(cfFontName, 1, NULL);
+    paint->setTypeface(SkCreateTypefaceFromCTFont(ctNamed));
+    CFRelease(cfFontName);  // TODO(deanm): CFSafeRelease?
+    // TODO(deanm): Release CTFontRef or the SkTypeface?
+    return v8::Undefined();
+  }
+
   static v8::Handle<v8::Value> setLinearGradientShader(
       const v8::Arguments& args) {
     if (args.Length() != 5)
@@ -4495,6 +4516,60 @@ class SkPaintWrapper {
     v8::String::Utf8Value utf8(args[0]->ToString());
     SkScalar width = paint->measureText(*utf8, utf8.length());
     return v8::Number::New(width);
+  }
+
+  static v8::Handle<v8::Value> measureTextBounds(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    v8::String::Utf8Value utf8(args[0]->ToString());
+
+    SkRect bounds;
+    paint->measureText(*utf8, utf8.length(), &bounds);
+
+    v8::Local<v8::Array> res = v8::Array::New(4);
+    res->Set(v8::Integer::New(0), v8::Number::New(bounds.fLeft));
+    res->Set(v8::Integer::New(1), v8::Number::New(bounds.fTop));
+    res->Set(v8::Integer::New(2), v8::Number::New(bounds.fRight));
+    res->Set(v8::Integer::New(3), v8::Number::New(bounds.fBottom));
+
+    return res;
+  }
+
+  static v8::Handle<v8::Value> getFontMetrics(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    SkPaint::FontMetrics metrics;
+
+    paint->getFontMetrics(&metrics);
+
+    v8::Local<v8::Object> res = v8::Object::New();
+    res->Set(v8::String::New("top"), v8::Number::New(metrics.fTop));                    //!< The greatest distance above the baseline for any glyph (will be <= 0)
+    res->Set(v8::String::New("ascent"), v8::Number::New(metrics.fAscent));              //!< The recommended distance above the baseline (will be <= 0)
+    res->Set(v8::String::New("descent"), v8::Number::New(metrics.fDescent));            //!< The recommended distance below the baseline (will be >= 0)
+    res->Set(v8::String::New("bottom"), v8::Number::New(metrics.fBottom));              //!< The greatest distance below the baseline for any glyph (will be >= 0)
+    res->Set(v8::String::New("leading"), v8::Number::New(metrics.fLeading));            //!< The recommended distance to add between lines of text (will be >= 0)
+    res->Set(v8::String::New("avgCharWidth"), v8::Number::New(metrics.fAvgCharWidth));  //!< the average charactor width (>= 0)
+    res->Set(v8::String::New("xMin"), v8::Number::New(metrics.fXMin));                  //!< The minimum bounding box x value for all glyphs
+    res->Set(v8::String::New("xMax"), v8::Number::New(metrics.fXMax));                  //!< The maximum bounding box x value for all glyphs
+    res->Set(v8::String::New("xHeight"), v8::Number::New(metrics.fXHeight));            //!< the height of an 'x' in px, or 0 if no 'x' in face
+    return res;
+  }
+
+  static v8::Handle<v8::Value> getTextPath(const v8::Arguments& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+
+    v8::String::Utf8Value utf8(args[0]->ToString());
+
+    double x = SkDoubleToScalar(args[1]->NumberValue());
+    double y = SkDoubleToScalar(args[2]->NumberValue());
+
+    SkPath* path = new SkPath();
+    paint->getTextPath(*utf8, utf8.length(), x, y, path);
+
+    v8::Local<v8::Object> res =
+    SkPathWrapper::GetTemplate()->InstanceTemplate()->NewInstance();
+    res->SetInternalField(0, v8_utils::WrapCPointer(path));
+    return res;
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
