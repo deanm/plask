@@ -1228,11 +1228,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() < 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-    // TODO(deanm): There should be a better way to get the width and height.
-    NSRect frame = [[context view] frame];
-    int width = frame.size.width;
-    int height = frame.size.height;
+    int view[4];
+    glGetIntegerv(GL_VIEWPORT, view);
+    int width = view[2];
+    int height = view[3];
 
     int buffer_type = args[3]->Int32Value();
 
