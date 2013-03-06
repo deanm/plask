@@ -1166,7 +1166,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-    v8::String::Utf8Value name(args[0]->ToString());
+    v8::String::Utf8Value name(args[0]);
     SyphonServer* server = [[SyphonServer alloc]
         initWithName:[NSString stringWithUTF8String:*name]
         context:reinterpret_cast<CGLContextObj>([context CGLContextObj])
@@ -1179,8 +1179,8 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.This());
-    //v8::String::Utf8Value uuid(args[0]->ToString());
-    v8::String::Utf8Value name(args[0]->ToString());
+    //v8::String::Utf8Value uuid(args[0]);
+    v8::String::Utf8Value name(args[0]);
 
     NSArray* servers = [[SyphonServerDirectory sharedDirectory] servers];
     NSLog(@"Servers: %@", servers);
@@ -1237,7 +1237,7 @@ class NSOpenGLContextWrapper {
 
     FREE_IMAGE_FORMAT format;
 
-    v8::String::Utf8Value type(args[0]->ToString());
+    v8::String::Utf8Value type(args[0]);
     if (strcmp(*type, "png") == 0) {
       format = FIF_PNG;
     } else if (strcmp(*type, "tiff") == 0) {
@@ -1248,7 +1248,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("writeImage unsupported output type.");
     }
 
-    v8::String::Utf8Value filename(args[1]->ToString());
+    v8::String::Utf8Value filename(args[1]);
 
     FIBITMAP* fb;
 
@@ -1328,7 +1328,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
     GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
 
-    v8::String::Utf8Value name(args[2]->ToString());
+    v8::String::Utf8Value name(args[2]);
     glBindAttribLocation(program, args[1]->Uint32Value(), *name);
     return v8::Undefined();
   }
@@ -1871,7 +1871,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
     GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
 
-    v8::String::Utf8Value name(args[1]->ToString());
+    v8::String::Utf8Value name(args[1]);
     return v8::Integer::New(glGetAttribLocation(program, *name));
   }
 
@@ -2330,7 +2330,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
     GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
 
-    v8::String::Utf8Value name(args[1]->ToString());
+    v8::String::Utf8Value name(args[1]);
     GLint location = glGetUniformLocation(program, *name);
     if (location == -1)
       return v8::Null();
@@ -2539,7 +2539,7 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value data(args[1]->ToString());
+    v8::String::Utf8Value data(args[1]);
     // NOTE(deanm): We want GLSL version 1.20.  Is there a better way to do this
     // than sneaking in a #version at the beginning?
     const GLchar* strs[] = { "#version 120\n", *data };
@@ -3497,7 +3497,7 @@ class NSWindowWrapper {
 
   static v8::Handle<v8::Value> setTitle(const v8::Arguments& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
-    v8::String::Utf8Value title(args[0]->ToString());
+    v8::String::Utf8Value title(args[0]);
     [window setTitle:[NSString stringWithUTF8String:*title]];
     return v8::Undefined();
   }
@@ -4356,7 +4356,7 @@ class SkPaintWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
-    v8::String::Utf8Value family_name(args[0]->ToString());
+    v8::String::Utf8Value family_name(args[0]);
     paint->setTypeface(SkTypeface::CreateFromName(
         *family_name, static_cast<SkTypeface::Style>(args[1]->Uint32Value())));
     return v8::Undefined();
@@ -4493,7 +4493,7 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> measureText(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    v8::String::Utf8Value utf8(args[0]->ToString());
+    v8::String::Utf8Value utf8(args[0]);
     SkScalar width = paint->measureText(*utf8, utf8.length());
     return v8::Number::New(width);
   }
@@ -4501,7 +4501,7 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> measureTextBounds(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    v8::String::Utf8Value utf8(args[0]->ToString());
+    v8::String::Utf8Value utf8(args[0]);
 
     SkRect bounds;
     paint->measureText(*utf8, utf8.length(), &bounds);
@@ -4664,7 +4664,7 @@ class SkCanvasWrapper {
       FIBITMAP* fbitmap = NULL;
 
       if (args[1]->IsString()) {  // Path on disk.
-        v8::String::Utf8Value filename(args[1]->ToString());
+        v8::String::Utf8Value filename(args[1]);
 
         FREE_IMAGE_FORMAT format = FreeImage_GetFileType(*filename, 0);
         // Some formats don't have a signature so we're supposed to guess from
@@ -5046,7 +5046,7 @@ class SkCanvasWrapper {
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
 
-    v8::String::Utf8Value utf8(args[1]->ToString());
+    v8::String::Utf8Value utf8(args[1]);
     canvas->drawText(*utf8, utf8.length(),
                      SkDoubleToScalar(args[2]->NumberValue()),
                      SkDoubleToScalar(args[3]->NumberValue()),
@@ -5069,7 +5069,7 @@ class SkCanvasWrapper {
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[1]));
 
-    v8::String::Utf8Value utf8(args[2]->ToString());
+    v8::String::Utf8Value utf8(args[2]);
     canvas->drawTextOnPathHV(*utf8, utf8.length(), *path,
                              SkDoubleToScalar(args[3]->NumberValue()),
                              SkDoubleToScalar(args[4]->NumberValue()),
@@ -5127,11 +5127,11 @@ class SkCanvasWrapper {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
 
-    v8::String::Utf8Value type(args[0]->ToString());
+    v8::String::Utf8Value type(args[0]);
     if (strcmp(*type, "png") != 0)
       return v8_utils::ThrowError("writeImage can only write PNG types.");
 
-    v8::String::Utf8Value filename(args[1]->ToString());
+    v8::String::Utf8Value filename(args[1]);
 
     FIBITMAP* fb = FreeImage_ConvertFromRawBits(
         reinterpret_cast<BYTE*>(bitmap.getPixels()),
@@ -5177,7 +5177,7 @@ class SkCanvasWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value filename(args[0]->ToString());
+    v8::String::Utf8Value filename(args[0]);
 
     SkFILEWStream stream(*filename);
     SkPDFDocument document;
@@ -5259,7 +5259,7 @@ class NSSoundWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value filename(args[0]->ToString());
+    v8::String::Utf8Value filename(args[0]);
     NSSound* sound = [[NSSound alloc] initWithContentsOfFile:
         [NSString stringWithUTF8String:*filename] byReference:YES];
 
@@ -5672,7 +5672,7 @@ class CAMIDISourceWrapper {
 
     OSStatus result;
 
-    v8::String::Utf8Value name_val(args[0]->ToString());
+    v8::String::Utf8Value name_val(args[0]);
     CFStringRef name =
         CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
@@ -5860,7 +5860,7 @@ class CAMIDIDestinationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     OSStatus result;
-    v8::String::Utf8Value name_val(args[0]->ToString());
+    v8::String::Utf8Value name_val(args[0]);
     CFStringRef name =
         CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
@@ -5981,7 +5981,7 @@ class SBApplicationWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value bundleid(args[0]->ToString());
+    v8::String::Utf8Value bundleid(args[0]);
     id obj = [SBApplication applicationWithBundleIdentifier:
         [NSString stringWithUTF8String:*bundleid]];
     [obj retain];
@@ -6026,7 +6026,7 @@ class SBApplicationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     id obj = ExtractID(args.Holder());
-    v8::String::Utf8Value method_name(args[0]->ToString());
+    v8::String::Utf8Value method_name(args[0]);
     [obj performSelector:sel_getUid(*method_name)];
     return v8::Undefined();
   }
@@ -6036,8 +6036,8 @@ class SBApplicationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     id obj = ExtractID(args.Holder());
-    v8::String::Utf8Value method_name(args[0]->ToString());
-    v8::String::Utf8Value arg(args[1]->ToString());
+    v8::String::Utf8Value method_name(args[0]);
+    v8::String::Utf8Value arg(args[1]);
     [obj performSelector:sel_getUid(*method_name) withObject:
         [NSString stringWithUTF8String:*arg]];
     return v8::Undefined();
@@ -6101,7 +6101,7 @@ class NSAppleScriptWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value src(args[0]->ToString());
+    v8::String::Utf8Value src(args[0]);
     NSAppleScript* ascript = [[NSAppleScript alloc] initWithSource:
         [NSString stringWithUTF8String:*src]];
 
