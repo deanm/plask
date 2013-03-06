@@ -1,3 +1,5 @@
+// (c) 2013 Marcin Ignac
+
 var plask = require('plask');
 var fs = require('fs');
 
@@ -5,7 +7,6 @@ plask.simpleWindow({
   settings: {
     width: 1280,
     height: 720,
-    type: '2d'
   },
   init: function() {
     var canvas = this.canvas;
@@ -14,7 +15,7 @@ plask.simpleWindow({
     canvas.clear(255, 255, 255, 255);
 
     var fontSize = 200;
-    paint.setFontFamilyPostScript("ArialMT");
+    paint.setFontFamily("Arial");
     paint.setTextSize(fontSize);
     paint.setFlags(paint.kAntiAliasFlag);
     paint.setFill();
