@@ -4552,18 +4552,19 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> getTextPath(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    v8::String::Utf8Value utf8(args[0]->ToString());
+    if (!SkPathWrapper::HasInstance(args[3]))
+      return v8_utils::ThrowTypeError("4th argument must be an SkPath.");
+
+    SkPath* path = SkPathWrapper::ExtractPointer(
+        v8::Handle<v8::Object>::Cast(args[3]));
+
+    v8::String::Utf8Value utf8(args[0]);
 
     double x = SkDoubleToScalar(args[1]->NumberValue());
     double y = SkDoubleToScalar(args[2]->NumberValue());
 
-    SkPath* path = new SkPath();
     paint->getTextPath(*utf8, utf8.length(), x, y, path);
-
-    v8::Local<v8::Object> res =
-    SkPathWrapper::GetTemplate()->InstanceTemplate()->NewInstance();
-    res->SetInternalField(0, v8_utils::WrapCPointer(path));
-    return res;
+    return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
