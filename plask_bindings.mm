@@ -4503,7 +4503,7 @@ class SkPaintWrapper {
 
     v8::String::Utf8Value utf8(args[0]);
 
-    SkRect bounds;
+    SkRect bounds = SkRect::MakeEmpty();
     paint->measureText(*utf8, utf8.length(), &bounds);
 
     v8::Local<v8::Array> res = v8::Array::New(4);
