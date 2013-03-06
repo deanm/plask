@@ -58,7 +58,7 @@ plask.simpleWindow({
 
     paint.setColor(255, 100, 0, 255);
     canvas.drawLine(paint, x - 10, y + fontMetrics.descent, x - 10, y + fontMetrics.descent - fontSize);
-    canvas.drawLine(paint, x - 15, y, x - 15, y - fontMetrics.xHeight);
+    canvas.drawLine(paint, x - 15, y, x - 15, y - fontMetrics.xheight);
 
     paint.setColor(0, 255, 255, 128);
     paint.setStroke();
