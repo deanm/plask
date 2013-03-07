@@ -1235,6 +1235,18 @@ class NSOpenGLContextWrapper {
 
     int buffer_type = args[3]->Int32Value();
 
+    // Handle width / height in the optional options object.  This allows you
+    // to override the width and height, for example if there is a framebuffer
+    // object that is a different size than the window.
+    // TODO(deanm): Also allow passing the x/y ?
+    if (args.Length() >= 3 && args[2]->IsObject()) {
+      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
+      if (opts->Has(v8::String::New("width")))
+        width = opts->Get(v8::String::New("width"))->Int32Value();
+      if (opts->Has(v8::String::New("height")))
+        height = opts->Get(v8::String::New("height"))->Int32Value();
+    }
+
     FREE_IMAGE_FORMAT format;
 
     v8::String::Utf8Value type(args[0]);
