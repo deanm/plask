@@ -34,6 +34,7 @@
 #include "FreeImage.h"
 
 #include <string>
+#include <map>
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreAudio/CoreAudio.h>
@@ -283,6 +284,94 @@ class WebGLUniformLocation {
     return args.This();
   }
 };
+
+
+class WebGLFramebuffer {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLFramebuffer::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLFramebuffer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLint location.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromFramebufferObjectName(
+      GLuint framebuffer) {
+    v8::Local<v8::Object> obj = WebGLFramebuffer::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(framebuffer));
+    framebuffer_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        framebuffer, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromFramebufferObjectName(
+      GLuint framebuffer) {
+    if (framebuffer != 0 && framebuffer_map.count(framebuffer) == 1)
+      return framebuffer_map[framebuffer];
+    return v8::Null();
+  }
+
+  // Use to set the location to 0, when it is deleted, for example.
+  static void ClearFramebufferObjectName(v8::Handle<v8::Value> value) {
+    GLuint framebuffer = ExtractFramebufferObjectNameFromValue(value);
+    if (framebuffer != 0) {
+      if (framebuffer_map.count(framebuffer) == 1) {
+        framebuffer_map[framebuffer].Dispose();
+        if (framebuffer_map.erase(framebuffer) != 1) {
+          printf("Warning: Should have erased framebuffer map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed framebuffer map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractFramebufferObjectNameFromValue(
+      v8::Handle<v8::Value> value) {
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  // If we call getParameter(FRAMEBUFFER_BINDING) twice, for example, we need
+  // to get the same wrapper object (not a newly created one) as the one we
+  // got from the call to frameFramebuffer().  (This is the WebGL spec).  So,
+  // we must track a mapping between OpenGL GLuint "framebuffer object name"
+  // and the wrapper objects.
+  static std::map<GLuint, v8::Persistent<v8::Value> > framebuffer_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLFramebuffer::framebuffer_map;
 
 
 class SyphonServerWrapper {
@@ -1357,7 +1446,13 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindFramebuffer(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindFramebuffer(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    if (!args[1]->IsNull() && !WebGLFramebuffer::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindFramebuffer(args[0]->Uint32Value(),
+        args[1]->IsNull() ? 0 :
+            WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1563,7 +1658,9 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> createFramebuffer(const v8::Arguments& args) {
     GLuint framebuffer;
     glGenFramebuffers(1, &framebuffer);
-    return v8::Integer::NewFromUnsigned(framebuffer);
+    v8::Handle<v8::Value> obj =
+        WebGLFramebuffer::NewFromFramebufferObjectName(framebuffer);
+    return obj;
   }
 
   // WebGLProgram createProgram()
@@ -1617,8 +1714,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteFramebuffers(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLFramebuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint framebuffer =
+        WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[0]);
+    if (framebuffer != 0) {
+      glDeleteFramebuffers(1, &framebuffer);
+      WebGLFramebuffer::ClearFramebufferObjectName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -2046,7 +2154,12 @@ class NSOpenGLContextWrapper {
       case GL_ELEMENT_ARRAY_BUFFER_BINDING:
         return v8_utils::ThrowError("Unimplemented.");
       case GL_FRAMEBUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint framebuffer = static_cast<unsigned int>(value);
+        return WebGLFramebuffer::LookupFromFramebufferObjectName(framebuffer);
+      }
       case GL_FRONT_FACE:
         return getUnsignedLongParameter(pname);
       case GL_GENERATE_MIPMAP_HINT:
@@ -2391,7 +2504,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsFramebuffer(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLFramebuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsFramebuffer(
+        WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[0])));
   }
 
   // GLboolean isProgram(WebGLProgram program)
