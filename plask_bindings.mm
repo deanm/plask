@@ -57,6 +57,7 @@
 #include "skia/include/effects/SkDashPathEffect.h"
 #include "skia/include/pdf/SkPDFDevice.h"
 #include "skia/include/pdf/SkPDFDocument.h"
+#include "skia/include/ports/SkTypeface_mac.h"  // SkCreateTypefaceFromCTFont.
 
 #import <Syphon/Syphon.h>
 
@@ -4238,6 +4239,7 @@ class SkPaintWrapper {
       { "setTextSize", &SkPaintWrapper::setTextSize },
       { "setXfermodeMode", &SkPaintWrapper::setXfermodeMode },
       { "setFontFamily", &SkPaintWrapper::setFontFamily },
+      { "setFontFamilyPostScript", &SkPaintWrapper::setFontFamilyPostScript },
       { "setLinearGradientShader", &SkPaintWrapper::setLinearGradientShader },
       { "setRadialGradientShader", &SkPaintWrapper::setRadialGradientShader },
       { "clearShader", &SkPaintWrapper::clearShader },
@@ -4494,6 +4496,31 @@ class SkPaintWrapper {
     v8::String::Utf8Value family_name(args[0]);
     paint->setTypeface(SkTypeface::CreateFromName(
         *family_name, static_cast<SkTypeface::Style>(args[1]->Uint32Value())));
+    return v8::Undefined();
+  }
+
+   static v8::Handle<v8::Value> setFontFamilyPostScript(
+      const v8::Arguments& args) {
+    if (args.Length() < 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    SkPaint* paint = ExtractPointer(args.Holder());
+    v8::String::Utf8Value postscript_name(args[0]);
+
+    CFStringRef cfFontName = CFStringCreateWithCString(
+        NULL, *postscript_name, kCFStringEncodingUTF8);
+    if (cfFontName == NULL)
+      return v8_utils::ThrowError("Unable to create font CFString.");
+
+    CTFontRef ctNamed = CTFontCreateWithName(cfFontName, 1, NULL);
+    CFRelease(cfFontName);
+    if (ctNamed == NULL)
+      return v8_utils::ThrowError("Unable to create CTFont.");
+
+    SkTypeface* typeface = SkCreateTypefaceFromCTFont(ctNamed);
+    paint->setTypeface(typeface);
+    typeface->unref();  // setTypeface will have held a ref.
+    CFRelease(ctNamed);  // SkCreateTypefaceFromCTFont will have held a ref.
     return v8::Undefined();
   }
 
