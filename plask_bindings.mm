@@ -2432,7 +2432,13 @@ class NSOpenGLContextWrapper {
       case GL_RED_BITS:
         return getLongParameter(pname);
       case GL_RENDERBUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint renderbuffer = static_cast<unsigned int>(value);
+        return WebGLRenderbuffer::LookupFromRenderbufferObjectName(
+            renderbuffer);
+      }
       case GL_RENDERER:
         return v8::String::New(
             reinterpret_cast<const char*>(glGetString(pname)));
