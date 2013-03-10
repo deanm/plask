@@ -275,6 +275,90 @@ class WebGLProgram {
 std::map<GLuint, v8::Persistent<v8::Value> > WebGLProgram::program_map;
 
 
+class WebGLShader {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLShader::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLShader"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromShaderName(
+      GLuint shader) {
+    v8::Local<v8::Object> obj = WebGLShader::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(shader));
+    shader_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        shader, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromShaderName(
+      GLuint shader) {
+    if (shader != 0 && shader_map.count(shader) == 1)
+      return shader_map[shader];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearShaderName(v8::Handle<v8::Value> value) {
+    GLuint shader = ExtractShaderNameFromValue(value);
+    if (shader != 0) {
+      if (shader_map.count(shader) == 1) {
+        shader_map[shader].Dispose();
+        if (shader_map.erase(shader) != 1) {
+          printf("Warning: Should have erased shader map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed shader map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractShaderNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > shader_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLShader::shader_map;
+
+
 class WebGLUniformLocation {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
@@ -584,7 +668,6 @@ std::map<GLuint, v8::Persistent<v8::Value> >
 // TODO
 // 5.3 WebGLObject
 // 5.4 WebGLBuffer
-// 5.8 WebGLShader
 // 5.12 WebGLShaderPrecisionFormat
 
 
@@ -1629,9 +1712,13 @@ class NSOpenGLContextWrapper {
     if (!WebGLProgram::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
-    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    if (!WebGLShader::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
 
-    glAttachShader(program, args[1]->Uint32Value());
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[1]);
+
+    glAttachShader(program, shader);
     return v8::Undefined();
   }
 
@@ -1873,7 +1960,12 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glCompileShader(args[0]->Uint32Value());
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
+
+    glCompileShader(shader);
     return v8::Undefined();
   }
 
@@ -1908,7 +2000,8 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Integer::NewFromUnsigned(glCreateShader(args[0]->Uint32Value()));
+    return WebGLShader::NewFromShaderName(
+        glCreateShader(args[0]->Uint32Value()));
   }
 
   // WebGLTexture createTexture()
@@ -2004,7 +2097,18 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glDeleteShader(args[0]->Uint32Value());
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
+    if (shader != 0) {
+      glDeleteShader(shader);
+      WebGLShader::ClearShaderName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -2064,9 +2168,13 @@ class NSOpenGLContextWrapper {
     if (!WebGLProgram::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
-    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    if (!WebGLShader::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
 
-    glDetachShader(program, args[1]->Uint32Value());
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[1]);
+
+    glDetachShader(program, shader);
     return v8::Undefined();
   }
 
@@ -2248,7 +2356,22 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8_utils::ThrowError("Unimplemented.");
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+
+    GLuint shaders[10];
+    GLsizei count;
+    glGetAttachedShaders(program, 10, &count, shaders);
+
+    v8::Local<v8::Array> res = v8::Array::New(count);
+    for (int i = 0; i < count; ++i) {
+      res->Set(v8::Integer::New(i),
+               WebGLShader::LookupFromShaderName(shaders[i]));
+    }
+
+    return res;
   }
 
   // GLint getAttribLocation(WebGLProgram program, DOMString name)
@@ -2672,7 +2795,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint shader = args[0]->Uint32Value();
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
@@ -2697,7 +2823,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint shader = args[0]->Uint32Value();
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
     GLint length = 0;
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
@@ -2712,7 +2841,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint shader = args[0]->Uint32Value();
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
     GLint length = 0;
     glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
@@ -2840,7 +2972,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsShader(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsShader(
+        WebGLShader::ExtractShaderNameFromValue(args[0])));
   }
 
   // GLboolean isTexture(WebGLTexture texture)
@@ -2979,11 +3119,16 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
+
     v8::String::Utf8Value data(args[1]);
     // NOTE(deanm): We want GLSL version 1.20.  Is there a better way to do this
     // than sneaking in a #version at the beginning?
     const GLchar* strs[] = { "#version 120\n", *data };
-    glShaderSource(args[0]->Uint32Value(), 2, strs, NULL);
+    glShaderSource(shader, 2, strs, NULL);
     return v8::Undefined();
   }
 
