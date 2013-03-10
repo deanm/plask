@@ -299,7 +299,7 @@ class WebGLFramebuffer {
         v8::FunctionTemplate::New(&WebGLFramebuffer::V8New));
     ft_cache->SetClassName(v8::String::New("WebGLFramebuffer"));
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
-    instance->SetInternalFieldCount(1);  // GLint location.
+    instance->SetInternalFieldCount(1);  // GLuint name.
 
     return ft_cache;
   }
@@ -325,7 +325,7 @@ class WebGLFramebuffer {
     return v8::Null();
   }
 
-  // Use to set the location to 0, when it is deleted, for example.
+  // Use to set the object name to 0, when it is deleted, for example.
   static void ClearFramebufferObjectName(v8::Handle<v8::Value> value) {
     GLuint framebuffer = ExtractFramebufferObjectNameFromValue(value);
     if (framebuffer != 0) {
@@ -344,6 +344,7 @@ class WebGLFramebuffer {
 
   static GLuint ExtractFramebufferObjectNameFromValue(
       v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
     return v8::Handle<v8::Object>::Cast(value)->
         GetInternalField(0)->Uint32Value();
   }
@@ -373,6 +374,89 @@ class WebGLFramebuffer {
 };
 
 std::map<GLuint, v8::Persistent<v8::Value> > WebGLFramebuffer::framebuffer_map;
+
+class WebGLTexture {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLTexture::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLTexture"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromTextureName(
+      GLuint texture) {
+    v8::Local<v8::Object> obj = WebGLTexture::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(texture));
+    texture_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        texture, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromTextureName(
+      GLuint texture) {
+    if (texture != 0 && texture_map.count(texture) == 1)
+      return texture_map[texture];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearTextureName(v8::Handle<v8::Value> value) {
+    GLuint texture = ExtractTextureNameFromValue(value);
+    if (texture != 0) {
+      if (texture_map.count(texture) == 1) {
+        texture_map[texture].Dispose();
+        if (texture_map.erase(texture) != 1) {
+          printf("Warning: Should have erased texture map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed texture map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractTextureNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > texture_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLTexture::texture_map;
 
 
 class SyphonServerWrapper {
@@ -1448,12 +1532,13 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    // NOTE: ExtractFramebufferObjectNameFromValue handles null.
     if (!args[1]->IsNull() && !WebGLFramebuffer::HasInstance(args[1]))
       return v8_utils::ThrowTypeError("Type error");
 
-    glBindFramebuffer(args[0]->Uint32Value(),
-        args[1]->IsNull() ? 0 :
-            WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[1]));
+    glBindFramebuffer(
+        args[0]->Uint32Value(),
+        WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1469,7 +1554,13 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindTexture(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindTexture(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    // NOTE: ExtractTextureNameFromValue handles null.
+    if (!args[1]->IsNull() && !WebGLTexture::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindTexture(args[0]->Uint32Value(),
+                  WebGLTexture::ExtractTextureNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1688,7 +1779,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> createTexture(const v8::Arguments& args) {
     GLuint texture;
     glGenTextures(1, &texture);
-    return v8::Integer::NewFromUnsigned(texture);
+    return WebGLTexture::NewFromTextureName(texture);
   }
 
   // void cullFace(GLenum mode)
@@ -1768,8 +1859,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteTextures(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLTexture::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint texture =
+        WebGLTexture::ExtractTextureNameFromValue(args[0]);
+    if (texture != 0) {
+      glDeleteTextures(1, &texture);
+      WebGLTexture::ClearTextureName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1909,10 +2011,14 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 5)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    // NOTE: ExtractTextureNameFromValue will handle null.
+    if (!args[3]->IsNull() && !WebGLTexture::HasInstance(args[3]))
+      return v8_utils::ThrowTypeError("Type error");
+
     glFramebufferTexture2D(args[0]->Uint32Value(),
                            args[1]->Uint32Value(),
                            args[2]->Uint32Value(),
-                           args[3]->Uint32Value(),
+                           WebGLTexture::ExtractTextureNameFromValue(args[3]),
                            args[4]->Int32Value());
     return v8::Undefined();
   }
@@ -2272,9 +2378,13 @@ class NSOpenGLContextWrapper {
       case GL_SUBPIXEL_BITS:
         return getLongParameter(pname);
       case GL_TEXTURE_BINDING_2D:
-        return v8_utils::ThrowError("Unimplemented.");
       case GL_TEXTURE_BINDING_CUBE_MAP:
-        return v8_utils::ThrowError("Unimplemented.");
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint texture = static_cast<unsigned int>(value);
+        return WebGLTexture::LookupFromTextureName(texture);
+      }
       case GL_UNPACK_ALIGNMENT:
         // FIXME: should this be "long" in the spec?
         return getIntParameter(pname);
@@ -2549,7 +2659,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsTexture(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLTexture::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsTexture(
+        WebGLTexture::ExtractTextureNameFromValue(args[0])));
   }
 
   // void lineWidth(GLfloat width)
