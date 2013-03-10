@@ -459,6 +459,14 @@ class WebGLTexture {
 std::map<GLuint, v8::Persistent<v8::Value> > WebGLTexture::texture_map;
 
 
+// TODO
+// 5.3 WebGLObject
+// 5.4 WebGLBuffer
+// 5.7 WebGLRenderbuffer
+// 5.8 WebGLShader
+// 5.12 WebGLShaderPrecisionFormat
+
+
 class SyphonServerWrapper {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
