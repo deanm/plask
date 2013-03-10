@@ -375,6 +375,7 @@ class WebGLFramebuffer {
 
 std::map<GLuint, v8::Persistent<v8::Value> > WebGLFramebuffer::framebuffer_map;
 
+
 class WebGLTexture {
  public:
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
@@ -459,10 +460,94 @@ class WebGLTexture {
 std::map<GLuint, v8::Persistent<v8::Value> > WebGLTexture::texture_map;
 
 
+class WebGLRenderbuffer {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLRenderbuffer::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLRenderbuffer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromRenderbufferObjectName(
+      GLuint renderbuffer) {
+    v8::Local<v8::Object> obj = WebGLRenderbuffer::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(renderbuffer));
+    renderbuffer_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        renderbuffer, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromRenderbufferObjectName(
+      GLuint renderbuffer) {
+    if (renderbuffer != 0 && renderbuffer_map.count(renderbuffer) == 1)
+      return renderbuffer_map[renderbuffer];
+    return v8::Null();
+  }
+
+  // Use to set the object name to 0, when it is deleted, for example.
+  static void ClearRenderbufferObjectName(v8::Handle<v8::Value> value) {
+    GLuint renderbuffer = ExtractRenderbufferObjectNameFromValue(value);
+    if (renderbuffer != 0) {
+      if (renderbuffer_map.count(renderbuffer) == 1) {
+        renderbuffer_map[renderbuffer].Dispose();
+        if (renderbuffer_map.erase(renderbuffer) != 1) {
+          printf("Warning: Should have erased renderbuffer map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed renderbuffer map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractRenderbufferObjectNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > renderbuffer_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> >
+    WebGLRenderbuffer::renderbuffer_map;
+
+
 // TODO
 // 5.3 WebGLObject
 // 5.4 WebGLBuffer
-// 5.7 WebGLRenderbuffer
 // 5.8 WebGLShader
 // 5.12 WebGLShaderPrecisionFormat
 
@@ -1554,7 +1639,14 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindRenderbuffer(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindRenderbuffer(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    // NOTE: ExtractRenderbufferObjectNameFromValue handles null.
+    if (!args[1]->IsNull() && !WebGLRenderbuffer::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindRenderbuffer(
+        args[0]->Uint32Value(),
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1758,9 +1850,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> createFramebuffer(const v8::Arguments& args) {
     GLuint framebuffer;
     glGenFramebuffers(1, &framebuffer);
-    v8::Handle<v8::Value> obj =
-        WebGLFramebuffer::NewFromFramebufferObjectName(framebuffer);
-    return obj;
+    return WebGLFramebuffer::NewFromFramebufferObjectName(framebuffer);
   }
 
   // WebGLProgram createProgram()
@@ -1772,7 +1862,7 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> createRenderbuffer(const v8::Arguments& args) {
     GLuint renderbuffer;
     glGenRenderbuffers(1, &renderbuffer);
-    return v8::Integer::NewFromUnsigned(renderbuffer);
+    return WebGLRenderbuffer::NewFromRenderbufferObjectName(renderbuffer);
   }
 
   // WebGLShader createShader(GLenum type)
@@ -1848,8 +1938,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteRenderbuffers(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLRenderbuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint renderbuffer =
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[0]);
+    if (renderbuffer != 0) {
+      glDeleteRenderbuffers(1, &renderbuffer);
+      WebGLRenderbuffer::ClearRenderbufferObjectName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -2004,10 +2105,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 4)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glFramebufferRenderbuffer(args[0]->Uint32Value(),
-                              args[1]->Uint32Value(),
-                              args[2]->Uint32Value(),
-                              args[3]->Uint32Value());
+    // NOTE: ExtractRenderbufferObjectNameFromValue will handle null.
+    if (!args[3]->IsNull() && !WebGLRenderbuffer::HasInstance(args[3]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glFramebufferRenderbuffer(
+        args[0]->Uint32Value(),
+        args[1]->Uint32Value(),
+        args[2]->Uint32Value(),
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[3]));
     return v8::Undefined();
   }
 
@@ -2650,8 +2756,15 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> isRenderbuffer(const v8::Arguments& args) {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLRenderbuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
 
-    return v8::Boolean::New(glIsRenderbuffer(args[0]->Uint32Value()));
+    return v8::Boolean::New(glIsRenderbuffer(
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[0])));
   }
 
   // GLboolean isShader(WebGLShader shader)
