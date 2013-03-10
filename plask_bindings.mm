@@ -44,19 +44,19 @@
 #include <objc/runtime.h>
 
 #define SK_RELEASE 1  // Hmmmm, really? SkPreConfig is thinking we are debug.
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkColorPriv.h"  // For color ordering.
-#include "third_party/skia/include/core/SkDevice.h"
-#include "third_party/skia/include/core/SkString.h"
-#include "third_party/skia/include/core/SkTypeface.h"
-#include "third_party/skia/include/core/SkUnPreMultiply.h"
-#include "third_party/skia/include/core/SkXfermode.h"
-#include "third_party/skia/include/utils/SkParsePath.h"
-#include "third_party/skia/include/effects/SkGradientShader.h"
-#include "third_party/skia/include/effects/SkDashPathEffect.h"
-#include "third_party/skia/include/pdf/SkPDFDevice.h"
-#include "third_party/skia/include/pdf/SkPDFDocument.h"
+#include "skia/include/core/SkBitmap.h"
+#include "skia/include/core/SkCanvas.h"
+#include "skia/include/core/SkColorPriv.h"  // For color ordering.
+#include "skia/include/core/SkDevice.h"
+#include "skia/include/core/SkString.h"
+#include "skia/include/core/SkTypeface.h"
+#include "skia/include/core/SkUnPreMultiply.h"
+#include "skia/include/core/SkXfermode.h"
+#include "skia/include/utils/SkParsePath.h"
+#include "skia/include/effects/SkGradientShader.h"
+#include "skia/include/effects/SkDashPathEffect.h"
+#include "skia/include/pdf/SkPDFDevice.h"
+#include "skia/include/pdf/SkPDFDocument.h"
 
 #import <Syphon/Syphon.h>
 
