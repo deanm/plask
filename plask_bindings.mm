@@ -34,6 +34,7 @@
 #include "FreeImage.h"
 
 #include <string>
+#include <map>
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreAudio/CoreAudio.h>
@@ -43,20 +44,20 @@
 #include <objc/runtime.h>
 
 #define SK_RELEASE 1  // Hmmmm, really? SkPreConfig is thinking we are debug.
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkColorPriv.h"  // For color ordering.
-#include "third_party/skia/include/core/SkDevice.h"
-#include "third_party/skia/include/core/SkString.h"
-#include "third_party/skia/include/core/SkTypeface.h"
-#include "third_party/skia/include/core/SkUnPreMultiply.h"
-#include "third_party/skia/include/core/SkXfermode.h"
-#include "third_party/skia/include/utils/SkParsePath.h"
-#include "third_party/skia/include/effects/SkGradientShader.h"
-#include "third_party/skia/include/effects/SkDashPathEffect.h"
-#include "third_party/skia/include/pdf/SkPDFDevice.h"
-#include "third_party/skia/include/pdf/SkPDFDocument.h"
-#include "third_party/skia/include/ports/SkTypeface_mac.h"  // FromCTFont.
+#include "skia/include/core/SkBitmap.h"
+#include "skia/include/core/SkCanvas.h"
+#include "skia/include/core/SkColorPriv.h"  // For color ordering.
+#include "skia/include/core/SkDevice.h"
+#include "skia/include/core/SkString.h"
+#include "skia/include/core/SkTypeface.h"
+#include "skia/include/core/SkUnPreMultiply.h"
+#include "skia/include/core/SkXfermode.h"
+#include "skia/include/utils/SkParsePath.h"
+#include "skia/include/effects/SkGradientShader.h"
+#include "skia/include/effects/SkDashPathEffect.h"
+#include "skia/include/pdf/SkPDFDevice.h"
+#include "skia/include/pdf/SkPDFDocument.h"
+#include "skia/include/ports/SkTypeface_mac.h"  // SkCreateTypefaceFromCTFont.
 
 #import <Syphon/Syphon.h>
 
@@ -202,9 +203,7 @@ class WebGLProgram {
         v8::FunctionTemplate::New(&WebGLProgram::V8New));
     ft_cache->SetClassName(v8::String::New("WebGLProgram"));
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
-    instance->SetInternalFieldCount(1);  // GLuint ID.
-
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    instance->SetInternalFieldCount(1);  // GLuint name.
 
     return ft_cache;
   }
@@ -213,29 +212,151 @@ class WebGLProgram {
     return GetTemplate()->HasInstance(value);
   }
 
-  static v8::Handle<v8::Value> NewFromID(GLuint id) {
+  static v8::Handle<v8::Value> NewFromProgramName(
+      GLuint program) {
     v8::Local<v8::Object> obj = WebGLProgram::GetTemplate()->
             InstanceTemplate()->NewInstance();
-    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(id));
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(program));
+    program_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        program, v8::Persistent<v8::Value>::New(obj)));
     return obj;
   }
 
-  static GLuint ExtractIDFromValue(v8::Handle<v8::Value> value) {
+  static v8::Handle<v8::Value> LookupFromProgramName(
+      GLuint program) {
+    if (program != 0 && program_map.count(program) == 1)
+      return program_map[program];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearProgramName(v8::Handle<v8::Value> value) {
+    GLuint program = ExtractProgramNameFromValue(value);
+    if (program != 0) {
+      if (program_map.count(program) == 1) {
+        program_map[program].Dispose();
+        if (program_map.erase(program) != 1) {
+          printf("Warning: Should have erased program map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed program map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractProgramNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
     return v8::Handle<v8::Object>::Cast(value)->
         GetInternalField(0)->Uint32Value();
   }
 
  private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > program_map;
+
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(kMsgNonConstructCall);
 
-    // TODO(deanm): How to throw an exception when called from JavaScript but
-    // not from NewFromID?
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
     //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
     return args.This();
   }
 };
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLProgram::program_map;
+
+
+class WebGLShader {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLShader::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLShader"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromShaderName(
+      GLuint shader) {
+    v8::Local<v8::Object> obj = WebGLShader::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(shader));
+    shader_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        shader, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromShaderName(
+      GLuint shader) {
+    if (shader != 0 && shader_map.count(shader) == 1)
+      return shader_map[shader];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearShaderName(v8::Handle<v8::Value> value) {
+    GLuint shader = ExtractShaderNameFromValue(value);
+    if (shader != 0) {
+      if (shader_map.count(shader) == 1) {
+        shader_map[shader].Dispose();
+        if (shader_map.erase(shader) != 1) {
+          printf("Warning: Should have erased shader map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed shader map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractShaderNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > shader_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLShader::shader_map;
 
 
 class WebGLUniformLocation {
@@ -284,6 +405,352 @@ class WebGLUniformLocation {
     return args.This();
   }
 };
+
+
+class WebGLFramebuffer {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLFramebuffer::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLFramebuffer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromFramebufferObjectName(
+      GLuint framebuffer) {
+    v8::Local<v8::Object> obj = WebGLFramebuffer::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(framebuffer));
+    framebuffer_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        framebuffer, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromFramebufferObjectName(
+      GLuint framebuffer) {
+    if (framebuffer != 0 && framebuffer_map.count(framebuffer) == 1)
+      return framebuffer_map[framebuffer];
+    return v8::Null();
+  }
+
+  // Use to set the object name to 0, when it is deleted, for example.
+  static void ClearFramebufferObjectName(v8::Handle<v8::Value> value) {
+    GLuint framebuffer = ExtractFramebufferObjectNameFromValue(value);
+    if (framebuffer != 0) {
+      if (framebuffer_map.count(framebuffer) == 1) {
+        framebuffer_map[framebuffer].Dispose();
+        if (framebuffer_map.erase(framebuffer) != 1) {
+          printf("Warning: Should have erased framebuffer map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed framebuffer map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractFramebufferObjectNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  // If we call getParameter(FRAMEBUFFER_BINDING) twice, for example, we need
+  // to get the same wrapper object (not a newly created one) as the one we
+  // got from the call to frameFramebuffer().  (This is the WebGL spec).  So,
+  // we must track a mapping between OpenGL GLuint "framebuffer object name"
+  // and the wrapper objects.
+  static std::map<GLuint, v8::Persistent<v8::Value> > framebuffer_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLFramebuffer::framebuffer_map;
+
+
+class WebGLTexture {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLTexture::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLTexture"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromTextureName(
+      GLuint texture) {
+    v8::Local<v8::Object> obj = WebGLTexture::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(texture));
+    texture_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        texture, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromTextureName(
+      GLuint texture) {
+    if (texture != 0 && texture_map.count(texture) == 1)
+      return texture_map[texture];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearTextureName(v8::Handle<v8::Value> value) {
+    GLuint texture = ExtractTextureNameFromValue(value);
+    if (texture != 0) {
+      if (texture_map.count(texture) == 1) {
+        texture_map[texture].Dispose();
+        if (texture_map.erase(texture) != 1) {
+          printf("Warning: Should have erased texture map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed texture map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractTextureNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > texture_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLTexture::texture_map;
+
+
+class WebGLRenderbuffer {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLRenderbuffer::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLRenderbuffer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromRenderbufferObjectName(
+      GLuint renderbuffer) {
+    v8::Local<v8::Object> obj = WebGLRenderbuffer::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(renderbuffer));
+    renderbuffer_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        renderbuffer, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromRenderbufferObjectName(
+      GLuint renderbuffer) {
+    if (renderbuffer != 0 && renderbuffer_map.count(renderbuffer) == 1)
+      return renderbuffer_map[renderbuffer];
+    return v8::Null();
+  }
+
+  // Use to set the object name to 0, when it is deleted, for example.
+  static void ClearRenderbufferObjectName(v8::Handle<v8::Value> value) {
+    GLuint renderbuffer = ExtractRenderbufferObjectNameFromValue(value);
+    if (renderbuffer != 0) {
+      if (renderbuffer_map.count(renderbuffer) == 1) {
+        renderbuffer_map[renderbuffer].Dispose();
+        if (renderbuffer_map.erase(renderbuffer) != 1) {
+          printf("Warning: Should have erased renderbuffer map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed renderbuffer map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractRenderbufferObjectNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > renderbuffer_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> >
+    WebGLRenderbuffer::renderbuffer_map;
+
+
+class WebGLBuffer {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLBuffer::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLBuffer"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromBufferName(
+      GLuint buffer) {
+    v8::Local<v8::Object> obj = WebGLBuffer::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(buffer));
+    buffer_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        buffer, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromBufferName(
+      GLuint buffer) {
+    if (buffer != 0 && buffer_map.count(buffer) == 1)
+      return buffer_map[buffer];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearBufferName(v8::Handle<v8::Value> value) {
+    GLuint buffer = ExtractBufferNameFromValue(value);
+    if (buffer != 0) {
+      if (buffer_map.count(buffer) == 1) {
+        buffer_map[buffer].Dispose();
+        if (buffer_map.erase(buffer) != 1) {
+          printf("Warning: Should have erased buffer map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed buffer map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractBufferNameFromValue(
+      v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > buffer_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLBuffer::buffer_map;
+
+
+// TODO
+// 5.12 WebGLShaderPrecisionFormat
 
 
 class SyphonServerWrapper {
@@ -1167,7 +1634,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-    v8::String::Utf8Value name(args[0]->ToString());
+    v8::String::Utf8Value name(args[0]);
     SyphonServer* server = [[SyphonServer alloc]
         initWithName:[NSString stringWithUTF8String:*name]
         context:reinterpret_cast<CGLContextObj>([context CGLContextObj])
@@ -1180,8 +1647,8 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.This());
-    //v8::String::Utf8Value uuid(args[0]->ToString());
-    v8::String::Utf8Value name(args[0]->ToString());
+    //v8::String::Utf8Value uuid(args[0]);
+    v8::String::Utf8Value name(args[0]);
 
     NSArray* servers = [[SyphonServerDirectory sharedDirectory] servers];
     NSLog(@"Servers: %@", servers);
@@ -1235,9 +1702,21 @@ class NSOpenGLContextWrapper {
 
     int buffer_type = args[3]->Int32Value();
 
+    // Handle width / height in the optional options object.  This allows you
+    // to override the width and height, for example if there is a framebuffer
+    // object that is a different size than the window.
+    // TODO(deanm): Also allow passing the x/y ?
+    if (args.Length() >= 3 && args[2]->IsObject()) {
+      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
+      if (opts->Has(v8::String::New("width")))
+        width = opts->Get(v8::String::New("width"))->Int32Value();
+      if (opts->Has(v8::String::New("height")))
+        height = opts->Get(v8::String::New("height"))->Int32Value();
+    }
+
     FREE_IMAGE_FORMAT format;
 
-    v8::String::Utf8Value type(args[0]->ToString());
+    v8::String::Utf8Value type(args[0]);
     if (strcmp(*type, "png") == 0) {
       format = FIF_PNG;
     } else if (strcmp(*type, "tiff") == 0) {
@@ -1248,7 +1727,7 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("writeImage unsupported output type.");
     }
 
-    v8::String::Utf8Value filename(args[1]->ToString());
+    v8::String::Utf8Value filename(args[1]);
 
     FIBITMAP* fb;
 
@@ -1312,10 +1791,15 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    glAttachShader(program, args[1]->Uint32Value());
+    if (!WebGLShader::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[1]);
+
+    glAttachShader(program, shader);
     return v8::Undefined();
   }
 
@@ -1325,10 +1809,11 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    v8::String::Utf8Value name(args[2]->ToString());
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+
+    v8::String::Utf8Value name(args[2]);
     glBindAttribLocation(program, args[1]->Uint32Value(), *name);
     return v8::Undefined();
   }
@@ -1337,7 +1822,13 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindBuffer(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindBuffer(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    if (!WebGLBuffer::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint buffer = WebGLBuffer::ExtractBufferNameFromValue(args[1]);
+
+    glBindBuffer(args[0]->Uint32Value(), buffer);
     return v8::Undefined();
   }
 
@@ -1345,7 +1836,14 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindFramebuffer(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindFramebuffer(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    // NOTE: ExtractFramebufferObjectNameFromValue handles null.
+    if (!args[1]->IsNull() && !WebGLFramebuffer::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindFramebuffer(
+        args[0]->Uint32Value(),
+        WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1353,7 +1851,14 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindRenderbuffer(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindRenderbuffer(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    // NOTE: ExtractRenderbufferObjectNameFromValue handles null.
+    if (!args[1]->IsNull() && !WebGLRenderbuffer::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindRenderbuffer(
+        args[0]->Uint32Value(),
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1361,7 +1866,13 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> bindTexture(const v8::Arguments& args) {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
-    glBindTexture(args[0]->Uint32Value(), args[1]->Uint32Value());
+
+    // NOTE: ExtractTextureNameFromValue handles null.
+    if (!args[1]->IsNull() && !WebGLTexture::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindTexture(args[0]->Uint32Value(),
+                  WebGLTexture::ExtractTextureNameFromValue(args[1]));
     return v8::Undefined();
   }
 
@@ -1536,7 +2047,12 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glCompileShader(args[0]->Uint32Value());
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
+
+    glCompileShader(shader);
     return v8::Undefined();
   }
 
@@ -1544,26 +2060,26 @@ class NSOpenGLContextWrapper {
   static v8::Handle<v8::Value> createBuffer(const v8::Arguments& args) {
     GLuint buffer;
     glGenBuffers(1, &buffer);
-    return v8::Integer::NewFromUnsigned(buffer);
+    return WebGLBuffer::NewFromBufferName(buffer);
   }
 
   // WebGLFramebuffer createFramebuffer()
   static v8::Handle<v8::Value> createFramebuffer(const v8::Arguments& args) {
     GLuint framebuffer;
     glGenFramebuffers(1, &framebuffer);
-    return v8::Integer::NewFromUnsigned(framebuffer);
+    return WebGLFramebuffer::NewFromFramebufferObjectName(framebuffer);
   }
 
   // WebGLProgram createProgram()
   static v8::Handle<v8::Value> createProgram(const v8::Arguments& args) {
-    return WebGLProgram::NewFromID(glCreateProgram());
+    return WebGLProgram::NewFromProgramName(glCreateProgram());
   }
 
   // WebGLRenderbuffer createRenderbuffer()
   static v8::Handle<v8::Value> createRenderbuffer(const v8::Arguments& args) {
     GLuint renderbuffer;
     glGenRenderbuffers(1, &renderbuffer);
-    return v8::Integer::NewFromUnsigned(renderbuffer);
+    return WebGLRenderbuffer::NewFromRenderbufferObjectName(renderbuffer);
   }
 
   // WebGLShader createShader(GLenum type)
@@ -1571,14 +2087,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Integer::NewFromUnsigned(glCreateShader(args[0]->Uint32Value()));
+    return WebGLShader::NewFromShaderName(
+        glCreateShader(args[0]->Uint32Value()));
   }
 
   // WebGLTexture createTexture()
   static v8::Handle<v8::Value> createTexture(const v8::Arguments& args) {
     GLuint texture;
     glGenTextures(1, &texture);
-    return v8::Integer::NewFromUnsigned(texture);
+    return WebGLTexture::NewFromTextureName(texture);
   }
 
   // void cullFace(GLenum mode)
@@ -1595,8 +2112,18 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteBuffers(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLBuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint buffer = WebGLBuffer::ExtractBufferNameFromValue(args[0]);
+    if (buffer != 0) {
+      glDeleteBuffers(1, &buffer);
+      WebGLBuffer::ClearBufferName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1605,8 +2132,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteFramebuffers(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLFramebuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint framebuffer =
+        WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[0]);
+    if (framebuffer != 0) {
+      glDeleteFramebuffers(1, &framebuffer);
+      WebGLFramebuffer::ClearFramebufferObjectName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1615,11 +2153,18 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
 
-    glDeleteProgram(program);
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    if (program != 0) {
+      glDeleteProgram(program);
+      WebGLProgram::ClearProgramName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1628,8 +2173,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteRenderbuffers(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLRenderbuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint renderbuffer =
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[0]);
+    if (renderbuffer != 0) {
+      glDeleteRenderbuffers(1, &renderbuffer);
+      WebGLRenderbuffer::ClearRenderbufferObjectName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1638,7 +2194,18 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glDeleteShader(args[0]->Uint32Value());
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
+    if (shader != 0) {
+      glDeleteShader(shader);
+      WebGLShader::ClearShaderName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1647,8 +2214,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint buffer = args[0]->Uint32Value();
-    glDeleteTextures(1, &buffer);
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLTexture::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint texture =
+        WebGLTexture::ExtractTextureNameFromValue(args[0]);
+    if (texture != 0) {
+      glDeleteTextures(1, &texture);
+      WebGLTexture::ClearTextureName(args[0]);
+    }
     return v8::Undefined();
   }
 
@@ -1685,10 +2263,15 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    glDetachShader(program, args[1]->Uint32Value());
+    if (!WebGLShader::HasInstance(args[1]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[1]);
+
+    glDetachShader(program, shader);
     return v8::Undefined();
   }
 
@@ -1773,10 +2356,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 4)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    glFramebufferRenderbuffer(args[0]->Uint32Value(),
-                              args[1]->Uint32Value(),
-                              args[2]->Uint32Value(),
-                              args[3]->Uint32Value());
+    // NOTE: ExtractRenderbufferObjectNameFromValue will handle null.
+    if (!args[3]->IsNull() && !WebGLRenderbuffer::HasInstance(args[3]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glFramebufferRenderbuffer(
+        args[0]->Uint32Value(),
+        args[1]->Uint32Value(),
+        args[2]->Uint32Value(),
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[3]));
     return v8::Undefined();
   }
 
@@ -1788,10 +2376,14 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 5)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    // NOTE: ExtractTextureNameFromValue will handle null.
+    if (!args[3]->IsNull() && !WebGLTexture::HasInstance(args[3]))
+      return v8_utils::ThrowTypeError("Type error");
+
     glFramebufferTexture2D(args[0]->Uint32Value(),
                            args[1]->Uint32Value(),
                            args[2]->Uint32Value(),
-                           args[3]->Uint32Value(),
+                           WebGLTexture::ExtractTextureNameFromValue(args[3]),
                            args[4]->Int32Value());
     return v8::Undefined();
   }
@@ -1822,8 +2414,9 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
 
     char namebuf[1024];
     GLint size;
@@ -1841,8 +2434,9 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
 
     char namebuf[1024];
     GLint size;
@@ -1859,7 +2453,22 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8_utils::ThrowError("Unimplemented.");
+    if (!WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+
+    GLuint shaders[10];
+    GLsizei count;
+    glGetAttachedShaders(program, 10, &count, shaders);
+
+    v8::Local<v8::Array> res = v8::Array::New(count);
+    for (int i = 0; i < count; ++i) {
+      res->Set(v8::Integer::New(i),
+               WebGLShader::LookupFromShaderName(shaders[i]));
+    }
+
+    return res;
   }
 
   // GLint getAttribLocation(WebGLProgram program, DOMString name)
@@ -1868,10 +2477,11 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    v8::String::Utf8Value name(args[1]->ToString());
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+
+    v8::String::Utf8Value name(args[1]);
     return v8::Integer::New(glGetAttribLocation(program, *name));
   }
 
@@ -1985,7 +2595,13 @@ class NSOpenGLContextWrapper {
       case GL_ALPHA_BITS:
         return getLongParameter(pname);
       case GL_ARRAY_BUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
+      case GL_ELEMENT_ARRAY_BUFFER_BINDING:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint buffer = static_cast<unsigned int>(value);
+        return WebGLBuffer::LookupFromBufferName(buffer);
+      }
       case GL_BLEND:
         return getBooleanParameter(pname);
       case GL_BLEND_COLOR:
@@ -2016,7 +2632,12 @@ class NSOpenGLContextWrapper {
       case GL_CULL_FACE_MODE:
         return getUnsignedLongParameter(pname);
       case GL_CURRENT_PROGRAM:
-        return v8_utils::ThrowError("Unimplemented.");
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint program = static_cast<unsigned int>(value);
+        return WebGLProgram::LookupFromProgramName(program);
+      }
       case GL_DEPTH_BITS:
         return getLongParameter(pname);
       case GL_DEPTH_CLEAR_VALUE:
@@ -2031,10 +2652,13 @@ class NSOpenGLContextWrapper {
         return getBooleanParameter(pname);
       case GL_DITHER:
         return getBooleanParameter(pname);
-      case GL_ELEMENT_ARRAY_BUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
       case GL_FRAMEBUFFER_BINDING:
-        return getUnsignedLongParameter(pname);
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint framebuffer = static_cast<unsigned int>(value);
+        return WebGLFramebuffer::LookupFromFramebufferObjectName(framebuffer);
+      }
       case GL_FRONT_FACE:
         return getUnsignedLongParameter(pname);
       case GL_GENERATE_MIPMAP_HINT:
@@ -2086,7 +2710,13 @@ class NSOpenGLContextWrapper {
       case GL_RED_BITS:
         return getLongParameter(pname);
       case GL_RENDERBUFFER_BINDING:
-        return v8_utils::ThrowError("Unimplemented.");
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint renderbuffer = static_cast<unsigned int>(value);
+        return WebGLRenderbuffer::LookupFromRenderbufferObjectName(
+            renderbuffer);
+      }
       case GL_RENDERER:
         return v8::String::New(
             reinterpret_cast<const char*>(glGetString(pname)));
@@ -2146,9 +2776,13 @@ class NSOpenGLContextWrapper {
       case GL_SUBPIXEL_BITS:
         return getLongParameter(pname);
       case GL_TEXTURE_BINDING_2D:
-        return v8_utils::ThrowError("Unimplemented.");
       case GL_TEXTURE_BINDING_CUBE_MAP:
-        return v8_utils::ThrowError("Unimplemented.");
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint texture = static_cast<unsigned int>(value);
+        return WebGLTexture::LookupFromTextureName(texture);
+      }
       case GL_UNPACK_ALIGNMENT:
         // FIXME: should this be "long" in the spec?
         return getIntParameter(pname);
@@ -2207,8 +2841,9 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
 
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
@@ -2237,8 +2872,9 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
 
     GLint length = 0;
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
@@ -2260,7 +2896,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint shader = args[0]->Uint32Value();
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
@@ -2285,7 +2924,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint shader = args[0]->Uint32Value();
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
     GLint length = 0;
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
@@ -2300,7 +2942,10 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    GLuint shader = args[0]->Uint32Value();
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
     GLint length = 0;
     glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
@@ -2327,10 +2972,11 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    v8::String::Utf8Value name(args[1]->ToString());
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
+
+    v8::String::Utf8Value name(args[1]);
     GLint location = glGetUniformLocation(program, *name);
     if (location == -1)
       return v8::Null();
@@ -2363,7 +3009,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsBuffer(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLBuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsBuffer(
+        WebGLBuffer::ExtractBufferNameFromValue(args[0])));
   }
 
   // GLboolean isEnabled(GLenum cap)
@@ -2379,7 +3033,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsFramebuffer(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLFramebuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsFramebuffer(
+        WebGLFramebuffer::ExtractFramebufferObjectNameFromValue(args[0])));
   }
 
   // GLboolean isProgram(WebGLProgram program)
@@ -2387,11 +3049,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    return v8::Boolean::New(glIsProgram(program));
+    return v8::Boolean::New(glIsProgram(
+        WebGLProgram::ExtractProgramNameFromValue(args[0])));
   }
 
   // GLboolean isRenderbuffer(WebGLRenderbuffer renderbuffer)
@@ -2399,7 +3065,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsRenderbuffer(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLRenderbuffer::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsRenderbuffer(
+        WebGLRenderbuffer::ExtractRenderbufferObjectNameFromValue(args[0])));
   }
 
   // GLboolean isShader(WebGLShader shader)
@@ -2407,7 +3081,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsShader(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsShader(
+        WebGLShader::ExtractShaderNameFromValue(args[0])));
   }
 
   // GLboolean isTexture(WebGLTexture texture)
@@ -2415,7 +3097,15 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsTexture(args[0]->Uint32Value()));
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+    
+    if (!WebGLTexture::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsTexture(
+        WebGLTexture::ExtractTextureNameFromValue(args[0])));
   }
 
   // void lineWidth(GLfloat width)
@@ -2433,10 +3123,9 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
 
-    glLinkProgram(program);
+    glLinkProgram(WebGLProgram::ExtractProgramNameFromValue(args[0]));
     return v8::Undefined();
   }
 
@@ -2539,11 +3228,16 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value data(args[1]->ToString());
+    if (!WebGLShader::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint shader = WebGLShader::ExtractShaderNameFromValue(args[0]);
+
+    v8::String::Utf8Value data(args[1]);
     // NOTE(deanm): We want GLSL version 1.20.  Is there a better way to do this
     // than sneaking in a #version at the beginning?
     const GLchar* strs[] = { "#version 120\n", *data };
-    glShaderSource(args[0]->Uint32Value(), 2, strs, NULL);
+    glShaderSource(shader, 2, strs, NULL);
     return v8::Undefined();
   }
 
@@ -3082,13 +3776,11 @@ class NSOpenGLContextWrapper {
     GLuint program = 0;
     // Break the WebGL spec by allowing you to pass 'null' to unbind
     // the shader, handy for drawSkCanvas, for example.
-    if (!args[0]->IsNull()) {
-      if (!WebGLProgram::HasInstance(args[0]))
-        return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-      program = WebGLProgram::ExtractIDFromValue(args[0]);
-    }
+    // NOTE: ExtractProgramNameFromValue handles null.
+    if (!args[0]->IsNull() && !WebGLProgram::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
 
-    glUseProgram(program);
+    glUseProgram(WebGLProgram::ExtractProgramNameFromValue(args[0]));
     return v8::Undefined();
   }
 
@@ -3098,8 +3790,9 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLProgram.");
-    GLuint program = WebGLProgram::ExtractIDFromValue(args[0]);
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint program = WebGLProgram::ExtractProgramNameFromValue(args[0]);
 
     glValidateProgram(program);
     return v8::Undefined();
@@ -3497,7 +4190,7 @@ class NSWindowWrapper {
 
   static v8::Handle<v8::Value> setTitle(const v8::Arguments& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
-    v8::String::Utf8Value title(args[0]->ToString());
+    v8::String::Utf8Value title(args[0]);
     [window setTitle:[NSString stringWithUTF8String:*title]];
     return v8::Undefined();
   }
@@ -4359,7 +5052,7 @@ class SkPaintWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
-    v8::String::Utf8Value family_name(args[0]->ToString());
+    v8::String::Utf8Value family_name(args[0]);
     paint->setTypeface(SkTypeface::CreateFromName(
         *family_name, static_cast<SkTypeface::Style>(args[1]->Uint32Value())));
     return v8::Undefined();
@@ -4371,13 +5064,22 @@ class SkPaintWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
-    v8::String::Utf8Value postscript_name(args[0]->ToString());
+    v8::String::Utf8Value postscript_name(args[0]);
+
     CFStringRef cfFontName = CFStringCreateWithCString(
         NULL, *postscript_name, kCFStringEncodingUTF8);
+    if (cfFontName == NULL)
+      return v8_utils::ThrowError("Unable to create font CFString.");
+
     CTFontRef ctNamed = CTFontCreateWithName(cfFontName, 1, NULL);
-    paint->setTypeface(SkCreateTypefaceFromCTFont(ctNamed));
-    CFRelease(cfFontName);  // TODO(deanm): CFSafeRelease?
-    // TODO(deanm): Release CTFontRef or the SkTypeface?
+    CFRelease(cfFontName);
+    if (ctNamed == NULL)
+      return v8_utils::ThrowError("Unable to create CTFont.");
+
+    SkTypeface* typeface = SkCreateTypefaceFromCTFont(ctNamed);
+    paint->setTypeface(typeface);
+    typeface->unref();  // setTypeface will have held a ref.
+    CFRelease(ctNamed);  // SkCreateTypefaceFromCTFont will have held a ref.
     return v8::Undefined();
   }
 
@@ -4488,7 +5190,7 @@ class SkPaintWrapper {
 
     SkScalar* intervals = new SkScalar[length];
     if (!intervals)
-      return v8_utils::ThrowError("Unabe to allocate intervals.");
+      return v8_utils::ThrowError("Unable to allocate intervals.");
     
     for (uint32_t i = 0; i < length; ++i) {
       intervals[i] = SkDoubleToScalar(arr->Get(i)->NumberValue());
@@ -4512,7 +5214,7 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> measureText(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    v8::String::Utf8Value utf8(args[0]->ToString());
+    v8::String::Utf8Value utf8(args[0]);
     SkScalar width = paint->measureText(*utf8, utf8.length());
     return v8::Number::New(width);
   }
@@ -4520,9 +5222,9 @@ class SkPaintWrapper {
   static v8::Handle<v8::Value> measureTextBounds(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    v8::String::Utf8Value utf8(args[0]->ToString());
+    v8::String::Utf8Value utf8(args[0]);
 
-    SkRect bounds;
+    SkRect bounds = SkRect::MakeEmpty();
     paint->measureText(*utf8, utf8.length(), &bounds);
 
     v8::Local<v8::Array> res = v8::Array::New(4);
@@ -4542,33 +5244,46 @@ class SkPaintWrapper {
     paint->getFontMetrics(&metrics);
 
     v8::Local<v8::Object> res = v8::Object::New();
-    res->Set(v8::String::New("top"), v8::Number::New(metrics.fTop));                    //!< The greatest distance above the baseline for any glyph (will be <= 0)
-    res->Set(v8::String::New("ascent"), v8::Number::New(metrics.fAscent));              //!< The recommended distance above the baseline (will be <= 0)
-    res->Set(v8::String::New("descent"), v8::Number::New(metrics.fDescent));            //!< The recommended distance below the baseline (will be >= 0)
-    res->Set(v8::String::New("bottom"), v8::Number::New(metrics.fBottom));              //!< The greatest distance below the baseline for any glyph (will be >= 0)
-    res->Set(v8::String::New("leading"), v8::Number::New(metrics.fLeading));            //!< The recommended distance to add between lines of text (will be >= 0)
-    res->Set(v8::String::New("avgCharWidth"), v8::Number::New(metrics.fAvgCharWidth));  //!< the average charactor width (>= 0)
-    res->Set(v8::String::New("xMin"), v8::Number::New(metrics.fXMin));                  //!< The minimum bounding box x value for all glyphs
-    res->Set(v8::String::New("xMax"), v8::Number::New(metrics.fXMax));                  //!< The maximum bounding box x value for all glyphs
-    res->Set(v8::String::New("xHeight"), v8::Number::New(metrics.fXHeight));            //!< the height of an 'x' in px, or 0 if no 'x' in face
+
+    //!< The greatest distance above the baseline for any glyph (will be <= 0)
+    res->Set(v8::String::New("top"), v8::Number::New(metrics.fTop));
+    //!< The recommended distance above the baseline (will be <= 0)
+    res->Set(v8::String::New("ascent"), v8::Number::New(metrics.fAscent));
+    //!< The recommended distance below the baseline (will be >= 0)
+    res->Set(v8::String::New("descent"), v8::Number::New(metrics.fDescent));
+    //!< The greatest distance below the baseline for any glyph (will be >= 0)
+    res->Set(v8::String::New("bottom"), v8::Number::New(metrics.fBottom));
+    //!< The recommended distance to add between lines of text (will be >= 0)
+    res->Set(v8::String::New("leading"), v8::Number::New(metrics.fLeading));
+    //!< the average charactor width (>= 0)
+    res->Set(v8::String::New("avgcharwidth"),
+             v8::Number::New(metrics.fAvgCharWidth));
+    //!< The minimum bounding box x value for all glyphs
+    res->Set(v8::String::New("xmin"), v8::Number::New(metrics.fXMin));
+    //!< The maximum bounding box x value for all glyphs
+    res->Set(v8::String::New("xmax"), v8::Number::New(metrics.fXMax));
+    //!< the height of an 'x' in px, or 0 if no 'x' in face
+    res->Set(v8::String::New("xheight"), v8::Number::New(metrics.fXHeight));
+
     return res;
   }
 
   static v8::Handle<v8::Value> getTextPath(const v8::Arguments& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    v8::String::Utf8Value utf8(args[0]->ToString());
+      if (!SkPathWrapper::HasInstance(args[3]))
+      return v8_utils::ThrowTypeError("4th argument must be an SkPath.");
+
+    SkPath* path = SkPathWrapper::ExtractPointer(
+        v8::Handle<v8::Object>::Cast(args[3]));
+
+    v8::String::Utf8Value utf8(args[0]);
 
     double x = SkDoubleToScalar(args[1]->NumberValue());
     double y = SkDoubleToScalar(args[2]->NumberValue());
 
-    SkPath* path = new SkPath();
     paint->getTextPath(*utf8, utf8.length(), x, y, path);
-
-    v8::Local<v8::Object> res =
-    SkPathWrapper::GetTemplate()->InstanceTemplate()->NewInstance();
-    res->SetInternalField(0, v8_utils::WrapCPointer(path));
-    return res;
+    return v8::Undefined();
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
@@ -4720,7 +5435,7 @@ class SkCanvasWrapper {
       FIBITMAP* fbitmap = NULL;
 
       if (args[1]->IsString()) {  // Path on disk.
-        v8::String::Utf8Value filename(args[1]->ToString());
+        v8::String::Utf8Value filename(args[1]);
 
         FREE_IMAGE_FORMAT format = FreeImage_GetFileType(*filename, 0);
         // Some formats don't have a signature so we're supposed to guess from
@@ -5102,7 +5817,7 @@ class SkCanvasWrapper {
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
 
-    v8::String::Utf8Value utf8(args[1]->ToString());
+    v8::String::Utf8Value utf8(args[1]);
     canvas->drawText(*utf8, utf8.length(),
                      SkDoubleToScalar(args[2]->NumberValue()),
                      SkDoubleToScalar(args[3]->NumberValue()),
@@ -5125,7 +5840,7 @@ class SkCanvasWrapper {
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[1]));
 
-    v8::String::Utf8Value utf8(args[2]->ToString());
+    v8::String::Utf8Value utf8(args[2]);
     canvas->drawTextOnPathHV(*utf8, utf8.length(), *path,
                              SkDoubleToScalar(args[3]->NumberValue()),
                              SkDoubleToScalar(args[4]->NumberValue()),
@@ -5183,11 +5898,11 @@ class SkCanvasWrapper {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
 
-    v8::String::Utf8Value type(args[0]->ToString());
+    v8::String::Utf8Value type(args[0]);
     if (strcmp(*type, "png") != 0)
       return v8_utils::ThrowError("writeImage can only write PNG types.");
 
-    v8::String::Utf8Value filename(args[1]->ToString());
+    v8::String::Utf8Value filename(args[1]);
 
     FIBITMAP* fb = FreeImage_ConvertFromRawBits(
         reinterpret_cast<BYTE*>(bitmap.getPixels()),
@@ -5233,7 +5948,7 @@ class SkCanvasWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value filename(args[0]->ToString());
+    v8::String::Utf8Value filename(args[0]);
 
     SkFILEWStream stream(*filename);
     SkPDFDocument document;
@@ -5315,7 +6030,7 @@ class NSSoundWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value filename(args[0]->ToString());
+    v8::String::Utf8Value filename(args[0]);
     NSSound* sound = [[NSSound alloc] initWithContentsOfFile:
         [NSString stringWithUTF8String:*filename] byReference:YES];
 
@@ -5728,7 +6443,7 @@ class CAMIDISourceWrapper {
 
     OSStatus result;
 
-    v8::String::Utf8Value name_val(args[0]->ToString());
+    v8::String::Utf8Value name_val(args[0]);
     CFStringRef name =
         CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
@@ -5791,9 +6506,7 @@ class CAMIDIDestinationWrapper {
   struct State {
     MIDIEndpointRef endpoint;
     int64_t clocks;
-    int dgram_fd;
-    struct sockaddr_un dgram_un;
-    size_t dgram_un_len;
+    int pipe_fds[2];
   };
 
  public:
@@ -5820,7 +6533,7 @@ class CAMIDIDestinationWrapper {
       { "sources", &CAMIDIDestinationWrapper::sources },
       { "openSource", &CAMIDIDestinationWrapper::openSource },
       { "syncClocks", &CAMIDIDestinationWrapper::syncClocks },
-      { "setDgramPath", &CAMIDIDestinationWrapper::setDgramPath },
+      { "getPipeDescriptor", &CAMIDIDestinationWrapper::getPipeDescriptor },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -5868,11 +6581,11 @@ class CAMIDIDestinationWrapper {
       } else if (packet->data[0] == 0xf8) {
         ++state->clocks;
         //printf("Clock position: %lld\n", state->clocks);
-      } else if (state->dgram_fd != -1) {
-        int res = sendto(state->dgram_fd, packet->data, packet->length, 0,
-                         (sockaddr*)&state->dgram_un, state->dgram_un_len);
+      } else {
+        // TODO(deanm): Message framing.
+        ssize_t res = write(state->pipe_fds[1], packet->data, packet->length);
         if (res != packet->length) {
-          printf("Error sending midi -> dgram (%d)\n", res);
+          printf("Error sending midi -> pipe (%zd)\n", res);
         }
       }
       packet = MIDIPacketNext(packet);
@@ -5884,20 +6597,9 @@ class CAMIDIDestinationWrapper {
     return v8::Integer::New(state->clocks);
   }
 
-  static v8::Handle<v8::Value> setDgramPath(const v8::Arguments& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
-
+  static v8::Handle<v8::Value> getPipeDescriptor(const v8::Arguments& args) {
     State* state = ExtractPointer(args.Holder());
-    v8::String::Utf8Value path(args[0]->ToString());
-    memset(&state->dgram_un, 0, sizeof(state->dgram_un));
-    state->dgram_un.sun_family = AF_UNIX;
-    memcpy(state->dgram_un.sun_path, *path, path.length());
-    state->dgram_un_len = sizeof(state->dgram_un) -
-                          sizeof(state->dgram_un.sun_path) +
-                          path.length() + 1;
-    state->dgram_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
-    return v8::Undefined();
+    return v8::Integer::NewFromUnsigned(state->pipe_fds[0]);
   }
 
   static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
@@ -5914,9 +6616,11 @@ class CAMIDIDestinationWrapper {
     }
 
     State* state = new State;
-    state->dgram_fd = -1;
     state->endpoint = NULL;
     state->clocks = 0;
+    int res = pipe(state->pipe_fds);
+    if (res != 0)
+      return v8_utils::ThrowError("Couldn't create internal MIDI pipe.");
     args.This()->SetInternalField(0, v8::External::Wrap(state));
     return args.This();
   }
@@ -5927,7 +6631,7 @@ class CAMIDIDestinationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     OSStatus result;
-    v8::String::Utf8Value name_val(args[0]->ToString());
+    v8::String::Utf8Value name_val(args[0]);
     CFStringRef name =
         CFStringCreateWithCString(NULL, *name_val, kCFStringEncodingUTF8);
 
@@ -6048,7 +6752,7 @@ class SBApplicationWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value bundleid(args[0]->ToString());
+    v8::String::Utf8Value bundleid(args[0]);
     id obj = [SBApplication applicationWithBundleIdentifier:
         [NSString stringWithUTF8String:*bundleid]];
     [obj retain];
@@ -6093,7 +6797,7 @@ class SBApplicationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     id obj = ExtractID(args.Holder());
-    v8::String::Utf8Value method_name(args[0]->ToString());
+    v8::String::Utf8Value method_name(args[0]);
     [obj performSelector:sel_getUid(*method_name)];
     return v8::Undefined();
   }
@@ -6103,8 +6807,8 @@ class SBApplicationWrapper {
       return v8_utils::ThrowError("Wrong number of arguments.");
 
     id obj = ExtractID(args.Holder());
-    v8::String::Utf8Value method_name(args[0]->ToString());
-    v8::String::Utf8Value arg(args[1]->ToString());
+    v8::String::Utf8Value method_name(args[0]);
+    v8::String::Utf8Value arg(args[1]);
     [obj performSelector:sel_getUid(*method_name) withObject:
         [NSString stringWithUTF8String:*arg]];
     return v8::Undefined();
@@ -6168,7 +6872,7 @@ class NSAppleScriptWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    v8::String::Utf8Value src(args[0]->ToString());
+    v8::String::Utf8Value src(args[0]);
     NSAppleScript* ascript = [[NSAppleScript alloc] initWithSource:
         [NSString stringWithUTF8String:*src]];
 
