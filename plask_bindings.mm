@@ -1824,7 +1824,7 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 2)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    if (!WebGLBuffer::HasInstance(args[1]))
+    if (!args[1]->IsNull() && !WebGLBuffer::HasInstance(args[1]))
       return v8_utils::ThrowTypeError("Type error");
 
     GLuint buffer = WebGLBuffer::ExtractBufferNameFromValue(args[1]);
