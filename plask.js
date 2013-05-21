@@ -1294,7 +1294,8 @@ Mat3.prototype.pmapQuadQuad = function(x0, y0, x1, y1, x2, y2, x3, y3,
 
   var mt = new Mat3();
   mt.pmapSquareQuad(u0, v0, u1, v1, u2, v2, u3, v3);
-  this.mul2(ms, mt);
+  //this.mul2(ms, mt);
+  this.mul2(mt, ms);
 
   return this;
 };
