@@ -1165,12 +1165,22 @@ Mat3.prototype.mul = function(b) {
   return this.mul2(this, b);
 };
 
-// Multiply Vec2 |v| by the current matrix, returning a Vec4 of this * v.
+// Multiply Vec2 |v| by the current matrix, returning a Vec2 of this * v.
+// Ignores perspective (only applies scale and translation).
 Mat3.prototype.mulVec2 = function(v) {
   var x = v.x, y = v.y;
   return new Vec2(this.a11*x + this.a12*y + this.a13,
                   this.a21*x + this.a22*y + this.a23);
 };
+
+// Multiply Vec2 |v| by the current matrix and perform a perspective divide.
+// Implies that the missing z component of |v| would be 1.
+Mat3.prototype.mulVec2p = function(v) {
+  var x = v.x, y = v.y;
+  var z = this.a31*x + this.a32*y + this.a33;
+  return new Vec2((this.a11*x + this.a12*y + this.a13) / z,
+                  (this.a21*x + this.a22*y + this.a23) / z);
+}
 
 // Multiply Vec3 |v| by the current matrix, returning a Vec3 of this * v.
 Mat3.prototype.mulVec3 = function(v) {
@@ -1597,6 +1607,15 @@ Mat4.prototype.mulVec3 = function(v) {
   return new Vec3(this.a14 + this.a11*x + this.a12*y + this.a13*z,
                   this.a24 + this.a21*x + this.a22*y + this.a23*z,
                   this.a34 + this.a31*x + this.a32*y + this.a33*z);
+};
+
+// Multiply Vec3 |v| by the current matrix, returning a Vec3 of this * v.
+Mat4.prototype.mulVec3p = function(v) {
+  var x = v.x, y = v.y, z = v.z;
+  var w = this.a44 + this.a41*x + this.a42*y + this.a43*z;
+  return new Vec3((this.a14 + this.a11*x + this.a12*y + this.a13*z)/w,
+                  (this.a24 + this.a21*x + this.a22*y + this.a23*z)/w,
+                  (this.a34 + this.a31*x + this.a32*y + this.a33*z)/w);
 };
 
 // Multiply Vec4 |v| by the current matrix, returning a Vec4 of this * v.
