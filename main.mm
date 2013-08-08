@@ -357,7 +357,7 @@ static void RunMainLoop() {
   while (!g_should_quit && uvloop->active_handles > 1) {
     NSAutoreleasePool* pool = [NSAutoreleasePool new];
     EVENTLOOP_DEBUG_C((printf("-> uv_run_once\n")));
-    uv_run_once(uvloop);
+    uv_run(uvloop, UV_RUN_ONCE);  // uv_run_once(uvloop);
     EVENTLOOP_DEBUG_C((printf("<- uv_run_once\n")));
     EVENTLOOP_DEBUG_C((printf(" - handles: %d\n", uvloop->active_handles)));
     [pool drain];
