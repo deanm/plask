@@ -170,56 +170,90 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
     var sock = new net.Socket({fd: this.getPipeDescriptor()});
     sock.writable = false;
     var this_ = this;
-    sock.on('data', function(msg, rinfo) {
-      if (msg.length < 1) {
-        console.log('Received zero length midi message.');
-        return;
-      }
+
+    function processMessage(msg) {
+      if (msg.length < 1) return 'Received zero length midi message.';
 
       // NOTE(deanm): I would have assumed that every MIDI message should come
       // in as its own 'packet', but for example sending a snapshot from a
       // UC-33e sends some of the controller messages back to back in the same
       // packet.  I'm not sure if this is the expected behavior, but we'll
       // try to handle it...
-      var j = 0;
+
       // TODO(deanm): Use framing instead of assuming atomic writes on the pipe.
-      while (j < msg.length && msg.length - j >= 3) {
+      for (var j = 0, jl = msg.length; j < jl; ) {
         if ((msg[j] & 0x80) !== 0x80) {
           console.log('First MIDI byte not a status byte.');
           return;
         }
+
+        var rem = jl - j;  // Number of bytes remaining.
 
         // NOTE(deanm): We expect MIDI packets are the correct length, for
         // example 3 bytes for note on and off.  Instead of error checking,
         // we'll get undefined from msg[] if the message is shorter, maybe
         // should handle this better, but loads of length checking is annoying.
         switch (msg[j] & 0xf0) {
-          case 0x90:  // Note on.
-            this_.emit('noteOn', {type:'noteOn',
-                                  chan: msg[j+0] & 0x0f,
-                                  note: msg[j+1],
-                                  vel: msg[j+2]});
-            break;
           case 0x80:  // Note off.
+            if (rem < 3) return 'Short noteOff message.';
             this_.emit('noteOff', {type:'noteOff',
                                   chan: msg[j+0] & 0x0f,
                                   note: msg[j+1],
                                   vel: msg[j+2]});
-            break;
+            j += 3; break;
+          case 0x90:  // Note on.
+            if (rem < 3) return 'Short noteOn message.';
+            this_.emit('noteOn', {type:'noteOn',
+                                  chan: msg[j+0] & 0x0f,
+                                  note: msg[j+1],
+                                  vel: msg[j+2]});
+            j += 3; break;
+          case 0xa0:  // Aftertouch.
+            if (rem < 3) return 'Short aftertouch message.';
+            this_.emit('aftertouch', {type:'aftertouch',
+                                      chan: msg[j+0] & 0x0f,
+                                      note: msg[j+1],
+                                      pressure: msg[j+2]});
+            j += 3; break;
           case 0xb0:  // Controller message.
+            if (rem < 3) return 'Short controller message.';
             this_.emit('controller', {type:'controller',
                                       chan: msg[j+0] & 0x0f,
                                       num: msg[j+1],
                                       val: msg[j+2]});
-            break;
+            j += 3; break;
+          case 0xc0:  // Program change.
+            if (rem < 2) return 'Short programChange message.';
+            this_.emit('programChange', {type:'programChange',
+                                         chan: msg[j+0] & 0x0f,
+                                         num: msg[j+1]});
+            j += 2; break;
+          case 0xd0:  // Channel pressure.
+            if (rem < 2) return 'Short channelPressure message.';
+            this_.emit('channelPressure', {type:'channelPressure',
+                                           chan: msg[j+0] & 0x0f,
+                                           pressure: msg[j+1]});
+            j += 2; break;
+          case 0xe0:  // Pitch wheel.
+            if (rem < 3) return 'Short pitchWheel message.';
+            this_.emit('pitchWheel', {type:'pitchWheel',
+                                      chan: msg[j+0] & 0x0f,
+                                      val: (msg[j+2] << 7) | msg[j+1]});
+            j += 3; break;
+          // TODO(deanm): SysEx and the 0xFx messages.
           default:
-            console.log('Unhandled MIDI status byte: 0x' + msg[0].toString(16));
-            return;
+            return 'Unhandled MIDI status byte: 0x' + msg[0].toString(16);
         }
-
-        j += 3;  // NOTE: Careful, some day we'll handle longer messages?
       }
+
+      return null;
+    }
+
+    sock.on('data', function(msg, rinfo) {
+      var res = processMessage(msg);
+      if (res !== null) console.log(res);
     });
+
     this._sock_initialized = true;
   }
 
