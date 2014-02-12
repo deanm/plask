@@ -296,8 +296,11 @@ exports.Window = function(width, height, opts) {
       opts.multisample === true,
       opts.display === undefined ? -1 : opts.display,
       opts.borderless === true,
-      opts.fullscreen === true);
+      opts.fullscreen === true,
+      opts.highdpi === undefined ? 0 : opts.highdpi);
   var this_ = this;
+
+  var dpi_scale = opts.highdpi === 2 ? 2 : 1;  // For scaling mouse events.
 
   this.context = nswindow_.context;  // Export the 3d context (if it exists).
 
@@ -341,6 +344,7 @@ exports.Window = function(width, height, opts) {
       case PlaskRawMac.NSEvent.NSScrollWheel: return 'scrollWheel';
       case PlaskRawMac.NSEvent.NSTabletPoint: return 'tabletPoint';
       case PlaskRawMac.NSEvent.NSTabletProximity: return 'tabletProximity';
+      case PlaskRawMac.NSEvent.NSMouseMoved: return 'mouseMoved';
       default: return '';
     }
   }
@@ -397,8 +401,8 @@ exports.Window = function(width, height, opts) {
         if (button === 3) type_name = type_name.replace('other', 'middle');
         var te = {
           type: type_name,
-          x: loc.x,
-          y: height - loc.y,  // Map from button left to top left.
+          x: loc.x * dpi_scale,
+          y: height - loc.y * dpi_scale,  // Map from button left to top left.
           buttonNumber: button,
           buttonName: buttonNumberToName(button),
           capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
@@ -425,10 +429,10 @@ exports.Window = function(width, height, opts) {
         if (button === 3) type_name = type_name.replace('other', 'middle');
         var te = {
           type: type_name,
-          x: loc.x,
-          y: height - loc.y,
-          dx: e.deltaX(),
-          dy: e.deltaY(),  // Doesn't need flipping since it's in device space.
+          x: loc.x * dpi_scale,
+          y: height - loc.y * dpi_scale,
+          dx: e.deltaX() * dpi_scale,
+          dy: e.deltaY() * dpi_scale,  // Doesn't need flip, in device space.
           dz: e.deltaZ(),
           pressure: e.pressure(),
           buttonNumber: button,
@@ -451,8 +455,8 @@ exports.Window = function(width, height, opts) {
         var loc = e.locationInWindow();
         var te = {
           type: nsEventNameToEmitName(type),
-          x: loc.x,
-          y: height - loc.y,
+          x: loc.x * dpi_scale,
+          y: height - loc.y * dpi_scale,
           pressure: e.pressure(),
           capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
           shift: (mods & e.NSShiftKeyMask) !== 0,
@@ -485,32 +489,15 @@ exports.Window = function(width, height, opts) {
         this_.emit(te.type, te);
         break;
       case PlaskRawMac.NSEvent.NSMouseMoved:
-        var mods = e.modifierFlags();
-        var loc = e.locationInWindow();
-        var te = {
-          type: 'mouseMoved',
-          x: loc.x,
-          y: height - loc.y,
-          dx: e.deltaX(),
-          dy: e.deltaY(),  // Doesn't need flipping since it's in device space.
-          dz: e.deltaZ(),
-          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
-          shift: (mods & e.NSShiftKeyMask) !== 0,
-          ctrl: (mods & e.NSControlKeyMask) !== 0,
-          option: (mods & e.NSAlternateKeyMask) !== 0,
-          cmd: (mods & e.NSCommandKeyMask) !== 0
-        };
-        this_.emit(te.type, te);
-        break;
       case PlaskRawMac.NSEvent.NSScrollWheel:
         var mods = e.modifierFlags();
         var loc = e.locationInWindow();
         var te = {
-          type: 'scrollWheel',
-          x: loc.x,
-          y: height - loc.y,
-          dx: e.deltaX(),
-          dy: e.deltaY(),  // Doesn't need flipping since it's in device space.
+          type: nsEventNameToEmitName(type),
+          x: loc.x * dpi_scale,
+          y: height - loc.y * dpi_scale,
+          dx: e.deltaX() * dpi_scale,
+          dy: e.deltaY() * dpi_scale,  // Doesn't need flip, in device space.
           dz: e.deltaZ(),
           capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
           shift: (mods & e.NSShiftKeyMask) !== 0,
@@ -545,7 +532,8 @@ exports.Window = function(width, height, opts) {
 
   this.getRelativeMouseState = function() {
     var res = nswindow_.mouseLocationOutsideOfEventStream();
-    res.y = height - res.y;  // Map from Desktop OSX bottom left to top left.
+    res.x *= dpi_scale;
+    res.y = height - res.y * dpi_scale;  // Map from bottom left to top left.
     var buttons = PlaskRawMac.NSEvent.pressedMouseButtons();
     for (var i = 0; i < 6; ++i) {
       res[buttonNumberToName(i + 1)] = ((buttons >> i) & 1) === 1;
@@ -589,7 +577,8 @@ exports.simpleWindow = function(obj) {
                       display: settings.display,
                       borderless: settings.borderless === undefined ?
                           settings.fullscreen : settings.borderless,
-                      fullscreen: settings.fullscreen});
+                      fullscreen: settings.fullscreen,
+                      highdpi: settings.highdpi});
 
   if (settings.position !== undefined) {
     var position_x = settings.position.x;

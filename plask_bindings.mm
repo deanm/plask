@@ -4011,15 +4011,16 @@ class NSWindowWrapper {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(kMsgNonConstructCall);
 
-    if (args.Length() != 7)
+    if (args.Length() != 8)
       return v8_utils::ThrowError("Wrong number of arguments.");
     uint32_t type = args[0]->Uint32Value();
-    uint32_t width = args[1]->Uint32Value();
-    uint32_t height = args[2]->Uint32Value();
+    uint32_t bwidth = args[1]->Uint32Value();
+    uint32_t bheight = args[2]->Uint32Value();
     bool multisample = args[3]->BooleanValue();
     int display = args[4]->Int32Value();
     bool borderless = args[5]->BooleanValue();
     bool fullscreen = args[6]->BooleanValue();
+    uint32_t dpi_factor = args[7]->Uint32Value();
 
     NSScreen* screen = [NSScreen mainScreen];
     NSArray* screens = [NSScreen screens];
@@ -4027,6 +4028,26 @@ class NSWindowWrapper {
     if (display < [screens count]) {
       screen = [screens objectAtIndex:display];
       NSLog(@"Using alternate screen: %@", screen);
+    }
+
+    bool use_highdpi = false;
+    uint32_t width = bwidth;
+    uint32_t height = bheight;
+
+    if (dpi_factor == 2) {
+      if ((bwidth & 1) || (bheight & 1)) {
+        NSLog(@"Warning, width/height must be multiple of 2 for highdpi.");
+      } else if (![screen respondsToSelector:@selector(backingScaleFactor)]) {
+        NSLog(@"Warning, OSX version doesn't support highdpi (<10.7?).");
+      } else if ([screen backingScaleFactor] != dpi_factor) {
+        NSLog(@"Warning, screen didn't support highdpi.");
+      } else if (type != 1) {
+        NSLog(@"Warning, highdpi only supported for 3d windows.");
+      } else {
+        use_highdpi = true;
+        width = bwidth >> 1;
+        height = bheight >> 1;
+      }
     }
 
     int style_mask = NSTitledWindowMask; // | NSClosableWindowMask
@@ -4089,6 +4110,8 @@ class NSWindowWrapper {
                                         initWithAttributes:attrs];
       NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0.0, 0.0,
                                                               width, height)];
+      if (use_highdpi)
+        [view setWantsBestResolutionOpenGLSurface:YES];
       context = [[NSOpenGLContext alloc] initWithFormat:format
                                          shareContext:nil];
       [format release];
