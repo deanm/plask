@@ -102,11 +102,6 @@ T Clamp(T v, T a, T b) {
 
 @end
 
-@interface BlitGLView : NSOpenGLView {
-}
-
-@end
-
 namespace {
 
 const char kMsgNonConstructCall[] =
@@ -7041,16 +7036,6 @@ class NSAppleScriptWrapper {
   CGImageRelease(cgimage);
   CGDataProviderRelease(cgdata_provider);
   CFRelease(cfdata);
-}
-
-@end
-
-@implementation BlitGLView
-
--(void)drawRect:(NSRect)dirty {
-  //glClearColor(1.0, 0, 0, 1.0);
-  //glClear(GL_COLOR_BUFFER_BIT);
-  //glFlush();
 }
 
 @end
