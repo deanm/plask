@@ -372,12 +372,19 @@ int main(int argc, char** argv) {
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
   [NSApp setDelegate:app_delegate];
 
-  char* bundled_argv[] = {argv[0], NULL};
+  char* bundled_argv[2];
   NSString* bundled_main_js =
       [[NSBundle mainBundle] pathForResource:@"main" ofType:@"js"];
   if (bundled_main_js != nil) {
+    // Comply to libuv expectation that argv strings are in memory back to back.
+    const char* bundled_js_path = [bundled_main_js UTF8String];
+    size_t bundled_js_path_len = strlen(bundled_js_path) + 1;  // Include NULL.
+    size_t argv0_len = strlen(argv[0]) + 1;  // Include NULL.
+    bundled_argv[0] = new char[bundled_js_path_len + argv0_len];  // Leaked.
+    bundled_argv[1] = bundled_argv[0] + argv0_len;
+    memcpy(bundled_argv[0], argv[0], argv0_len);
+    memcpy(bundled_argv[1], bundled_js_path, bundled_js_path_len);
     argc = 2;
-    bundled_argv[1] = strdup([bundled_main_js UTF8String]);
     argv = bundled_argv;
     NSLog(@"loading from bundled: %@", bundled_main_js);
   }
