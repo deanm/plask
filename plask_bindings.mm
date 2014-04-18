@@ -6213,9 +6213,9 @@ static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal )
     CFRelease( str );
   }
 
-  MIDIEntityRef entity = NULL;
+  MIDIEntityRef entity = 0;
   MIDIEndpointGetEntity( endpoint, &entity );
-  if ( entity == NULL )
+  if ( entity == 0 )
     // probably virtual
     return result;
 
@@ -6229,9 +6229,9 @@ static CFStringRef EndpointName( MIDIEndpointRef endpoint, bool isExternal )
     }
   }
   // now consider the device's name
-  MIDIDeviceRef device = NULL;
+  MIDIDeviceRef device = 0;
   MIDIEntityGetDevice( entity, &device );
-  if ( device == NULL )
+  if ( device == 0 )
     return result;
 
   str = NULL;
