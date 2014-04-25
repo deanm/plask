@@ -166,7 +166,6 @@ inherits(PlaskRawMac.CAMIDIDestination, events.EventEmitter);
 PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
   // TODO(deanm): Move initialization to constructor (need to shim it).
   if (this._sock_initialized !== true) {
-    console.log(this.getPipeDescriptor());
     var sock = new net.Socket({fd: this.getPipeDescriptor()});
     sock.writable = false;
     var this_ = this;
