@@ -155,8 +155,6 @@ class WebGLActiveInfo {
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
     instance->SetInternalFieldCount(0);
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
-
     return ft_cache;
   }
 
@@ -367,8 +365,6 @@ class WebGLUniformLocation {
     ft_cache->SetClassName(v8::String::New("WebGLUniformLocation"));
     v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // GLint location.
-
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
 
     return ft_cache;
   }
