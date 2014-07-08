@@ -6786,7 +6786,7 @@ class SBApplicationWrapper {
   static v8::Handle<v8::Value> objcMethods(const v8::Arguments& args) {
     id obj = ExtractID(args.Holder());
     unsigned int num_methods;
-    Method* methods = class_copyMethodList(obj->isa, &num_methods);
+    Method* methods = class_copyMethodList(object_getClass(obj), &num_methods);
     v8::Local<v8::Array> res = v8::Array::New(num_methods);
 
     for (unsigned int i = 0; i < num_methods; ++i) {
