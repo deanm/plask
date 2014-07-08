@@ -27,19 +27,6 @@ int ToInt32(v8::Handle<v8::Value> value, bool* ok);
 int ToInt32(v8::Handle<v8::Value> value);
 int ToInt32WithDefault(v8::Handle<v8::Value> value, int def);
 
-const char* ToCString(const v8::String::Utf8Value& value);
-
-void ReportException(v8::TryCatch* try_catch);
-v8::Handle<v8::Value> Print(const v8::Arguments& args);
-v8::Handle<v8::String> ReadFile(const char* name);
-bool ExecuteString(v8::Handle<v8::String> source,
-                   v8::Handle<v8::Value> name,
-                   bool print_result,
-                   bool report_exceptions);
-v8::Handle<v8::Value> Print(const v8::Arguments& args);
-int RunScript(const char* str);
-v8::Handle<v8::Value> Load(const v8::Arguments& args);
-
 v8::Handle<v8::Value> ThrowError(const char* msg);
 v8::Handle<v8::Value> ThrowTypeError(const char* msg);
 
