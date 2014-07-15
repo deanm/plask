@@ -43,6 +43,8 @@
 #include <Foundation/NSObjCRuntime.h>
 #include <objc/runtime.h>
 
+#include <OpenGL/gl3.h>  // For instancing, or better to use ARB?
+
 #define SK_RELEASE 1  // Hmmmm, really? SkPreConfig is thinking we are debug.
 #include "skia/include/core/SkBitmap.h"
 #include "skia/include/core/SkCanvas.h"
@@ -1484,6 +1486,10 @@ class NSOpenGLContextWrapper {
           &NSOpenGLContextWrapper::disableVertexAttribArray },
       { "drawArrays", &NSOpenGLContextWrapper::drawArrays },
       { "drawElements", &NSOpenGLContextWrapper::drawElements },
+      { "vertexAttribDivisor", &NSOpenGLContextWrapper::vertexAttribDivisor },
+      { "drawArraysInstanced", &NSOpenGLContextWrapper::drawArraysInstanced },
+      { "drawElementsInstanced", &NSOpenGLContextWrapper::drawElementsInstanced },
+      { "drawRangeElements", &NSOpenGLContextWrapper::drawRangeElements },
       { "enable", &NSOpenGLContextWrapper::enable },
       { "enableVertexAttribArray",
           &NSOpenGLContextWrapper::enableVertexAttribArray },
@@ -2306,6 +2312,59 @@ class NSOpenGLContextWrapper {
                    args[1]->Int32Value(),
                    args[2]->Uint32Value(),
                    reinterpret_cast<GLvoid*>(args[3]->Int32Value()));
+    return v8::Undefined();
+  }
+
+  // void vertexAttribDivisor(GLuint index, GLuint divisor)
+  static v8::Handle<v8::Value> vertexAttribDivisor(const v8::Arguments& args) {
+    if (args.Length() != 2)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    glVertexAttribDivisor(args[0]->Uint32Value(),
+                          args[1]->Uint32Value());
+    return v8::Undefined();
+  }
+
+  // void drawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instanceCount)
+  static v8::Handle<v8::Value> drawArraysInstanced(const v8::Arguments& args) {
+    if (args.Length() != 4)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    glDrawArraysInstanced(args[0]->Uint32Value(),
+                          args[1]->Int32Value(),
+                          args[2]->Int32Value(),
+                          args[3]->Int32Value());
+    return v8::Undefined();
+  }
+
+  // void drawElementsInstanced(GLenum mode, GLsizei count,
+  //                            GLenum type, GLintptr offset,
+  //                            GLsizei instanceCount)
+  static v8::Handle<v8::Value> drawElementsInstanced(const v8::Arguments& args) {
+    if (args.Length() != 5)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    glDrawElementsInstanced(args[0]->Uint32Value(),
+                            args[1]->Int32Value(),
+                            args[2]->Uint32Value(),
+                            reinterpret_cast<GLvoid*>(args[3]->Int32Value()),
+                            args[4]->Int32Value());
+    return v8::Undefined();
+  }
+
+  // void drawRangeElements(GLenum mode,
+  //                        GLuint start, GLuint end,
+  //                        GLsizei count, GLenum type, GLintptr offset)
+  static v8::Handle<v8::Value> drawRangeElements(const v8::Arguments& args) {
+    if (args.Length() != 6)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    glDrawRangeElements(args[0]->Uint32Value(),
+                        args[1]->Uint32Value(),
+                        args[2]->Uint32Value(),
+                        args[3]->Int32Value(),
+                        args[4]->Uint32Value(),
+                        reinterpret_cast<GLvoid*>(args[5]->Int32Value()));
     return v8::Undefined();
   }
 
