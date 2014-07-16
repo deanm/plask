@@ -741,6 +741,86 @@ class WebGLBuffer {
 
 std::map<GLuint, v8::Persistent<v8::Value> > WebGLBuffer::buffer_map;
 
+class WebGLVertexArrayObject {
+ public:
+  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::HandleScope scope;
+    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
+        v8::FunctionTemplate::New(&WebGLVertexArrayObject::V8New));
+    ft_cache->SetClassName(v8::String::New("WebGLVertexArrayObject"));
+    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // GLuint name.
+
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Handle<v8::Value> value) {
+    return GetTemplate()->HasInstance(value);
+  }
+
+  static v8::Handle<v8::Value> NewFromName(GLuint vao) {
+    v8::Local<v8::Object> obj = WebGLVertexArrayObject::GetTemplate()->
+            InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(vao));
+    vao_map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
+        vao, v8::Persistent<v8::Value>::New(obj)));
+    return obj;
+  }
+
+  static v8::Handle<v8::Value> LookupFromName(GLuint vao) {
+    if (vao != 0 && vao_map.count(vao) == 1)
+      return vao_map[vao];
+    return v8::Null();
+  }
+
+  // Use to set the name to 0, when it is deleted, for example.
+  static void ClearName(v8::Handle<v8::Value> value) {
+    GLuint vao = ExtractNameFromValue(value);
+    if (vao != 0) {
+      if (vao_map.count(vao) == 1) {
+        vao_map[vao].Dispose();
+        if (vao_map.erase(vao) != 1) {
+          printf("Warning: Should have erased vao map entry.\n");
+        }
+      } else {
+        printf("Warning: Should have disposed vao map handle.\n");
+      }
+    }
+    return v8::Handle<v8::Object>::Cast(value)->
+        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+  }
+
+  static GLuint ExtractNameFromValue(v8::Handle<v8::Value> value) {
+    if (value->IsNull()) return 0;
+    return v8::Handle<v8::Object>::Cast(value)->
+        GetInternalField(0)->Uint32Value();
+  }
+
+ private:
+  static std::map<GLuint, v8::Persistent<v8::Value> > vao_map;
+
+  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+
+    // TODO(deanm): How to throw an exception when called from JavaScript?
+    // For now we don't expose the object directly, so maybe it's okay
+    // (although I suppose you can still get to it from an instance)...
+    //return v8_utils::ThrowTypeError("Type error.");
+
+    // Initially set to 0.
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+
+    return args.This();
+  }
+};
+
+std::map<GLuint, v8::Persistent<v8::Value> > WebGLVertexArrayObject::vao_map;
+
 
 // TODO
 // 5.12 WebGLShaderPrecisionFormat
@@ -1446,6 +1526,7 @@ class NSOpenGLContextWrapper {
       { "bindFramebuffer", &NSOpenGLContextWrapper::bindFramebuffer },
       { "bindRenderbuffer", &NSOpenGLContextWrapper::bindRenderbuffer },
       { "bindTexture", &NSOpenGLContextWrapper::bindTexture },
+      { "bindVertexArray", &NSOpenGLContextWrapper::bindVertexArray },
       { "blendColor", &NSOpenGLContextWrapper::blendColor },
       { "blendEquation", &NSOpenGLContextWrapper::blendEquation },
       { "blendEquationSeparate",
@@ -1470,6 +1551,7 @@ class NSOpenGLContextWrapper {
       { "createRenderbuffer", &NSOpenGLContextWrapper::createRenderbuffer },
       { "createShader", &NSOpenGLContextWrapper::createShader },
       { "createTexture", &NSOpenGLContextWrapper::createTexture },
+      { "createVertexArray", &NSOpenGLContextWrapper::createVertexArray },
       { "cullFace", &NSOpenGLContextWrapper::cullFace },
       { "deleteBuffer", &NSOpenGLContextWrapper::deleteBuffer },
       { "deleteFramebuffer", &NSOpenGLContextWrapper::deleteFramebuffer },
@@ -1477,6 +1559,7 @@ class NSOpenGLContextWrapper {
       { "deleteRenderbuffer", &NSOpenGLContextWrapper::deleteRenderbuffer },
       { "deleteShader", &NSOpenGLContextWrapper::deleteShader },
       { "deleteTexture", &NSOpenGLContextWrapper::deleteTexture },
+      { "deleteVertexArray", &NSOpenGLContextWrapper::deleteVertexArray },
       { "depthFunc", &NSOpenGLContextWrapper::depthFunc },
       { "depthMask", &NSOpenGLContextWrapper::depthMask },
       { "depthRange", &NSOpenGLContextWrapper::depthRange },
@@ -1530,6 +1613,7 @@ class NSOpenGLContextWrapper {
       { "isRenderbuffer", &NSOpenGLContextWrapper::isRenderbuffer },
       { "isShader", &NSOpenGLContextWrapper::isShader },
       { "isTexture", &NSOpenGLContextWrapper::isTexture },
+      { "isVertexArray", &NSOpenGLContextWrapper::isVertexArray },
       { "lineWidth", &NSOpenGLContextWrapper::lineWidth },
       { "linkProgram", &NSOpenGLContextWrapper::linkProgram },
       { "pixelStorei", &NSOpenGLContextWrapper::pixelStorei },
@@ -1874,6 +1958,19 @@ class NSOpenGLContextWrapper {
     return v8::Undefined();
   }
 
+  // void bindVertexArray(WebGLVertexArrayObject? vertexArray)
+  static v8::Handle<v8::Value> bindVertexArray(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    // NOTE: ExtractNameFromValue handles null.
+    if (!args[0]->IsNull() && !WebGLVertexArrayObject::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    glBindVertexArrayAPPLE(WebGLVertexArrayObject::ExtractNameFromValue(args[0]));
+    return v8::Undefined();
+  }
+
   // void blendColor(GLclampf red, GLclampf green,
   //                 GLclampf blue, GLclampf alpha)
   static v8::Handle<v8::Value> blendColor(const v8::Arguments& args) {
@@ -2096,6 +2193,13 @@ class NSOpenGLContextWrapper {
     return WebGLTexture::NewFromTextureName(texture);
   }
 
+  // WebGLVertexArrayObject? createVertexArray()
+  static v8::Handle<v8::Value> createVertexArray(const v8::Arguments& args) {
+    GLuint vao;
+    glGenVertexArraysAPPLE(1, &vao);
+    return WebGLVertexArrayObject::NewFromName(vao);
+  }
+
   // void cullFace(GLenum mode)
   static v8::Handle<v8::Value> cullFace(const v8::Arguments& args) {
     if (args.Length() != 1)
@@ -2224,6 +2328,26 @@ class NSOpenGLContextWrapper {
     if (texture != 0) {
       glDeleteTextures(1, &texture);
       WebGLTexture::ClearTextureName(args[0]);
+    }
+    return v8::Undefined();
+  }
+
+  // void deleteVertexArray(WebGLVertexArrayObject? vertexArray)
+  static v8::Handle<v8::Value> deleteVertexArray(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::Undefined();
+
+    if (!WebGLVertexArrayObject::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    GLuint vao = WebGLVertexArrayObject::ExtractNameFromValue(args[0]);
+    if (vao != 0) {
+      glDeleteVertexArraysAPPLE(1, &vao);
+      WebGLVertexArrayObject::ClearName(args[0]);
     }
     return v8::Undefined();
   }
@@ -3157,6 +3281,22 @@ class NSOpenGLContextWrapper {
 
     return v8::Boolean::New(glIsTexture(
         WebGLTexture::ExtractTextureNameFromValue(args[0])));
+  }
+
+  // GLboolean isVertexArray(WebGLVertexArrayObject? vertexArray)
+  static v8::Handle<v8::Value> isVertexArray(const v8::Arguments& args) {
+    if (args.Length() != 1)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return v8::False();
+
+    if (!WebGLVertexArrayObject::HasInstance(args[0]))
+      return v8_utils::ThrowTypeError("Type error");
+
+    return v8::Boolean::New(glIsVertexArrayAPPLE(
+        WebGLVertexArrayObject::ExtractNameFromValue(args[0])));
   }
 
   // void lineWidth(GLfloat width)
