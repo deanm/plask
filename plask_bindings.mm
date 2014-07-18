@@ -2371,6 +2371,8 @@ class NSOpenGLContextWrapper {
         return getInt32ArrayParameter(pname, 4);
         break;
       case WebGLTypeUint32Array:
+        // Only for compressed texture formats?
+        return v8_utils::ThrowError("Unimplemented.");
         break;
       case WebGLTypeWebGLBuffer:
       {
