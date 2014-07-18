@@ -275,7 +275,7 @@ class WebGLNameMappedObject {
 
 
 #define DEFINE_NAME_MAPPED_CLASS(name) \
-  static const char name##ClassNameString[] = #name; \
+  extern const char name##ClassNameString[] = #name; \
   typedef WebGLNameMappedObject<name##ClassNameString> name; \
   template <> \
   name::MapType name::map = name::MapType();
