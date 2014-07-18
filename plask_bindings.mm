@@ -1065,10 +1065,6 @@ class NSOpenGLContextWrapper {
       { "STENCIL_BUFFER_BIT", 0x00000400 },
       { "COLOR_BUFFER_BIT", 0x00004000 },
 
-      /* Boolean */
-      { "FALSE", 0 },
-      { "TRUE", 1 },
-
       /* BeginMode */
       { "POINTS", 0x0000 },
       { "LINES", 0x0001 },
@@ -1161,7 +1157,7 @@ class NSOpenGLContextWrapper {
       /*      ALWAYS */
 
       /* EnableCap */
-      { "TEXTURE_2D", 0x0DE1 },
+      /* TEXTURE_2D */
       { "CULL_FACE", 0x0B44 },
       { "BLEND", 0x0BE2 },
       { "DITHER", 0x0BD0 },
@@ -1239,7 +1235,6 @@ class NSOpenGLContextWrapper {
       /*      TEXTURE_WRAP_S */
       /*      TEXTURE_WRAP_T */
 
-      { "NUM_COMPRESSED_TEXTURE_FORMATS", 0x86A2 },
       { "COMPRESSED_TEXTURE_FORMATS", 0x86A3 },
 
       /* HintMode */
@@ -1258,7 +1253,6 @@ class NSOpenGLContextWrapper {
       { "INT", 0x1404 },
       { "UNSIGNED_INT", 0x1405 },
       { "FLOAT", 0x1406 },
-      { "FIXED", 0x140C },
 
       /* PixelFormat */
       { "DEPTH_COMPONENT", 0x1902 },
@@ -1290,9 +1284,7 @@ class NSOpenGLContextWrapper {
       { "VALIDATE_STATUS", 0x8B83 },
       { "ATTACHED_SHADERS", 0x8B85 },
       { "ACTIVE_UNIFORMS", 0x8B86 },
-      { "ACTIVE_UNIFORM_MAX_LENGTH", 0x8B87 },
       { "ACTIVE_ATTRIBUTES", 0x8B89 },
-      { "ACTIVE_ATTRIBUTE_MAX_LENGTH", 0x8B8A },
       { "SHADING_LANGUAGE_VERSION", 0x8B8C },
       { "CURRENT_PROGRAM", 0x8B8D },
 
@@ -1320,7 +1312,6 @@ class NSOpenGLContextWrapper {
       { "VENDOR", 0x1F00 },
       { "RENDERER", 0x1F01 },
       { "VERSION", 0x1F02 },
-      { "EXTENSIONS", 0x1F03 },
 
       /* TextureMagFilter */
       { "NEAREST", 0x2600 },
@@ -1341,7 +1332,7 @@ class NSOpenGLContextWrapper {
       { "TEXTURE_WRAP_T", 0x2803 },
 
       /* TextureTarget */
-      /*      TEXTURE_2D */
+      { "TEXTURE_2D", 0x0DE1 },
       { "TEXTURE", 0x1702 },
 
       { "TEXTURE_CUBE_MAP", 0x8513 },
@@ -1426,13 +1417,6 @@ class NSOpenGLContextWrapper {
 
       /* Shader Source */
       { "COMPILE_STATUS", 0x8B81 },
-      { "INFO_LOG_LENGTH", 0x8B84 },
-      { "SHADER_SOURCE_LENGTH", 0x8B88 },
-      { "SHADER_COMPILER", 0x8DFA },
-
-      /* Shader Binary */
-      { "SHADER_BINARY_FORMATS", 0x8DF8 },
-      { "NUM_SHADER_BINARY_FORMATS", 0x8DF9 },
 
       /* Shader Precision-Specified Types */
       { "LOW_FLOAT", 0x8DF0 },
@@ -1491,6 +1475,9 @@ class NSOpenGLContextWrapper {
       /* WebGL-specific enums */
       { "UNPACK_FLIP_Y_WEBGL", 0x9240 },
       { "UNPACK_PREMULTIPLY_ALPHA_WEBGL", 0x9241 },
+      { "CONTEXT_LOST_WEBGL", 0x9242 },
+      { "UNPACK_COLORSPACE_CONVERSION_WEBGL", 0x9243 },
+      { "BROWSER_DEFAULT_WEBGL", 0x9244 },
 
       // Some Plask non-WebGL enums, some of which are likely a bad idea.
       { "UNPACK_CLIENT_STORAGE_APPLE", GL_UNPACK_CLIENT_STORAGE_APPLE },
