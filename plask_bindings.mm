@@ -1042,6 +1042,11 @@ class SyphonClientWrapper {
   }
 };
 
+// We can't do a nested define so just declare the constants as a static var.
+#define WEBGL_CONSTANTS_EACH(name, val) \
+  static const GLenum WEBGL_##name = val;
+#include "webgl_constants.h"
+#undef WEBGL_CONSTANTS_EACH
 
 class NSOpenGLContextWrapper {
  public:
@@ -2263,13 +2268,13 @@ class NSOpenGLContextWrapper {
 //    m_context->getFloatv(pname, value);
 //    unsigned length = 0;
 //    switch (pname) {
-//      case GL_ALIASED_POINT_SIZE_RANGE:
-//      case GL_ALIASED_LINE_WIDTH_RANGE:
-//      case GL_DEPTH_RANGE:
+//      case WEBGL_ALIASED_POINT_SIZE_RANGE:
+//      case WEBGL_ALIASED_LINE_WIDTH_RANGE:
+//      case WEBGL_DEPTH_RANGE:
 //        length = 2;
 //        break;
-//      case GL_BLEND_COLOR:
-//      case GL_COLOR_CLEAR_VALUE:
+//      case WEBGL_BLEND_COLOR:
+//      case WEBGL_COLOR_CLEAR_VALUE:
 //        length = 4;
 //        break;
 //      default:
@@ -2283,11 +2288,11 @@ class NSOpenGLContextWrapper {
     glGetIntegerv(pname, value);
     int length = 0;
     switch (pname) {
-      case GL_MAX_VIEWPORT_DIMS:
+      case WEBGL_MAX_VIEWPORT_DIMS:
         length = 2;
         break;
-      case GL_SCISSOR_BOX:
-      case GL_VIEWPORT:
+      case WEBGL_SCISSOR_BOX:
+      case WEBGL_VIEWPORT:
         length = 4;
         break;
       default:
@@ -2313,130 +2318,124 @@ class NSOpenGLContextWrapper {
     unsigned long pname = args[0]->Uint32Value();
 
     switch (pname) {
-      case GL_ACTIVE_TEXTURE:
+      case WEBGL_ACTIVE_TEXTURE:
         return getUnsignedLongParameter(pname);
-      case GL_ALIASED_LINE_WIDTH_RANGE:
+      case WEBGL_ALIASED_LINE_WIDTH_RANGE:
         return getWebGLFloatArrayParameter(pname);
-      case GL_ALIASED_POINT_SIZE_RANGE:
+      case WEBGL_ALIASED_POINT_SIZE_RANGE:
         return getWebGLFloatArrayParameter(pname);
-      case GL_ALPHA_BITS:
+      case WEBGL_ALPHA_BITS:
         return getLongParameter(pname);
-      case GL_ARRAY_BUFFER_BINDING:
-      case GL_ELEMENT_ARRAY_BUFFER_BINDING:
+      case WEBGL_ARRAY_BUFFER_BINDING:
+      case WEBGL_ELEMENT_ARRAY_BUFFER_BINDING:
       {
         int value;
         glGetIntegerv(pname, &value);
         GLuint buffer = static_cast<unsigned int>(value);
         return WebGLBuffer::LookupFromBufferName(buffer);
       }
-      case GL_BLEND:
+      case WEBGL_BLEND:
         return getBooleanParameter(pname);
-      case GL_BLEND_COLOR:
+      case WEBGL_BLEND_COLOR:
         return getWebGLFloatArrayParameter(pname);
-      case GL_BLEND_DST_ALPHA:
+      case WEBGL_BLEND_DST_ALPHA:
         return getUnsignedLongParameter(pname);
-      case GL_BLEND_DST_RGB:
+      case WEBGL_BLEND_DST_RGB:
         return getUnsignedLongParameter(pname);
-      case GL_BLEND_EQUATION_ALPHA:
+      case WEBGL_BLEND_EQUATION_ALPHA:
         return getUnsignedLongParameter(pname);
-      case GL_BLEND_EQUATION_RGB:
+      case WEBGL_BLEND_EQUATION_RGB:
         return getUnsignedLongParameter(pname);
-      case GL_BLEND_SRC_ALPHA:
+      case WEBGL_BLEND_SRC_ALPHA:
         return getUnsignedLongParameter(pname);
-      case GL_BLEND_SRC_RGB:
+      case WEBGL_BLEND_SRC_RGB:
         return getUnsignedLongParameter(pname);
-      case GL_BLUE_BITS:
+      case WEBGL_BLUE_BITS:
         return getLongParameter(pname);
-      case GL_COLOR_CLEAR_VALUE:
+      case WEBGL_COLOR_CLEAR_VALUE:
         return getWebGLFloatArrayParameter(pname);
-      case GL_COLOR_WRITEMASK:
+      case WEBGL_COLOR_WRITEMASK:
         return getBooleanArrayParameter(pname);
-      case GL_COMPRESSED_TEXTURE_FORMATS:
-        // Defined as null in the spec
-        return v8::Undefined();
-      case GL_CULL_FACE:
+      case WEBGL_CULL_FACE:
         return getBooleanParameter(pname);
-      case GL_CULL_FACE_MODE:
+      case WEBGL_CULL_FACE_MODE:
         return getUnsignedLongParameter(pname);
-      case GL_CURRENT_PROGRAM:
+      case WEBGL_CURRENT_PROGRAM:
       {
         int value;
         glGetIntegerv(pname, &value);
         GLuint program = static_cast<unsigned int>(value);
         return WebGLProgram::LookupFromProgramName(program);
       }
-      case GL_DEPTH_BITS:
+      case WEBGL_DEPTH_BITS:
         return getLongParameter(pname);
-      case GL_DEPTH_CLEAR_VALUE:
+      case WEBGL_DEPTH_CLEAR_VALUE:
         return getFloatParameter(pname);
-      case GL_DEPTH_FUNC:
+      case WEBGL_DEPTH_FUNC:
         return getUnsignedLongParameter(pname);
-      case GL_DEPTH_RANGE:
+      case WEBGL_DEPTH_RANGE:
         return getWebGLFloatArrayParameter(pname);
-      case GL_DEPTH_TEST:
+      case WEBGL_DEPTH_TEST:
         return getBooleanParameter(pname);
-      case GL_DEPTH_WRITEMASK:
+      case WEBGL_DEPTH_WRITEMASK:
         return getBooleanParameter(pname);
-      case GL_DITHER:
+      case WEBGL_DITHER:
         return getBooleanParameter(pname);
-      case GL_FRAMEBUFFER_BINDING:
+      case WEBGL_FRAMEBUFFER_BINDING:
       {
         int value;
         glGetIntegerv(pname, &value);
         GLuint framebuffer = static_cast<unsigned int>(value);
         return WebGLFramebuffer::LookupFromFramebufferObjectName(framebuffer);
       }
-      case GL_FRONT_FACE:
+      case WEBGL_FRONT_FACE:
         return getUnsignedLongParameter(pname);
-      case GL_GENERATE_MIPMAP_HINT:
+      case WEBGL_GENERATE_MIPMAP_HINT:
         return getUnsignedLongParameter(pname);
-      case GL_GREEN_BITS:
+      case WEBGL_GREEN_BITS:
         return getLongParameter(pname);
-      //case GL_IMPLEMENTATION_COLOR_READ_FORMAT:
+      //case WEBGL_IMPLEMENTATION_COLOR_READ_FORMAT:
       //  return getLongParameter(pname);
-      //case GL_IMPLEMENTATION_COLOR_READ_TYPE:
+      //case WEBGL_IMPLEMENTATION_COLOR_READ_TYPE:
       //  return getLongParameter(pname);
-      case GL_LINE_WIDTH:
+      case WEBGL_LINE_WIDTH:
         return getFloatParameter(pname);
-      case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS:
+      case WEBGL_MAX_COMBINED_TEXTURE_IMAGE_UNITS:
         return getLongParameter(pname);
-      case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
+      case WEBGL_MAX_CUBE_MAP_TEXTURE_SIZE:
         return getLongParameter(pname);
-      //case GL_MAX_FRAGMENT_UNIFORM_VECTORS:
+      //case WEBGL_MAX_FRAGMENT_UNIFORM_VECTORS:
       //  return getLongParameter(pname);
-      case GL_MAX_RENDERBUFFER_SIZE:
+      case WEBGL_MAX_RENDERBUFFER_SIZE:
         return getLongParameter(pname);
-      case GL_MAX_TEXTURE_IMAGE_UNITS:
+      case WEBGL_MAX_TEXTURE_IMAGE_UNITS:
         return getLongParameter(pname);
-      case GL_MAX_TEXTURE_SIZE:
+      case WEBGL_MAX_TEXTURE_SIZE:
         return getLongParameter(pname);
-      //case GL_MAX_VARYING_VECTORS:
+      //case WEBGL_MAX_VARYING_VECTORS:
       //  return getLongParameter(pname);
-      case GL_MAX_VERTEX_ATTRIBS:
+      case WEBGL_MAX_VERTEX_ATTRIBS:
         return getLongParameter(pname);
-      case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:
+      case WEBGL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:
         return getLongParameter(pname);
-      //case GL_MAX_VERTEX_UNIFORM_VECTORS:
+      //case WEBGL_MAX_VERTEX_UNIFORM_VECTORS:
       //  return getLongParameter(pname);
-      case GL_MAX_VIEWPORT_DIMS:
+      case WEBGL_MAX_VIEWPORT_DIMS:
         return getWebGLIntArrayParameter(pname);
-      case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
-        // WebGL 1.0 specifies that there are no compressed texture formats.
-        return v8::Integer::New(0);
-      //case GL_NUM_SHADER_BINARY_FORMATS:
+      //case WEBGL_NUM_SHADER_BINARY_FORMATS:
       //  // FIXME: should we always return 0 for this?
       //  return getLongParameter(pname);
-      case GL_PACK_ALIGNMENT:
+      case WEBGL_PACK_ALIGNMENT:
         return getLongParameter(pname);
-      case GL_POLYGON_OFFSET_FACTOR:
+      case WEBGL_POLYGON_OFFSET_FACTOR:
         return getFloatParameter(pname);
-      case GL_POLYGON_OFFSET_FILL:
+      case WEBGL_POLYGON_OFFSET_FILL:
         return getBooleanParameter(pname);
-      case GL_POLYGON_OFFSET_UNITS:
+      case WEBGL_POLYGON_OFFSET_UNITS:
         return getFloatParameter(pname);
-      case GL_RED_BITS:
+      case WEBGL_RED_BITS:
         return getLongParameter(pname);
-      case GL_RENDERBUFFER_BINDING:
+      case WEBGL_RENDERBUFFER_BINDING:
       {
         int value;
         glGetIntegerv(pname, &value);
@@ -2444,94 +2443,94 @@ class NSOpenGLContextWrapper {
         return WebGLRenderbuffer::LookupFromRenderbufferObjectName(
             renderbuffer);
       }
-      case GL_RENDERER:
+      case WEBGL_RENDERER:
         return v8::String::New(
             reinterpret_cast<const char*>(glGetString(pname)));
-      case GL_SAMPLE_BUFFERS:
+      case WEBGL_SAMPLE_BUFFERS:
         return getLongParameter(pname);
-      case GL_SAMPLE_COVERAGE_INVERT:
+      case WEBGL_SAMPLE_COVERAGE_INVERT:
         return getBooleanParameter(pname);
-      case GL_SAMPLE_COVERAGE_VALUE:
+      case WEBGL_SAMPLE_COVERAGE_VALUE:
         return getFloatParameter(pname);
-      case GL_SAMPLES:
+      case WEBGL_SAMPLES:
         return getLongParameter(pname);
-      case GL_SCISSOR_BOX:
+      case WEBGL_SCISSOR_BOX:
         return getWebGLIntArrayParameter(pname);
-      case GL_SCISSOR_TEST:
+      case WEBGL_SCISSOR_TEST:
         return getBooleanParameter(pname);
-      case GL_SHADING_LANGUAGE_VERSION:
+      case WEBGL_SHADING_LANGUAGE_VERSION:
       {
         std::string str = "WebGL GLSL ES 1.0 (";
         str.append(reinterpret_cast<const char*>(glGetString(pname)));
         str.push_back(')');
         return v8::String::New(str.c_str());
       }
-      case GL_STENCIL_BACK_FAIL:
+      case WEBGL_STENCIL_BACK_FAIL:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_BACK_FUNC:
+      case WEBGL_STENCIL_BACK_FUNC:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_BACK_PASS_DEPTH_FAIL:
+      case WEBGL_STENCIL_BACK_PASS_DEPTH_FAIL:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_BACK_PASS_DEPTH_PASS:
+      case WEBGL_STENCIL_BACK_PASS_DEPTH_PASS:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_BACK_REF:
+      case WEBGL_STENCIL_BACK_REF:
         return getLongParameter(pname);
-      case GL_STENCIL_BACK_VALUE_MASK:
+      case WEBGL_STENCIL_BACK_VALUE_MASK:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_BACK_WRITEMASK:
+      case WEBGL_STENCIL_BACK_WRITEMASK:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_BITS:
+      case WEBGL_STENCIL_BITS:
         return getLongParameter(pname);
-      case GL_STENCIL_CLEAR_VALUE:
+      case WEBGL_STENCIL_CLEAR_VALUE:
         return getLongParameter(pname);
-      case GL_STENCIL_FAIL:
+      case WEBGL_STENCIL_FAIL:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_FUNC:
+      case WEBGL_STENCIL_FUNC:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_PASS_DEPTH_FAIL:
+      case WEBGL_STENCIL_PASS_DEPTH_FAIL:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_PASS_DEPTH_PASS:
+      case WEBGL_STENCIL_PASS_DEPTH_PASS:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_REF:
+      case WEBGL_STENCIL_REF:
         return getLongParameter(pname);
-      case GL_STENCIL_TEST:
+      case WEBGL_STENCIL_TEST:
         return getBooleanParameter(pname);
-      case GL_STENCIL_VALUE_MASK:
+      case WEBGL_STENCIL_VALUE_MASK:
         return getUnsignedLongParameter(pname);
-      case GL_STENCIL_WRITEMASK:
+      case WEBGL_STENCIL_WRITEMASK:
         return getUnsignedLongParameter(pname);
-      case GL_SUBPIXEL_BITS:
+      case WEBGL_SUBPIXEL_BITS:
         return getLongParameter(pname);
-      case GL_TEXTURE_BINDING_2D:
-      case GL_TEXTURE_BINDING_CUBE_MAP:
+      case WEBGL_TEXTURE_BINDING_2D:
+      case WEBGL_TEXTURE_BINDING_CUBE_MAP:
       {
         int value;
         glGetIntegerv(pname, &value);
         GLuint texture = static_cast<unsigned int>(value);
         return WebGLTexture::LookupFromTextureName(texture);
       }
-      case GL_UNPACK_ALIGNMENT:
+      case WEBGL_UNPACK_ALIGNMENT:
         // FIXME: should this be "long" in the spec?
         return getIntParameter(pname);
-      //case GL_UNPACK_FLIP_Y_WEBGL:
+      //case WEBGL_UNPACK_FLIP_Y_WEBGL:
       //  return v8_utils::ThrowError("Unimplemented.");
-      //case GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL:
+      //case WEBGL_UNPACK_PREMULTIPLY_ALPHA_WEBGL:
       //  return v8_utils::ThrowError("Unimplemented.");
-      case GL_VENDOR:
+      case WEBGL_VENDOR:
       {
         std::string str = "Plask (";
         str.append(reinterpret_cast<const char*>(glGetString(pname)));
         str.push_back(')');
         return v8::String::New(str.c_str());
       }
-      case GL_VERSION:
+      case WEBGL_VERSION:
       {
         std::string str = "WebGL 1.0 (";
         str.append(reinterpret_cast<const char*>(glGetString(pname)));
         str.push_back(')');
         return v8::String::New(str.c_str());
       }
-      case GL_VIEWPORT:
+      case WEBGL_VIEWPORT:
         return getWebGLIntArrayParameter(pname);
       default:
         return v8::Undefined();
@@ -2575,17 +2574,14 @@ class NSOpenGLContextWrapper {
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
-      case GL_DELETE_STATUS:
-      case GL_VALIDATE_STATUS:
-      case GL_LINK_STATUS:
+      case WEBGL_DELETE_STATUS:
+      case WEBGL_VALIDATE_STATUS:
+      case WEBGL_LINK_STATUS:
         glGetProgramiv(program, pname, &value);
         return v8::Boolean::New(value);
-      case GL_INFO_LOG_LENGTH:
-      case GL_ATTACHED_SHADERS:
-      case GL_ACTIVE_ATTRIBUTES:
-      case GL_ACTIVE_ATTRIBUTE_MAX_LENGTH:
-      case GL_ACTIVE_UNIFORMS:
-      case GL_ACTIVE_UNIFORM_MAX_LENGTH:
+      case WEBGL_ATTACHED_SHADERS:
+      case WEBGL_ACTIVE_ATTRIBUTES:
+      case WEBGL_ACTIVE_UNIFORMS:
         glGetProgramiv(program, pname, &value);
         return v8::Integer::New(value);
       default:
@@ -2630,17 +2626,13 @@ class NSOpenGLContextWrapper {
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
-      case GL_DELETE_STATUS:
-      case GL_COMPILE_STATUS:
+      case WEBGL_DELETE_STATUS:
+      case WEBGL_COMPILE_STATUS:
         glGetShaderiv(shader, pname, &value);
         return v8::Boolean::New(value);
-      case GL_SHADER_TYPE:
+      case WEBGL_SHADER_TYPE:
         glGetShaderiv(shader, pname, &value);
         return v8::Integer::NewFromUnsigned(value);
-      case GL_INFO_LOG_LENGTH:
-      case GL_SHADER_SOURCE_LENGTH:
-        glGetShaderiv(shader, pname, &value);
-        return v8::Integer::New(value);
       default:
         return v8::Undefined();
     }
