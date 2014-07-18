@@ -2542,11 +2542,19 @@ class NSOpenGLContextWrapper {
     if (args.Length() != 1)
       return v8_utils::ThrowError("Wrong number of arguments.");
 
-    unsigned long pname = args[0]->Uint32Value();
-    if (pname == GL_BUFFER_SIZE)
-      return getLongParameter(pname);
-    else
-      return getUnsignedLongParameter(pname);
+    GLenum target = args[0]->Int32Value();
+    GLenum pname = args[1]->Int32Value();
+    switch (pname) {
+      case WEBGL_BUFFER_SIZE:
+      case WEBGL_BUFFER_USAGE:
+      {
+        GLint value;
+        glGetBufferParameteriv(target, pname, &value);
+        return v8::Integer::New(static_cast<long>(value));
+      }
+    }
+
+    return v8_utils::ThrowError("INVALID_ENUM");
   }
 
   // GLenum getError()
