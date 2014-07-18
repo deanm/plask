@@ -1050,6 +1050,27 @@ class SyphonClientWrapper {
 
 class NSOpenGLContextWrapper {
  public:
+  enum WebGLType {
+    WebGLTypeInvalid = 0,
+    WebGLTypeDOMString,
+    WebGLTypeFloat32Arrayx2,
+    WebGLTypeFloat32Arrayx4,
+    WebGLTypeGLboolean,
+    WebGLTypeGLbooleanx4,
+    WebGLTypeGLenum,
+    WebGLTypeGLfloat,
+    WebGLTypeGLint,
+    WebGLTypeGLuint,
+    WebGLTypeInt32Arrayx2,
+    WebGLTypeInt32Arrayx4,
+    WebGLTypeUint32Array,
+    WebGLTypeWebGLBuffer,
+    WebGLTypeWebGLFramebuffer,
+    WebGLTypeWebGLProgram,
+    WebGLTypeWebGLRenderbuffer,
+    WebGLTypeWebGLTexture,
+  };
+
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
@@ -2217,87 +2238,51 @@ class NSOpenGLContextWrapper {
     return v8::Integer::New(glGetAttribLocation(program, *name));
   }
 
-  // Helper for getParameter, based on
-  //   WebCore/html/canvas/WebGLRenderingContext.cpp
-  static v8::Handle<v8::Value> getBooleanParameter(unsigned long pname) {
-    unsigned char value;
-    glGetBooleanv(pname, &value);
-    return v8::Boolean::New(static_cast<bool>(value));
-  }
-
-  static v8::Handle<v8::Value> getBooleanArrayParameter(unsigned long pname) {
-    return v8_utils::ThrowError("Unimplemented.");
-//    if (pname != GL_COLOR_WRITEMASK) {
-//      notImplemented();
-//      return static v8::Handle<v8::Value>(0, 0);
-//    }
-//    unsigned char value[4] = {0};
-//    m_context->getBooleanv(pname, value);
-//    bool boolValue[4];
-//    for (int ii = 0; ii < 4; ++ii)
-//        boolValue[ii] = static_cast<bool>(value[ii]);
-//    return static v8::Handle<v8::Value>(boolValue, 4);
-  }
-
-  static v8::Handle<v8::Value> getFloatParameter(unsigned long pname) {
-    float value;
-    glGetFloatv(pname, &value);
-    return v8::Number::New(value);
-  }
-
-  static v8::Handle<v8::Value> getIntParameter(unsigned long pname) {
-    return getLongParameter(pname);
-  }
-
-  static v8::Handle<v8::Value> getLongParameter(unsigned long pname) {
-    int value;
-    glGetIntegerv(pname, &value);
-    return v8::Integer::New(static_cast<long>(value));
-  }
-
-  static v8::Handle<v8::Value> getUnsignedLongParameter(unsigned long pname) {
-    int value;
-    glGetIntegerv(pname, &value);
-    unsigned int uValue = static_cast<unsigned int>(value);
-    return v8::Integer::NewFromUnsigned(static_cast<unsigned long>(uValue));
-  }
-
-  static v8::Handle<v8::Value> getWebGLFloatArrayParameter(unsigned long pname) {
-    return v8_utils::ThrowError("Unimplemented.");
-//    float value[4] = {0};
-//    m_context->getFloatv(pname, value);
-//    unsigned length = 0;
-//    switch (pname) {
-//      case WEBGL_ALIASED_POINT_SIZE_RANGE:
-//      case WEBGL_ALIASED_LINE_WIDTH_RANGE:
-//      case WEBGL_DEPTH_RANGE:
-//        length = 2;
-//        break;
-//      case WEBGL_BLEND_COLOR:
-//      case WEBGL_COLOR_CLEAR_VALUE:
-//        length = 4;
-//        break;
-//      default:
-//        notImplemented();
-//    }
-//    return static v8::Handle<v8::Value>(Float32Array::create(value, length));
-  }
-
-  static v8::Handle<v8::Value> getWebGLIntArrayParameter(unsigned long pname) {
-    int value[4] = {0};
-    glGetIntegerv(pname, value);
-    int length = 0;
+  static WebGLType get_parameter_type(GLenum pname) {
     switch (pname) {
-      case WEBGL_MAX_VIEWPORT_DIMS:
-        length = 2;
-        break;
-      case WEBGL_SCISSOR_BOX:
-      case WEBGL_VIEWPORT:
-        length = 4;
-        break;
-      default:
-        return v8_utils::ThrowError("Unimplemented.");
+#define WEBGL_PARAMS_EACH(name, ptype) \
+      case WEBGL_##name: return WebGLType##ptype;
+#include "webgl_constants.h"
+#undef WEBGL_PARAMS_EACH
     }
+
+    return WebGLTypeInvalid;
+  }
+
+  static v8::Handle<v8::Value> getBooleanArrayParameter(
+      unsigned long pname, int length) {
+    GLboolean* value = new GLboolean[length];
+    glGetBooleanv(pname, value);
+    v8::Local<v8::Array> ta = v8::Array::New(length);
+    for (int i = 0; i < length; ++i) {
+      ta->Set(i, v8::Boolean::New(value[i]));
+    }
+    delete[] value;
+
+    return ta;
+  }
+
+  static v8::Handle<v8::Value> getFloat32ArrayParameter(
+      unsigned long pname, int length) {
+    float* value = new float[length];
+    glGetFloatv(pname, value);
+    v8::Handle<v8::Value> ta_args[1] = {v8::Integer::New(length)};
+    // TODO(deanm): A better way of getting the TypedArray constructors.
+    v8::Handle<v8::Object> ta = v8::Handle<v8::Function>::Cast(
+        v8::Context::GetCurrent()->Global()->
+           Get(v8::String::New("Float32Array")))->NewInstance(1, ta_args);
+    for (int i = 0; i < length; ++i) {
+      ta->Set(i, v8::Number::New(value[i]));
+    }
+    delete[] value;
+
+    return ta;
+  }
+
+  static v8::Handle<v8::Value> getInt32ArrayParameter(
+      unsigned long pname, int length) {
+    int* value = new int[length];
+    glGetIntegerv(pname, value);
     v8::Handle<v8::Value> ta_args[1] = {v8::Integer::New(length)};
     // TODO(deanm): A better way of getting the TypedArray constructors.
     v8::Handle<v8::Object> ta = v8::Handle<v8::Function>::Cast(
@@ -2306,6 +2291,7 @@ class NSOpenGLContextWrapper {
     for (int i = 0; i < length; ++i) {
       ta->Set(i, v8::Integer::New(value[i]));
     }
+    delete[] value;
 
     return ta;
   }
@@ -2318,146 +2304,6 @@ class NSOpenGLContextWrapper {
     unsigned long pname = args[0]->Uint32Value();
 
     switch (pname) {
-      case WEBGL_ACTIVE_TEXTURE:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_ALIASED_LINE_WIDTH_RANGE:
-        return getWebGLFloatArrayParameter(pname);
-      case WEBGL_ALIASED_POINT_SIZE_RANGE:
-        return getWebGLFloatArrayParameter(pname);
-      case WEBGL_ALPHA_BITS:
-        return getLongParameter(pname);
-      case WEBGL_ARRAY_BUFFER_BINDING:
-      case WEBGL_ELEMENT_ARRAY_BUFFER_BINDING:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint buffer = static_cast<unsigned int>(value);
-        return WebGLBuffer::LookupFromBufferName(buffer);
-      }
-      case WEBGL_BLEND:
-        return getBooleanParameter(pname);
-      case WEBGL_BLEND_COLOR:
-        return getWebGLFloatArrayParameter(pname);
-      case WEBGL_BLEND_DST_ALPHA:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_BLEND_DST_RGB:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_BLEND_EQUATION_ALPHA:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_BLEND_EQUATION_RGB:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_BLEND_SRC_ALPHA:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_BLEND_SRC_RGB:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_BLUE_BITS:
-        return getLongParameter(pname);
-      case WEBGL_COLOR_CLEAR_VALUE:
-        return getWebGLFloatArrayParameter(pname);
-      case WEBGL_COLOR_WRITEMASK:
-        return getBooleanArrayParameter(pname);
-      case WEBGL_CULL_FACE:
-        return getBooleanParameter(pname);
-      case WEBGL_CULL_FACE_MODE:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_CURRENT_PROGRAM:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint program = static_cast<unsigned int>(value);
-        return WebGLProgram::LookupFromProgramName(program);
-      }
-      case WEBGL_DEPTH_BITS:
-        return getLongParameter(pname);
-      case WEBGL_DEPTH_CLEAR_VALUE:
-        return getFloatParameter(pname);
-      case WEBGL_DEPTH_FUNC:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_DEPTH_RANGE:
-        return getWebGLFloatArrayParameter(pname);
-      case WEBGL_DEPTH_TEST:
-        return getBooleanParameter(pname);
-      case WEBGL_DEPTH_WRITEMASK:
-        return getBooleanParameter(pname);
-      case WEBGL_DITHER:
-        return getBooleanParameter(pname);
-      case WEBGL_FRAMEBUFFER_BINDING:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint framebuffer = static_cast<unsigned int>(value);
-        return WebGLFramebuffer::LookupFromFramebufferObjectName(framebuffer);
-      }
-      case WEBGL_FRONT_FACE:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_GENERATE_MIPMAP_HINT:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_GREEN_BITS:
-        return getLongParameter(pname);
-      //case WEBGL_IMPLEMENTATION_COLOR_READ_FORMAT:
-      //  return getLongParameter(pname);
-      //case WEBGL_IMPLEMENTATION_COLOR_READ_TYPE:
-      //  return getLongParameter(pname);
-      case WEBGL_LINE_WIDTH:
-        return getFloatParameter(pname);
-      case WEBGL_MAX_COMBINED_TEXTURE_IMAGE_UNITS:
-        return getLongParameter(pname);
-      case WEBGL_MAX_CUBE_MAP_TEXTURE_SIZE:
-        return getLongParameter(pname);
-      //case WEBGL_MAX_FRAGMENT_UNIFORM_VECTORS:
-      //  return getLongParameter(pname);
-      case WEBGL_MAX_RENDERBUFFER_SIZE:
-        return getLongParameter(pname);
-      case WEBGL_MAX_TEXTURE_IMAGE_UNITS:
-        return getLongParameter(pname);
-      case WEBGL_MAX_TEXTURE_SIZE:
-        return getLongParameter(pname);
-      //case WEBGL_MAX_VARYING_VECTORS:
-      //  return getLongParameter(pname);
-      case WEBGL_MAX_VERTEX_ATTRIBS:
-        return getLongParameter(pname);
-      case WEBGL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:
-        return getLongParameter(pname);
-      //case WEBGL_MAX_VERTEX_UNIFORM_VECTORS:
-      //  return getLongParameter(pname);
-      case WEBGL_MAX_VIEWPORT_DIMS:
-        return getWebGLIntArrayParameter(pname);
-      //case WEBGL_NUM_SHADER_BINARY_FORMATS:
-      //  // FIXME: should we always return 0 for this?
-      //  return getLongParameter(pname);
-      case WEBGL_PACK_ALIGNMENT:
-        return getLongParameter(pname);
-      case WEBGL_POLYGON_OFFSET_FACTOR:
-        return getFloatParameter(pname);
-      case WEBGL_POLYGON_OFFSET_FILL:
-        return getBooleanParameter(pname);
-      case WEBGL_POLYGON_OFFSET_UNITS:
-        return getFloatParameter(pname);
-      case WEBGL_RED_BITS:
-        return getLongParameter(pname);
-      case WEBGL_RENDERBUFFER_BINDING:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint renderbuffer = static_cast<unsigned int>(value);
-        return WebGLRenderbuffer::LookupFromRenderbufferObjectName(
-            renderbuffer);
-      }
-      case WEBGL_RENDERER:
-        return v8::String::New(
-            reinterpret_cast<const char*>(glGetString(pname)));
-      case WEBGL_SAMPLE_BUFFERS:
-        return getLongParameter(pname);
-      case WEBGL_SAMPLE_COVERAGE_INVERT:
-        return getBooleanParameter(pname);
-      case WEBGL_SAMPLE_COVERAGE_VALUE:
-        return getFloatParameter(pname);
-      case WEBGL_SAMPLES:
-        return getLongParameter(pname);
-      case WEBGL_SCISSOR_BOX:
-        return getWebGLIntArrayParameter(pname);
-      case WEBGL_SCISSOR_TEST:
-        return getBooleanParameter(pname);
       case WEBGL_SHADING_LANGUAGE_VERSION:
       {
         std::string str = "WebGL GLSL ES 1.0 (";
@@ -2465,57 +2311,6 @@ class NSOpenGLContextWrapper {
         str.push_back(')');
         return v8::String::New(str.c_str());
       }
-      case WEBGL_STENCIL_BACK_FAIL:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_BACK_FUNC:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_BACK_PASS_DEPTH_FAIL:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_BACK_PASS_DEPTH_PASS:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_BACK_REF:
-        return getLongParameter(pname);
-      case WEBGL_STENCIL_BACK_VALUE_MASK:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_BACK_WRITEMASK:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_BITS:
-        return getLongParameter(pname);
-      case WEBGL_STENCIL_CLEAR_VALUE:
-        return getLongParameter(pname);
-      case WEBGL_STENCIL_FAIL:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_FUNC:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_PASS_DEPTH_FAIL:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_PASS_DEPTH_PASS:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_REF:
-        return getLongParameter(pname);
-      case WEBGL_STENCIL_TEST:
-        return getBooleanParameter(pname);
-      case WEBGL_STENCIL_VALUE_MASK:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_STENCIL_WRITEMASK:
-        return getUnsignedLongParameter(pname);
-      case WEBGL_SUBPIXEL_BITS:
-        return getLongParameter(pname);
-      case WEBGL_TEXTURE_BINDING_2D:
-      case WEBGL_TEXTURE_BINDING_CUBE_MAP:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint texture = static_cast<unsigned int>(value);
-        return WebGLTexture::LookupFromTextureName(texture);
-      }
-      case WEBGL_UNPACK_ALIGNMENT:
-        // FIXME: should this be "long" in the spec?
-        return getIntParameter(pname);
-      //case WEBGL_UNPACK_FLIP_Y_WEBGL:
-      //  return v8_utils::ThrowError("Unimplemented.");
-      //case WEBGL_UNPACK_PREMULTIPLY_ALPHA_WEBGL:
-      //  return v8_utils::ThrowError("Unimplemented.");
       case WEBGL_VENDOR:
       {
         std::string str = "Plask (";
@@ -2530,11 +2325,93 @@ class NSOpenGLContextWrapper {
         str.push_back(')');
         return v8::String::New(str.c_str());
       }
-      case WEBGL_VIEWPORT:
-        return getWebGLIntArrayParameter(pname);
-      default:
-        return v8::Undefined();
     }
+
+    WebGLType ptype = get_parameter_type(pname);
+    switch (ptype) {
+      case WebGLTypeDOMString:
+        return v8::String::New(
+            reinterpret_cast<const char*>(glGetString(pname)));
+      case WebGLTypeFloat32Arrayx2:
+        return getFloat32ArrayParameter(pname, 2);
+      case WebGLTypeFloat32Arrayx4:
+        return getFloat32ArrayParameter(pname, 4);
+      case WebGLTypeGLboolean:
+      {
+        GLboolean value;
+        glGetBooleanv(pname, &value);
+        return v8::Boolean::New(value);
+      }
+      case WebGLTypeGLbooleanx4:
+        return getBooleanArrayParameter(pname, 4);
+      case WebGLTypeGLenum:
+      case WebGLTypeGLuint:
+      {
+        GLuint value;
+        glGetIntegerv(pname, reinterpret_cast<GLint*>(&value));
+        return v8::Integer::NewFromUnsigned(value);
+      }
+      case WebGLTypeGLfloat:
+      {
+        float value;
+        glGetFloatv(pname, &value);
+        return v8::Number::New(value);
+      }
+      case WebGLTypeGLint:
+      {
+        GLint value;
+        glGetIntegerv(pname, &value);
+        return v8::Integer::New(value);
+      }
+      case WebGLTypeInt32Arrayx2:
+        return getInt32ArrayParameter(pname, 2);
+        break;
+      case WebGLTypeInt32Arrayx4:
+        return getInt32ArrayParameter(pname, 4);
+        break;
+      case WebGLTypeUint32Array:
+        break;
+      case WebGLTypeWebGLBuffer:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint buffer = static_cast<unsigned int>(value);
+        return WebGLBuffer::LookupFromBufferName(buffer);
+      }
+      case WebGLTypeWebGLFramebuffer:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint framebuffer = static_cast<unsigned int>(value);
+        return WebGLFramebuffer::LookupFromFramebufferObjectName(framebuffer);
+      }
+      case WebGLTypeWebGLProgram:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint program = static_cast<unsigned int>(value);
+        return WebGLProgram::LookupFromProgramName(program);
+      }
+      case WebGLTypeWebGLRenderbuffer:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint renderbuffer = static_cast<unsigned int>(value);
+        return WebGLRenderbuffer::LookupFromRenderbufferObjectName(
+            renderbuffer);
+      }
+      case WebGLTypeWebGLTexture:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint texture = static_cast<unsigned int>(value);
+        return WebGLTexture::LookupFromTextureName(texture);
+      }
+      case WebGLTypeInvalid:
+        break;  // fall out.
+    }
+
+    return v8::Undefined();
   }
 
   // any getBufferParameter(GLenum target, GLenum pname)
