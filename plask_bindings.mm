@@ -3187,7 +3187,7 @@ class NSOpenGLContextWrapper {
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return v8::False();
-    
+
     if (!WebGLBuffer::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
@@ -3211,7 +3211,7 @@ class NSOpenGLContextWrapper {
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return v8::False();
-    
+
     if (!WebGLFramebuffer::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
@@ -3227,7 +3227,7 @@ class NSOpenGLContextWrapper {
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return v8::False();
-    
+
     if (!WebGLProgram::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
@@ -3243,7 +3243,7 @@ class NSOpenGLContextWrapper {
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return v8::False();
-    
+
     if (!WebGLRenderbuffer::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
@@ -3259,7 +3259,7 @@ class NSOpenGLContextWrapper {
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return v8::False();
-    
+
     if (!WebGLShader::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
@@ -3275,7 +3275,7 @@ class NSOpenGLContextWrapper {
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return v8::False();
-    
+
     if (!WebGLTexture::HasInstance(args[0]))
       return v8_utils::ThrowTypeError("Type error");
 
@@ -5404,7 +5404,7 @@ class SkPaintWrapper {
     SkScalar* intervals = new SkScalar[length];
     if (!intervals)
       return v8_utils::ThrowError("Unable to allocate intervals.");
-    
+
     for (uint32_t i = 0; i < length; ++i) {
       intervals[i] = SkDoubleToScalar(arr->Get(i)->NumberValue());
     }
