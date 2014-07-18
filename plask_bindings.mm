@@ -1069,6 +1069,7 @@ class NSOpenGLContextWrapper {
     WebGLTypeWebGLProgram,
     WebGLTypeWebGLRenderbuffer,
     WebGLTypeWebGLTexture,
+    WebGLTypeWebGLVertexArrayObject,
   };
 
   static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
@@ -2406,6 +2407,13 @@ class NSOpenGLContextWrapper {
         glGetIntegerv(pname, &value);
         GLuint texture = static_cast<unsigned int>(value);
         return WebGLTexture::LookupFromTextureName(texture);
+      }
+      case WebGLTypeWebGLVertexArrayObject:
+      {
+        int value;
+        glGetIntegerv(pname, &value);
+        GLuint name = static_cast<unsigned int>(value);
+        return WebGLVertexArrayObject::LookupFromName(name);
       }
       case WebGLTypeInvalid:
         break;  // fall out.
