@@ -870,7 +870,7 @@ class NSOpenGLContextWrapper {
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     // TODO(deanm): There should be a better way to get the width and height.
-    NSRect frame = [[context view] frame];
+    NSRect frame = [[context view] convertRectToBacking:[[context view] frame]];
     int width = frame.size.width;
     int height = frame.size.height;
 
