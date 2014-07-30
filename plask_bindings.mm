@@ -218,6 +218,11 @@ CGDataProviderDirectCallbacks PointerProviderCallbacks = {
      &PointerProviderGetBytesAtPosition, &PointerProviderReleaseInfo };
 #endif
 
+#define DEFINE_METHOD(name, arity) \
+  static void name(const v8::FunctionCallbackInfo<v8::Value>& args) { \
+    if (args.Length() != arity) \
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
+
 struct BatchedConstants {
   const char* name;
   uint32_t val;
@@ -499,10 +504,7 @@ class SyphonServerWrapper {
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
   }
 
-  static void publishFrameTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 9)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(publishFrameTexture, 9)
     SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     [server publishFrameTexture:args[0]->Uint32Value()
             textureTarget:args[1]->Uint32Value()
@@ -516,11 +518,7 @@ class SyphonServerWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void bindToDrawFrameOfSize(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
+  DEFINE_METHOD(bindToDrawFrameOfSize, 2)    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     BOOL res = [server bindToDrawFrameOfSize:NSMakeSize(args[0]->Int32Value(),
                                                         args[1]->Int32Value())];
     return args.GetReturnValue().Set((bool)res);
@@ -611,10 +609,7 @@ class SyphonClientWrapper {
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
   }
 
-  static void newFrameImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 0)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(newFrameImage, 0)
     SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
     CGLContextObj context = ExtractContextObj(args.Holder());
     SyphonImage* image = [client newFrameImageForContext:context];
@@ -893,10 +888,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void createSyphonServer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(createSyphonServer, 1)
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     v8::String::Utf8Value name(args[0]);
     SyphonServer* server = [[SyphonServer alloc]
@@ -906,10 +898,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().Set(SyphonServerWrapper::NewFromSyphonServer(server));
   }
 
-  static void createSyphonClient(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(createSyphonClient, 1)
     NSOpenGLContext* context = ExtractContextPointer(args.This());
     //v8::String::Utf8Value uuid(args[0]);
     v8::String::Utf8Value name(args[0]);
@@ -1043,18 +1032,12 @@ class NSOpenGLContextWrapper {
   }
 
   // void activeTexture(GLenum texture)
-  static void activeTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    glActiveTexture(args[0]->Uint32Value());
+  DEFINE_METHOD(activeTexture, 1)    glActiveTexture(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void attachShader(WebGLProgram program, WebGLShader shader)
-  static void attachShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(attachShader, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1069,10 +1052,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void bindAttribLocation(WebGLProgram program, GLuint index, DOMString name)
-  static void bindAttribLocation(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bindAttribLocation, 3)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1084,10 +1064,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void bindBuffer(GLenum target, WebGLBuffer buffer)
-  static void bindBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bindBuffer, 2)
     if (!args[1]->IsNull() && !WebGLBuffer::HasInstance(isolate, args[1]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1098,10 +1075,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void bindFramebuffer(GLenum target, WebGLFramebuffer framebuffer)
-  static void bindFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bindFramebuffer, 2)
     // NOTE: ExtractNameFromValue handles null.
     if (!args[1]->IsNull() && !WebGLFramebuffer::HasInstance(isolate, args[1]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
@@ -1113,10 +1087,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void bindRenderbuffer(GLenum target, WebGLRenderbuffer renderbuffer)
-  static void bindRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bindRenderbuffer, 2)
     // NOTE: ExtractNameFromValue handles null.
     if (!args[1]->IsNull() && !WebGLRenderbuffer::HasInstance(isolate, args[1]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
@@ -1128,10 +1099,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void bindTexture(GLenum target, WebGLTexture texture)
-  static void bindTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bindTexture, 2)
     // NOTE: ExtractNameFromValue handles null.
     if (!args[1]->IsNull() && !WebGLTexture::HasInstance(isolate, args[1]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
@@ -1142,10 +1110,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void bindVertexArray(WebGLVertexArrayObject? vertexArray)
-  static void bindVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bindVertexArray, 1)
     // NOTE: ExtractNameFromValue handles null.
     if (!args[0]->IsNull() && !WebGLVertexArrayObject::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
@@ -1156,10 +1121,7 @@ class NSOpenGLContextWrapper {
 
   // void blendColor(GLclampf red, GLclampf green,
   //                 GLclampf blue, GLclampf alpha)
-  static void blendColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(blendColor, 4)
     glBlendColor(args[0]->NumberValue(),
                  args[1]->NumberValue(),
                  args[2]->NumberValue(),
@@ -1168,39 +1130,24 @@ class NSOpenGLContextWrapper {
   }
 
   // void blendEquation(GLenum mode)
-  static void blendEquation(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    glBlendEquation(args[0]->Uint32Value());
+  DEFINE_METHOD(blendEquation, 1)    glBlendEquation(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void blendEquationSeparate(GLenum modeRGB, GLenum modeAlpha)
-  static void blendEquationSeparate(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    glBlendEquationSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
+  DEFINE_METHOD(blendEquationSeparate, 2)    glBlendEquationSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
 
   // void blendFunc(GLenum sfactor, GLenum dfactor)
-  static void blendFunc(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    glBlendFunc(args[0]->Uint32Value(), args[1]->Uint32Value());
+  DEFINE_METHOD(blendFunc, 2)    glBlendFunc(args[0]->Uint32Value(), args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void blendFuncSeparate(GLenum srcRGB, GLenum dstRGB,
   //                        GLenum srcAlpha, GLenum dstAlpha)
-  static void blendFuncSeparate(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    glBlendFuncSeparate(args[0]->Uint32Value(), args[1]->Uint32Value(),
+  DEFINE_METHOD(blendFuncSeparate, 4)    glBlendFuncSeparate(args[0]->Uint32Value(), args[1]->Uint32Value(),
                         args[2]->Uint32Value(), args[3]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
@@ -1208,11 +1155,7 @@ class NSOpenGLContextWrapper {
   // void bufferData(GLenum target, GLsizei size, GLenum usage)
   // void bufferData(GLenum target, ArrayBufferView data, GLenum usage)
   // void bufferData(GLenum target, ArrayBuffer data, GLenum usage)
-  static void bufferData(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bufferData, 3)
     GLsizeiptr size = 0;
     GLvoid* data = NULL;
 
@@ -1229,11 +1172,7 @@ class NSOpenGLContextWrapper {
 
   // void bufferSubData(GLenum target, GLsizeiptr offset, ArrayBufferView data)
   // void bufferSubData(GLenum target, GLsizeiptr offset, ArrayBuffer data)
-  static void bufferSubData(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(bufferSubData, 3)
     GLsizeiptr size = 0;
     GLintptr offset = args[1]->Int32Value();
     GLvoid* data = NULL;
@@ -1250,28 +1189,18 @@ class NSOpenGLContextWrapper {
   }
 
   // GLenum checkFramebufferStatus(GLenum target)
-  static void checkFramebufferStatus(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate,
+  DEFINE_METHOD(checkFramebufferStatus, 1)    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate,
         glCheckFramebufferStatus(args[0]->Uint32Value())));
   }
 
   // void clear(GLbitfield mask)
-  static void clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-    glClear(args[0]->Uint32Value());
+  DEFINE_METHOD(clear, 1)    glClear(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void clearColor(GLclampf red, GLclampf green,
   //                 GLclampf blue, GLclampf alpha)
-  static void clearColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(clearColor, 4)
     glClearColor(args[0]->NumberValue(),
                  args[1]->NumberValue(),
                  args[2]->NumberValue(),
@@ -1280,29 +1209,20 @@ class NSOpenGLContextWrapper {
   }
 
   // void clearDepth(GLclampf depth)
-  static void clearDepth(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(clearDepth, 1)
     glClearDepth(args[0]->NumberValue());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void clearStencil(GLint s)
-  static void clearStencil(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(clearStencil, 1)
     glClearStencil(args[0]->Int32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void colorMask(GLboolean red, GLboolean green,
   //                GLboolean blue, GLboolean alpha)
-  static void colorMask(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(colorMask, 4)
     glColorMask(args[0]->BooleanValue(),
                 args[1]->BooleanValue(),
                 args[2]->BooleanValue(),
@@ -1311,10 +1231,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void compileShader(WebGLShader shader)
-  static void compileShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(compileShader, 1)
     if (!WebGLShader::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1351,10 +1268,7 @@ class NSOpenGLContextWrapper {
   }
 
   // WebGLShader createShader(GLenum type)
-  static void createShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(createShader, 1)
     return args.GetReturnValue().Set(WebGLShader::NewFromName(
         glCreateShader(args[0]->Uint32Value())));
   }
@@ -1374,19 +1288,13 @@ class NSOpenGLContextWrapper {
   }
 
   // void cullFace(GLenum mode)
-  static void cullFace(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(cullFace, 1)
     glCullFace(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteBuffer(WebGLBuffer buffer)
-  static void deleteBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteBuffer, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1403,10 +1311,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void deleteFramebuffer(WebGLFramebuffer framebuffer)
-  static void deleteFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteFramebuffer, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1424,10 +1329,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void deleteProgram(WebGLProgram program)
-  static void deleteProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteProgram, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1444,10 +1346,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void deleteRenderbuffer(WebGLRenderbuffer renderbuffer)
-  static void deleteRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteRenderbuffer, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1465,10 +1364,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void deleteShader(WebGLShader shader)
-  static void deleteShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteShader, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1485,10 +1381,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void deleteTexture(WebGLTexture texture)
-  static void deleteTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteTexture, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1506,10 +1399,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void deleteVertexArray(WebGLVertexArrayObject? vertexArray)
-  static void deleteVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(deleteVertexArray, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().SetUndefined();
@@ -1526,37 +1416,25 @@ class NSOpenGLContextWrapper {
   }
 
   // void depthFunc(GLenum func)
-  static void depthFunc(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(depthFunc, 1)
     glDepthFunc(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void depthMask(GLboolean flag)
-  static void depthMask(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(depthMask, 1)
     glDepthMask(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void depthRange(GLclampf zNear, GLclampf zFar)
-  static void depthRange(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(depthRange, 2)
     glDepthRange(args[0]->NumberValue(), args[1]->NumberValue());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void detachShader(WebGLProgram program, WebGLShader shader)
-  static void detachShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(detachShader, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1571,29 +1449,19 @@ class NSOpenGLContextWrapper {
   }
 
   // void disable(GLenum cap)
-  static void disable(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(disable, 1)
     glDisable(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void disableVertexAttribArray(GLuint index)
-  static void disableVertexAttribArray(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(disableVertexAttribArray, 1)
     glDisableVertexAttribArray(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void drawArrays(GLenum mode, GLint first, GLsizei count)
-  static void drawArrays(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(drawArrays, 3)
     glDrawArrays(args[0]->Uint32Value(),
                  args[1]->Int32Value(), args[2]->Int32Value());
     return args.GetReturnValue().SetUndefined();
@@ -1601,10 +1469,7 @@ class NSOpenGLContextWrapper {
 
   // void drawElements(GLenum mode, GLsizei count,
   //                   GLenum type, GLsizeiptr offset)
-  static void drawElements(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(drawElements, 4)
     glDrawElements(args[0]->Uint32Value(),
                    args[1]->Int32Value(),
                    args[2]->Uint32Value(),
@@ -1613,20 +1478,14 @@ class NSOpenGLContextWrapper {
   }
 
   // void vertexAttribDivisor(GLuint index, GLuint divisor)
-  static void vertexAttribDivisor(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(vertexAttribDivisor, 2)
     glVertexAttribDivisorARB(args[0]->Uint32Value(),
                              args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void drawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instanceCount)
-  static void drawArraysInstanced(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(drawArraysInstanced, 4)
     glDrawArraysInstancedARB(args[0]->Uint32Value(),
                              args[1]->Int32Value(),
                              args[2]->Int32Value(),
@@ -1637,10 +1496,7 @@ class NSOpenGLContextWrapper {
   // void drawElementsInstanced(GLenum mode, GLsizei count,
   //                            GLenum type, GLintptr offset,
   //                            GLsizei instanceCount)
-  static void drawElementsInstanced(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(drawElementsInstanced, 5)
     glDrawElementsInstancedARB(args[0]->Uint32Value(),
                                args[1]->Int32Value(),
                                args[2]->Uint32Value(),
@@ -1652,10 +1508,7 @@ class NSOpenGLContextWrapper {
   // void drawRangeElements(GLenum mode,
   //                        GLuint start, GLuint end,
   //                        GLsizei count, GLenum type, GLintptr offset)
-  static void drawRangeElements(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 6)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(drawRangeElements, 6)
     glDrawRangeElementsEXT(args[0]->Uint32Value(),
                            args[1]->Uint32Value(),
                            args[2]->Uint32Value(),
@@ -1666,20 +1519,13 @@ class NSOpenGLContextWrapper {
   }
 
   // void enable(GLenum cap)
-  static void enable(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(enable, 1)
     glEnable(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void enableVertexAttribArray(GLuint index)
-  static void enableVertexAttribArray(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(enableVertexAttribArray, 1)
     glEnableVertexAttribArray(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
@@ -1699,11 +1545,7 @@ class NSOpenGLContextWrapper {
   // void framebufferRenderbuffer(GLenum target, GLenum attachment,
   //                              GLenum renderbuffertarget,
   //                              WebGLRenderbuffer renderbuffer)
-  static void framebufferRenderbuffer(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(framebufferRenderbuffer, 4)
     // NOTE: ExtractNameFromValue will handle null.
     if (!args[3]->IsNull() && !WebGLRenderbuffer::HasInstance(isolate, args[3]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
@@ -1719,11 +1561,7 @@ class NSOpenGLContextWrapper {
   // void framebufferTexture2D(GLenum target, GLenum attachment,
   //                           GLenum textarget, WebGLTexture texture,
   //                           GLint level)
-  static void framebufferTexture2D(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(framebufferTexture2D, 5)
     // NOTE: ExtractNameFromValue will handle null.
     if (!args[3]->IsNull() && !WebGLTexture::HasInstance(isolate, args[3]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
@@ -1737,30 +1575,19 @@ class NSOpenGLContextWrapper {
   }
 
   // void frontFace(GLenum mode)
-  static void frontFace(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(frontFace, 1)
     glFrontFace(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void generateMipmap(GLenum target)
-  static void generateMipmap(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(generateMipmap, 1)
     glGenerateMipmap(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // WebGLActiveInfo getActiveAttrib(WebGLProgram program, GLuint index)
-  static void getActiveAttrib(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getActiveAttrib, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1778,10 +1605,7 @@ class NSOpenGLContextWrapper {
   }
 
   // WebGLActiveInfo getActiveUniform(WebGLProgram program, GLuint index)
-  static void getActiveUniform(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getActiveUniform, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1798,10 +1622,7 @@ class NSOpenGLContextWrapper {
   }
 
   // WebGLShader[ ] getAttachedShaders(WebGLProgram program)
-  static void getAttachedShaders(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getAttachedShaders, 1)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1821,10 +1642,7 @@ class NSOpenGLContextWrapper {
   }
 
   // GLint getAttribLocation(WebGLProgram program, DOMString name)
-  static void getAttribLocation(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getAttribLocation, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -1909,10 +1727,7 @@ class NSOpenGLContextWrapper {
   }
 
   // any getParameter(GLenum pname)
-  static void getParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getParameter, 1)
     unsigned long pname = args[0]->Uint32Value();
 
     switch (pname) {
@@ -2011,10 +1826,7 @@ class NSOpenGLContextWrapper {
   }
 
   // any getBufferParameter(GLenum target, GLenum pname)
-  static void getBufferParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getBufferParameter, 1)
     GLenum target = args[0]->Int32Value();
     GLenum pname = args[1]->Int32Value();
     switch (pname) {
@@ -2043,10 +1855,7 @@ class NSOpenGLContextWrapper {
   }
 
   // any getProgramParameter(WebGLProgram program, GLenum pname)
-  static void getProgramParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getProgramParameter, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2074,10 +1883,7 @@ class NSOpenGLContextWrapper {
   }
 
   // DOMString getProgramInfoLog(WebGLProgram program)
-  static void getProgramInfoLog(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getProgramInfoLog, 1)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2100,10 +1906,7 @@ class NSOpenGLContextWrapper {
   }
 
   // any getShaderParameter(WebGLShader shader, GLenum pname)
-  static void getShaderParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getShaderParameter, 2)
     if (!WebGLShader::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2128,10 +1931,7 @@ class NSOpenGLContextWrapper {
   }
 
   // DOMString getShaderInfoLog(WebGLShader shader)
-  static void getShaderInfoLog(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getShaderInfoLog, 1)
     if (!WebGLShader::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2147,10 +1947,7 @@ class NSOpenGLContextWrapper {
   }
 
   // DOMString getShaderSource(WebGLShader shader)
-  static void getShaderSource(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getShaderSource, 1)
     if (!WebGLShader::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2177,10 +1974,7 @@ class NSOpenGLContextWrapper {
 
   // WebGLUniformLocation getUniformLocation(WebGLProgram program,
   //                                         DOMString name)
-  static void getUniformLocation(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(getUniformLocation, 2)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2206,19 +2000,13 @@ class NSOpenGLContextWrapper {
   }
 
   // void hint(GLenum target, GLenum mode)
-  static void hint(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(hint, 2)
     glHint(args[0]->Uint32Value(), args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // GLboolean isBuffer(WebGLBuffer buffer)
-  static void isBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isBuffer, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2231,18 +2019,12 @@ class NSOpenGLContextWrapper {
   }
 
   // GLboolean isEnabled(GLenum cap)
-  static void isEnabled(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isEnabled, 1)
     return args.GetReturnValue().Set((bool)glIsEnabled(args[0]->Uint32Value()));
   }
 
   // GLboolean isFramebuffer(WebGLFramebuffer framebuffer)
-  static void isFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isFramebuffer, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2255,10 +2037,7 @@ class NSOpenGLContextWrapper {
   }
 
   // GLboolean isProgram(WebGLProgram program)
-  static void isProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isProgram, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2271,10 +2050,7 @@ class NSOpenGLContextWrapper {
   }
 
   // GLboolean isRenderbuffer(WebGLRenderbuffer renderbuffer)
-  static void isRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isRenderbuffer, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2287,10 +2063,7 @@ class NSOpenGLContextWrapper {
   }
 
   // GLboolean isShader(WebGLShader shader)
-  static void isShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isShader, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2303,10 +2076,7 @@ class NSOpenGLContextWrapper {
   }
 
   // GLboolean isTexture(WebGLTexture texture)
-  static void isTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isTexture, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2319,10 +2089,7 @@ class NSOpenGLContextWrapper {
   }
 
   // GLboolean isVertexArray(WebGLVertexArrayObject? vertexArray)
-  static void isVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(isVertexArray, 1)
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
       return args.GetReturnValue().Set(false);
@@ -2335,19 +2102,13 @@ class NSOpenGLContextWrapper {
   }
 
   // void lineWidth(GLfloat width)
-  static void lineWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(lineWidth, 1)
     glLineWidth(args[0]->NumberValue());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void linkProgram(WebGLProgram program)
-  static void linkProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(linkProgram, 1)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2356,30 +2117,20 @@ class NSOpenGLContextWrapper {
   }
 
   // void pixelStorei(GLenum pname, GLint param)
-  static void pixelStorei(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(pixelStorei, 2)
     glPixelStorei(args[0]->Uint32Value(), args[1]->Int32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void polygonOffset(GLfloat factor, GLfloat units)
-  static void polygonOffset(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(polygonOffset, 2)
     glPolygonOffset(args[0]->NumberValue(), args[1]->NumberValue());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
   //                 GLenum format, GLenum type, ArrayBufferView pixels)
-  static void readPixels(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 7)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(readPixels, 7)
     GLint x = args[0]->Int32Value();
     GLint y = args[1]->Int32Value();
     GLsizei width = args[2]->Int32Value();
@@ -2416,10 +2167,7 @@ class NSOpenGLContextWrapper {
 
   // void renderbufferStorage(GLenum target, GLenum internalformat,
   //                          GLsizei width, GLsizei height)
-  static void renderbufferStorage(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(renderbufferStorage, 4)
     glRenderbufferStorage(args[0]->Uint32Value(),
                           args[1]->Uint32Value(),
                           args[2]->Int32Value(),
@@ -2428,20 +2176,14 @@ class NSOpenGLContextWrapper {
   }
 
   // void sampleCoverage(GLclampf value, GLboolean invert)
-  static void sampleCoverage(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(sampleCoverage, 2)
     glSampleCoverage(args[0]->NumberValue(),
                      args[1]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void scissor(GLint x, GLint y, GLsizei width, GLsizei height)
-  static void scissor(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(scissor, 4)
     glScissor(args[0]->Int32Value(),
               args[1]->Int32Value(),
               args[2]->Int32Value(),
@@ -2450,10 +2192,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void shaderSource(WebGLShader shader, DOMString source)
-  static void shaderSource(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(shaderSource, 2)
     if (!WebGLShader::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -2468,10 +2207,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void stencilFunc(GLenum func, GLint ref, GLuint mask)
-  static void stencilFunc(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(stencilFunc, 3)
     glStencilFunc(args[0]->Uint32Value(),
                   args[1]->Int32Value(),
                   args[2]->Uint32Value());
@@ -2479,10 +2215,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void stencilFuncSeparate(GLenum face, GLenum func, GLint ref, GLuint mask)
-  static void stencilFuncSeparate(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(stencilFuncSeparate, 4)
     glStencilFuncSeparate(args[0]->Uint32Value(),
                           args[1]->Uint32Value(),
                           args[2]->Int32Value(),
@@ -2491,28 +2224,19 @@ class NSOpenGLContextWrapper {
   }
 
   // void stencilMask(GLuint mask)
-  static void stencilMask(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(stencilMask, 1)
     glStencilMask(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilMaskSeparate(GLenum face, GLuint mask)
-  static void stencilMaskSeparate(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(stencilMaskSeparate, 2)
     glStencilMaskSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilOp(GLenum fail, GLenum zfail, GLenum zpass)
-  static void stencilOp(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(stencilOp, 3)
     glStencilOp(args[0]->Uint32Value(),
                 args[1]->Uint32Value(),
                 args[2]->Uint32Value());
@@ -2521,10 +2245,7 @@ class NSOpenGLContextWrapper {
 
   // void stencilOpSeparate(GLenum face, GLenum fail,
   //                        GLenum zfail, GLenum zpass)
-  static void stencilOpSeparate(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(stencilOpSeparate, 4)
     glStencilOpSeparate(args[0]->Uint32Value(),
                         args[1]->Uint32Value(),
                         args[2]->Uint32Value(),
@@ -2543,10 +2264,7 @@ class NSOpenGLContextWrapper {
   //                 GLenum format, GLenum type, HTMLCanvasElement canvas)
   // void texImage2D(GLenum target, GLint level, GLenum internalformat,
   //                 GLenum format, GLenum type, HTMLVideoElement video)
-  static void texImage2D(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 9)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(texImage2D, 9)
     GLvoid* data = NULL;
     GLsizeiptr size = 0;  // FIXME use size
 
@@ -2574,10 +2292,7 @@ class NSOpenGLContextWrapper {
   static void drawSkCanvas(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   // void texParameterf(GLenum target, GLenum pname, GLfloat param)
-  static void texParameterf(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(texParameterf, 3)
     glTexParameterf(args[0]->Uint32Value(),
                     args[1]->Uint32Value(),
                     args[2]->NumberValue());
@@ -2585,10 +2300,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void texParameteri(GLenum target, GLenum pname, GLint param)
-  static void texParameteri(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(texParameteri, 3)
     glTexParameteri(args[0]->Uint32Value(),
                     args[1]->Uint32Value(),
                     args[2]->Int32Value());
@@ -2612,10 +2324,7 @@ class NSOpenGLContextWrapper {
   //                    GLint xoffset, GLint yoffset,
   //                    GLenum format, GLenum type, HTMLVideoElement video)
 
-  static void texSubImage2D(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 9)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(texSubImage2D, 9)
     GLvoid* data = NULL;
     GLsizeiptr size = 0;  // FIXME use size
 
@@ -2721,10 +2430,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void uniform1f(WebGLUniformLocation location, GLfloat x)
-  static void uniform1f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform1f, 2)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2743,10 +2449,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void uniform1i(WebGLUniformLocation location, GLint x)
-  static void uniform1i(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform1i, 2)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2765,10 +2468,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void uniform2f(WebGLUniformLocation location, GLfloat x, GLfloat y)
-  static void uniform2f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform2f, 3)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2789,10 +2489,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void uniform2i(WebGLUniformLocation location, GLint x, GLint y)
-  static void uniform2i(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform2i, 3)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2814,10 +2511,7 @@ class NSOpenGLContextWrapper {
 
   // void uniform3f(WebGLUniformLocation location, GLfloat x, GLfloat y,
   //                GLfloat z)
-  static void uniform3f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform3f, 4)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2839,10 +2533,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void uniform3i(WebGLUniformLocation location, GLint x, GLint y, GLint z)
-  static void uniform3i(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform3i, 4)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2865,10 +2556,7 @@ class NSOpenGLContextWrapper {
 
   // void uniform4f(WebGLUniformLocation location, GLfloat x, GLfloat y,
   //                GLfloat z, GLfloat w)
-  static void uniform4f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform4f, 5)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2892,10 +2580,7 @@ class NSOpenGLContextWrapper {
 
   // void uniform4i(WebGLUniformLocation location, GLint x, GLint y,
   //                GLint z, GLint w)
-  static void uniform4i(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(uniform4i, 5)
     if (args[0]->IsNull())  // null location is silently ignored.
       return args.GetReturnValue().SetUndefined();
 
@@ -2984,10 +2669,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void useProgram(WebGLProgram program)
-  static void useProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(useProgram, 1)
     // Break the WebGL spec by allowing you to pass 'null' to unbind
     // the shader, handy for drawSkCanvas, for example.
     // NOTE: ExtractNameFromValue handles null.
@@ -2999,10 +2681,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void validateProgram(WebGLProgram program)
-  static void validateProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(validateProgram, 1)
     if (!WebGLProgram::HasInstance(isolate, args[0]))
       return v8_utils::ThrowTypeError(isolate, "Type error");
 
@@ -3017,10 +2696,7 @@ class NSOpenGLContextWrapper {
   // void vertexAttrib1f(GLuint indx, GLfloat x)
   // void vertexAttrib1fv(GLuint indx, Float32Array values)
   // void vertexAttrib1fv(GLuint indx, sequence values)
-  static void vertexAttrib1f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(vertexAttrib1f, 2)
     glVertexAttrib1f(args[0]->Uint32Value(),
                      args[1]->NumberValue());
     return args.GetReturnValue().SetUndefined();
@@ -3029,10 +2705,7 @@ class NSOpenGLContextWrapper {
   // void vertexAttrib2f(GLuint indx, GLfloat x, GLfloat y)
   // void vertexAttrib2fv(GLuint indx, Float32Array values)
   // void vertexAttrib2fv(GLuint indx, sequence values)
-  static void vertexAttrib2f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 3)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(vertexAttrib2f, 3)
     glVertexAttrib2f(args[0]->Uint32Value(),
                      args[1]->NumberValue(),
                      args[2]->NumberValue());
@@ -3042,10 +2715,7 @@ class NSOpenGLContextWrapper {
   // void vertexAttrib3f(GLuint indx, GLfloat x, GLfloat y, GLfloat z)
   // void vertexAttrib3fv(GLuint indx, Float32Array values)
   // void vertexAttrib3fv(GLuint indx, sequence values)
-  static void vertexAttrib3f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(vertexAttrib3f, 4)
     glVertexAttrib3f(args[0]->Uint32Value(),
                      args[1]->NumberValue(),
                      args[2]->NumberValue(),
@@ -3057,10 +2727,7 @@ class NSOpenGLContextWrapper {
   //                     GLfloat z, GLfloat w)
   // void vertexAttrib4fv(GLuint indx, Float32Array values)
   // void vertexAttrib4fv(GLuint indx, sequence values)
-  static void vertexAttrib4f(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(vertexAttrib4f, 5)
     glVertexAttrib4f(args[0]->Uint32Value(),
                      args[1]->NumberValue(),
                      args[2]->NumberValue(),
@@ -3072,10 +2739,7 @@ class NSOpenGLContextWrapper {
   // void vertexAttribPointer(GLuint indx, GLint size, GLenum type,
   //                          GLboolean normalized, GLsizei stride,
   //                          GLsizeiptr offset)
-  static void vertexAttribPointer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 6)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(vertexAttribPointer, 6)
     glVertexAttribPointer(args[0]->Uint32Value(),
                           args[1]->Int32Value(),
                           args[2]->Uint32Value(),
@@ -3086,10 +2750,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void viewport(GLint x, GLint y, GLsizei width, GLsizei height)
-  static void viewport(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(viewport, 4)
     glViewport(args[0]->Int32Value(),
                args[1]->Int32Value(),
                args[2]->Int32Value(),
@@ -3098,10 +2759,7 @@ class NSOpenGLContextWrapper {
   }
 
   // void DrawBuffersARB(sizei n, const enum *bufs);
-  static void drawBuffers(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(drawBuffers, 1)
     if (!args[0]->IsArray())
       return v8_utils::ThrowError(isolate, "Sequence must be an Array.");
 
@@ -3128,10 +2786,7 @@ class NSOpenGLContextWrapper {
   //                        GLint dstY1,
   //                        GLbitfield mask,
   //                        GLenum filter);
-  static void blitFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 10)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(blitFramebuffer, 10)
     glBlitFramebuffer(args[0]->Int32Value(),
                       args[1]->Int32Value(),
                       args[2]->Int32Value(),
@@ -4319,11 +3974,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void setLinearGradientShader(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 5)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(setLinearGradientShader, 5)
     SkPaint* paint = ExtractPointer(args.Holder());
 
     SkPoint points[2] = {{SkDoubleToScalar(args[0]->NumberValue()),
@@ -4363,11 +4014,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void setRadialGradientShader(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 4)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(setRadialGradientShader, 4)
     SkPaint* paint = ExtractPointer(args.Holder());
 
     SkPoint center = {SkDoubleToScalar(args[0]->NumberValue()),
@@ -5303,10 +4950,7 @@ class NSSoundWrapper {
     return args.GetReturnValue().Set(v8::Number::New(isolate, [sound volume]));
   }
 
-  static void setVolume(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(setVolume, 1)
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setVolume:args[0]->NumberValue()];
     return args.GetReturnValue().SetUndefined();
@@ -5317,10 +4961,7 @@ class NSSoundWrapper {
     return args.GetReturnValue().Set(v8::Number::New(isolate, [sound currentTime]));
   }
 
-  static void setCurrentTime(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(setCurrentTime, 1)
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setCurrentTime:args[0]->NumberValue()];
     return args.GetReturnValue().SetUndefined();
@@ -5331,10 +4972,7 @@ class NSSoundWrapper {
     return args.GetReturnValue().Set((bool)[sound loops]);
   }
 
-  static void setLoops(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(setLoops, 1)
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setLoops:args[0]->BooleanValue()];
     return args.GetReturnValue().SetUndefined();
@@ -5671,10 +5309,7 @@ class CAMIDISourceWrapper {
     args.This()->SetAlignedPointerInInternalField(1, NULL);
   }
 
-  static void createVirtual(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(createVirtual, 1)
     OSStatus result;
 
     v8::String::Utf8Value name_val(args[0]);
@@ -5694,10 +5329,7 @@ class CAMIDISourceWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void openDestination(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(openDestination, 1)
     OSStatus result;
 
     ItemCount num_destinations = MIDIGetNumberOfDestinations();
@@ -5858,10 +5490,7 @@ class CAMIDIDestinationWrapper {
   }
 
 
-  static void createVirtual(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(createVirtual, 1)
     OSStatus result;
     v8::String::Utf8Value name_val(args[0]);
     CFStringRef name =
@@ -5896,10 +5525,7 @@ class CAMIDIDestinationWrapper {
     return args.GetReturnValue().Set(arr);
   }
 
-  static void openSource(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(openSource, 1)
     OSStatus result;
     State* state = ExtractPointer(args.Holder());
 
@@ -6022,20 +5648,14 @@ class SBApplicationWrapper {
     return args.GetReturnValue().Set(res);
   }
 
-  static void invokeVoid0(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(invokeVoid0, 1)
     id obj = ExtractID(args.Holder());
     v8::String::Utf8Value method_name(args[0]);
     [obj performSelector:sel_getUid(*method_name)];
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void invokeVoid1s(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+  DEFINE_METHOD(invokeVoid1s, 2)
     id obj = ExtractID(args.Holder());
     v8::String::Utf8Value method_name(args[0]);
     v8::String::Utf8Value arg(args[1]);
