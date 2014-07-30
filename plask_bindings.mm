@@ -2875,12 +2875,10 @@ class NSWindowWrapper {
   }
 
  private:
-  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(V8New, 8)
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
-    if (args.Length() != 8)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     uint32_t type = args[0]->Uint32Value();
     uint32_t bwidth = args[1]->Uint32Value();
     uint32_t bheight = args[2]->Uint32Value();
@@ -3090,10 +3088,8 @@ class NSWindowWrapper {
     [window setTitle:[NSString stringWithUTF8String:*title]];
     return args.GetReturnValue().SetUndefined();
   }
-  static void setFrameTopLeftPoint(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(setFrameTopLeftPoint, 2)
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
-    if (args.Length() != 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     [window setFrameTopLeftPoint:NSMakePoint(args[0]->NumberValue(),
                                              args[1]->NumberValue())];
     return args.GetReturnValue().SetUndefined();
@@ -3949,11 +3945,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-   static void setFontFamilyPostScript(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() < 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
+   DEFINE_METHOD(setFontFamilyPostScript, 1)
     SkPaint* paint = ExtractPointer(args.Holder());
     v8::String::Utf8Value postscript_name(args[0]);
 
@@ -4771,12 +4763,12 @@ class SkCanvasWrapper {
   }
 
   static void writeImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    if (args.Length() < 2)
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
+
     const uint32_t rmask = SK_R32_MASK << SK_R32_SHIFT;
     const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
     const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
-
-    if (args.Length() < 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SkCanvas* canvas = ExtractPointer(args.Holder());
     const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
@@ -4825,11 +4817,8 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void writePDF(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(writePDF, 1)
     SkCanvas* canvas = ExtractPointer(args.Holder());
-
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value filename(args[0]);
 
@@ -4906,12 +4895,9 @@ class NSSoundWrapper {
   }
 
  private:
-  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(V8New, 1)
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
-
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value filename(args[0]);
     NSSound* sound = [[NSSound alloc] initWithContentsOfFile:
@@ -5603,12 +5589,9 @@ class SBApplicationWrapper {
   }
 
  private:
-  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(V8New, 1)
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
-
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value bundleid(args[0]);
     id obj = [SBApplication applicationWithBundleIdentifier:
@@ -5715,12 +5698,9 @@ class NSAppleScriptWrapper {
   }
 
  private:
-  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(V8New, 1)
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
-
-    if (args.Length() != 1)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value src(args[0]);
     NSAppleScript* ascript = [[NSAppleScript alloc] initWithSource:
