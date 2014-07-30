@@ -387,7 +387,6 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
-					"-lz",
 					"-ldl",
 				);
 				PREBINDING = NO;
@@ -419,7 +418,6 @@
 				LIBRARY_SEARCH_PATHS = "\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"";
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				OTHER_LDFLAGS = (
-					"-lz",
 					"-ldl",
 				);
 				PREBINDING = NO;
