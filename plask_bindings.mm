@@ -29,7 +29,6 @@
 #include <netdb.h>
 
 #include "v8_utils.h"
-#include "v8_typed_array.h"
 
 #include "FreeImage.h"
 
@@ -43,17 +42,16 @@
 #include <Foundation/NSObjCRuntime.h>
 #include <objc/runtime.h>
 
-#include <OpenGL/gl3.h>  // For instancing, or better to use ARB?
-
+#define SK_SUPPORT_LEGACY_GETDEVICE 1
 #define SK_RELEASE 1  // Hmmmm, really? SkPreConfig is thinking we are debug.
-#include "skia/include/core/SkBitmap.h"
-#include "skia/include/core/SkCanvas.h"
-#include "skia/include/core/SkColorPriv.h"  // For color ordering.
-#include "skia/include/core/SkDevice.h"
-#include "skia/include/core/SkString.h"
-#include "skia/include/core/SkTypeface.h"
-#include "skia/include/core/SkUnPreMultiply.h"
-#include "skia/include/core/SkXfermode.h"
+#include "SkBitmap.h"
+#include "SkCanvas.h"
+#include "SkColorPriv.h"  // For color ordering.
+#include "SkDevice.h"
+#include "SkString.h"
+#include "SkTypeface.h"
+#include "SkUnPreMultiply.h"
+#include "SkXfermode.h"
 #include "skia/include/utils/SkParsePath.h"
 #include "skia/include/effects/SkGradientShader.h"
 #include "skia/include/effects/SkDashPathEffect.h"
@@ -106,6 +104,94 @@ T Clamp(T v, T a, T b) {
 
 namespace {
 
+// hack...
+v8::Isolate* isolate;
+
+void SetInternalIsolate(v8::Isolate* iso) { isolate = iso; }
+
+template <class TypeName>
+inline v8::Local<TypeName> StrongPersistentToLocal(
+    const v8::PersistentBase<TypeName>& persistent) {
+  return *reinterpret_cast<v8::Local<TypeName>*>(
+      const_cast<v8::PersistentBase<TypeName>*>(&persistent));
+}
+
+template <class TypeName>
+inline v8::Local<TypeName> WeakPersistentToLocal(
+    v8::Isolate* isolate,
+    const v8::PersistentBase<TypeName>& persistent) {
+  return v8::Local<TypeName>::New(isolate, persistent);
+}
+
+template <class TypeName>
+inline v8::Local<TypeName> PersistentToLocal(
+    v8::Isolate* isolate,
+    const v8::PersistentBase<TypeName>& persistent) {
+  if (persistent.IsWeak()) {
+    return WeakPersistentToLocal(isolate, persistent);
+  } else {
+    return StrongPersistentToLocal(persistent);
+  }
+}
+
+
+int SizeOfArrayElementForType(v8::ExternalArrayType type) {
+  switch (type) {
+    case v8::kExternalInt8Array:
+    case v8::kExternalUint8Array:
+    case v8::kExternalUint8ClampedArray:
+      return 1;
+    case v8::kExternalInt16Array:
+    case v8::kExternalUint16Array:
+      return 2;
+    case v8::kExternalInt32Array:
+    case v8::kExternalUint32Array:
+    case v8::kExternalFloat32Array:
+      return 4;
+    case v8::kExternalFloat64Array:
+      return 8;
+    default:
+      abort();
+      return 0;
+  }
+}
+
+// FIXME ugly, but currently not a better way to access the backing store
+// than just to wrap the ArrayBuffer in a new ArrayBufferView.
+// Seems there is a difference between:
+//   - new Float32Array(2);
+//   - new Float32Array([0, 1]);
+// The first doesn't have HasIndexedPropertiesInExternalArrayData
+bool GetTypedArrayBytes(
+    v8::Local<v8::Value> value, void** data, intptr_t* size) {
+
+  v8::Local<v8::ArrayBuffer> buffer;
+
+  if (value->IsArrayBuffer()) {
+    buffer = v8::Handle<v8::ArrayBuffer>::Cast(value);
+  } else if (value->IsArrayBufferView()) {
+    buffer = v8::Local<v8::ArrayBufferView>::Cast(value)->Buffer();
+  } else {
+    return false;
+  }
+
+  // Always create a new wrapper, see above.
+  v8::Local<v8::ArrayBufferView> view =
+      v8::Uint8Array::New(buffer, 0, buffer->ByteLength());
+
+  if (!view->HasIndexedPropertiesInExternalArrayData())
+    abort();
+
+  //printf("indexed %d\n", view->HasIndexedPropertiesInExternalArrayData());
+  //printf("pixel %d\n", view->HasIndexedPropertiesInPixelData());
+
+  *data = view->GetIndexedPropertiesExternalArrayData();
+  *size = view->GetIndexedPropertiesExternalArrayDataLength() *
+          SizeOfArrayElementForType(view->GetIndexedPropertiesExternalArrayDataType());
+  return true;
+}
+
+
 const char kMsgNonConstructCall[] =
     "Constructor cannot be called as a function.";
 
@@ -139,89 +225,91 @@ struct BatchedConstants {
 
 struct BatchedMethods {
   const char* name;
-  v8::Handle<v8::Value> (*func)(const v8::Arguments& args);
+  v8::FunctionCallback func;
 };
 
 
 class WebGLActiveInfo {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&WebGLActiveInfo::V8New));
-    ft_cache->SetClassName(v8::String::New("WebGLActiveInfo"));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &WebGLActiveInfo::V8New);
+
+    ft->SetClassName(v8::String::NewFromUtf8(isolate, "WebGLActiveInfo"));
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(0);
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
   static v8::Handle<v8::Value> NewFromSizeTypeName(GLint size,
                                                    GLenum type,
                                                    const char* name) {
-    v8::Local<v8::Object> obj = WebGLActiveInfo::GetTemplate()->
-            InstanceTemplate()->NewInstance();
-    obj->Set(v8::String::New("size"), v8::Integer::New(size), v8::ReadOnly);
-    obj->Set(v8::String::New("type"),
-             v8::Integer::NewFromUnsigned(type),
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, WebGLActiveInfo::GetTemplate(isolate));
+    v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
+    obj->Set(v8::String::NewFromUtf8(isolate, "size"), v8::Integer::New(isolate, size), v8::ReadOnly);
+    obj->Set(v8::String::NewFromUtf8(isolate, "type"),
+             v8::Integer::NewFromUnsigned(isolate, type),
              v8::ReadOnly);
-    obj->Set(v8::String::New("name"), v8::String::New(name), v8::ReadOnly);
+    obj->Set(v8::String::NewFromUtf8(isolate, "name"), v8::String::NewFromUtf8(isolate, name), v8::ReadOnly);
     return obj;
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
-
-    return args.This();
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
   }
 };
 
 template <const char* TClassName>
 class WebGLNameMappedObject {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&V8New));
-    ft_cache->SetClassName(v8::String::New(TClassName));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &V8New);
+
+    ft->SetClassName(v8::String::NewFromUtf8(isolate, TClassName));
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // GLuint name.
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
   static v8::Handle<v8::Value> NewFromName(
-      GLuint program) {
-    v8::Local<v8::Object> obj = GetTemplate()->InstanceTemplate()->NewInstance();
-    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(program));
-    map.insert(std::pair<GLuint, v8::Persistent<v8::Value> >(
-        program, v8::Persistent<v8::Value>::New(obj)));
+      GLuint name) {
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, GetTemplate(isolate));
+    v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::NewFromUnsigned(isolate, name));
+    map.emplace(std::make_pair(name, v8::UniquePersistent<v8::Value>(isolate, obj)));
     return obj;
   }
 
   static v8::Handle<v8::Value> LookupFromName(
-      GLuint name) {
+      v8::Isolate* isolate, GLuint name) {
     if (name != 0 && map.count(name) == 1)
-      return map[name];
-    return v8::Null();
+      return PersistentToLocal(isolate, map[name]);
+    return v8::Null(isolate);
   }
 
   // Use to set the name to 0, when it is deleted, for example.
@@ -229,7 +317,7 @@ class WebGLNameMappedObject {
     GLuint name = ExtractNameFromValue(value);
     if (name != 0) {
       if (map.count(name) == 1) {
-        map[name].Dispose();
+        map[name].Reset();
         if (map.erase(name) != 1) {
           printf("Warning: Should have erased name map entry.\n");
         }
@@ -238,7 +326,7 @@ class WebGLNameMappedObject {
       }
     }
     return v8::Handle<v8::Object>::Cast(value)->
-        SetInternalField(0, v8::Integer::NewFromUnsigned(0));
+        SetInternalField(0, v8::Integer::NewFromUnsigned(isolate, 0));
   }
 
   static GLuint ExtractNameFromValue(
@@ -248,28 +336,30 @@ class WebGLNameMappedObject {
         GetInternalField(0)->Uint32Value();
   }
 
- private:
   // If we call getParameter(FRAMEBUFFER_BINDING) twice, for example, we need
   // to get the same wrapper object (not a newly created one) as the one we
   // got from the call to frameFramebuffer().  (This is the WebGL spec).  So,
   // we must track a mapping between OpenGL GLuint "framebuffer object name"
   // and the wrapper objects.
-  typedef std::map<GLuint, v8::Persistent<v8::Value> > MapType;
+  typedef std::map<GLuint, v8::UniquePersistent<v8::Value> > MapType;
+
+  static void ClearMap() { map.clear(); }
+  static MapType& Map() { return map; }
+
+ private:
   static MapType map;
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     // TODO(deanm): How to throw an exception when called from JavaScript?
     // For now we don't expose the object directly, so maybe it's okay
     // (although I suppose you can still get to it from an instance)...
-    //return v8_utils::ThrowTypeError("Type error.");
+    //return v8_utils::ThrowTypeError(isolate, "Type error.");
 
     // Initially set to 0.
-    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(0));
-
-    return args.This();
+    args.This()->SetInternalField(0, v8::Integer::NewFromUnsigned(isolate, 0));
   }
 };
 
@@ -288,32 +378,35 @@ DEFINE_NAME_MAPPED_CLASS(WebGLShader)
 DEFINE_NAME_MAPPED_CLASS(WebGLTexture)
 DEFINE_NAME_MAPPED_CLASS(WebGLVertexArrayObject)
 
+class NSOpenGLContextWrapper;
 
 class WebGLUniformLocation {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&WebGLUniformLocation::V8New));
-    ft_cache->SetClassName(v8::String::New("WebGLUniformLocation"));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &WebGLUniformLocation::V8New);
+
+    ft->SetClassName(v8::String::NewFromUtf8(isolate, "WebGLUniformLocation"));
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // GLint location.
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
   static v8::Handle<v8::Value> NewFromLocation(GLint location) {
-    v8::Local<v8::Object> obj = WebGLUniformLocation::GetTemplate()->
-            InstanceTemplate()->NewInstance();
-    obj->SetInternalField(0, v8::Integer::New(location));
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, WebGLUniformLocation::GetTemplate(isolate));
+    v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
+    obj->SetInternalField(0, v8::Integer::New(isolate, location));
     return obj;
   }
 
@@ -323,14 +416,13 @@ class WebGLUniformLocation {
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     // TODO(deanm): How to throw an exception when called from JavaScript but
     // not from NewFromLocation?
-    //return v8_utils::ThrowTypeError("Type error.");
-    return args.This();
+    //return v8_utils::ThrowTypeError(isolate, "Type error.");
   }
 };
 
@@ -341,19 +433,19 @@ class WebGLUniformLocation {
 
 class SyphonServerWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&SyphonServerWrapper::V8New));
-    ft_cache->SetClassName(v8::String::New("SyphonServer"));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &SyphonServerWrapper::V8New);
+
+    ft->SetClassName(v8::String::NewFromUtf8(isolate, "SyphonServer"));
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // SyphonServer
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -368,48 +460,48 @@ class SyphonServerWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
   static SyphonServer* ExtractSyphonServerPointer(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<SyphonServer*>(obj->GetPointerFromInternalField(0));
+    return reinterpret_cast<SyphonServer*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
   static v8::Handle<v8::Value> NewFromSyphonServer(SyphonServer* server) {
-    v8::Local<v8::Object> obj = SyphonServerWrapper::GetTemplate()->
-            InstanceTemplate()->NewInstance();
-    obj->SetPointerInInternalField(0, server);
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, SyphonServerWrapper::GetTemplate(isolate));
+    v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
+    obj->SetAlignedPointerInInternalField(0, server);
     return obj;
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
-
-    return args.This();
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
   }
 
-  static v8::Handle<v8::Value> publishFrameTexture(const v8::Arguments& args) {
+  static void publishFrameTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 9)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     [server publishFrameTexture:args[0]->Uint32Value()
@@ -421,46 +513,46 @@ class SyphonServerWrapper {
             textureDimensions:NSMakeSize(args[6]->Int32Value(),
                                          args[7]->Int32Value())
             flipped:args[8]->BooleanValue()];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> bindToDrawFrameOfSize(
-      const v8::Arguments& args) {
+  static void bindToDrawFrameOfSize(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     BOOL res = [server bindToDrawFrameOfSize:NSMakeSize(args[0]->Int32Value(),
                                                         args[1]->Int32Value())];
-    return v8::Boolean::New(res);
+    return args.GetReturnValue().Set((bool)res);
   }
 
-  static v8::Handle<v8::Value> unbindAndPublish(const v8::Arguments& args) {
+  static void unbindAndPublish(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     [server unbindAndPublish];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> hasClients(const v8::Arguments& args) {
+  static void hasClients(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
-    return v8::Boolean::New([server hasClients]);
+    return args.GetReturnValue().Set((bool)[server hasClients]);
   }
 };
 
 class SyphonClientWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&SyphonClientWrapper::V8New));
-    ft_cache->SetClassName(v8::String::New("SyphonClient"));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &SyphonClientWrapper::V8New);
+
+    ft->SetClassName(v8::String::NewFromUtf8(isolate, "SyphonClient"));
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(2);  // SyphonClient, CGLContextObj
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -474,84 +566,84 @@ class SyphonClientWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
   static SyphonClient* ExtractSyphonClientPointer(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<SyphonClient*>(obj->GetPointerFromInternalField(0));
+    return reinterpret_cast<SyphonClient*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
   static CGLContextObj ExtractContextObj(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<CGLContextObj>(obj->GetPointerFromInternalField(1));
+    return reinterpret_cast<CGLContextObj>(obj->GetAlignedPointerFromInternalField(1));
   }
 
   static v8::Handle<v8::Value> NewFromSyphonClient(SyphonClient* client,
                                                    CGLContextObj context) {
-    v8::Local<v8::Object> obj = SyphonClientWrapper::GetTemplate()->
-            InstanceTemplate()->NewInstance();
-    obj->SetPointerInInternalField(0, client);
-    obj->SetPointerInInternalField(1, context);
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, SyphonClientWrapper::GetTemplate(isolate));
+    v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
+    obj->SetAlignedPointerInInternalField(0, client);
+    obj->SetAlignedPointerInInternalField(1, context);
     return obj;
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
-
-    return args.This();
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
   }
 
-  static v8::Handle<v8::Value> newFrameImage(const v8::Arguments& args) {
+  static void newFrameImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 0)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
     CGLContextObj context = ExtractContextObj(args.Holder());
     SyphonImage* image = [client newFrameImageForContext:context];
 
-    if (!image) return v8::Null();
+    if (!image) return args.GetReturnValue().SetNull();
 
-    v8::Local<v8::Object> res = v8::Object::New();
-    res->Set(v8::String::New("name"),
-             v8::Integer::NewFromUnsigned([image textureName]));
-    res->Set(v8::String::New("width"),
-             v8::Number::New([image textureSize].width));
-    res->Set(v8::String::New("height"),
-             v8::Number::New([image textureSize].height));
+    v8::Local<v8::Object> res = v8::Object::New(isolate);
+    res->Set(v8::String::NewFromUtf8(isolate, "name"),
+             v8::Integer::NewFromUnsigned(isolate, [image textureName]));
+    res->Set(v8::String::NewFromUtf8(isolate, "width"),
+             v8::Number::New(isolate, [image textureSize].width));
+    res->Set(v8::String::NewFromUtf8(isolate, "height"),
+             v8::Number::New(isolate, [image textureSize].height));
 
     // The SyphonImage is just a container of the data.  The lifetime of it has
     // no relationship with the lifetime of the texture.
     [image release];
 
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> isValid(const v8::Arguments& args) {
+  static void isValid(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
-    return v8::Boolean::New([client isValid]);
+    return args.GetReturnValue().Set((bool)[client isValid]);
   }
 
-  static v8::Handle<v8::Value> hasNewFrame(const v8::Arguments& args) {
+  static void hasNewFrame(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SyphonClient* client = ExtractSyphonClientPointer(args.Holder());
-    return v8::Boolean::New([client hasNewFrame]);
+    return args.GetReturnValue().Set((bool)[client hasNewFrame]);
   }
 };
 
@@ -585,18 +677,17 @@ class NSOpenGLContextWrapper {
     WebGLTypeWebGLVertexArrayObject,
   };
 
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&NSOpenGLContextWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &NSOpenGLContextWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -767,44 +858,44 @@ class NSOpenGLContextWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static NSOpenGLContext* ExtractContextPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<NSOpenGLContext>(obj->GetInternalField(0));
+    return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(NULL));
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, NULL);
   }
 
-  static v8::Handle<v8::Value> makeCurrentContext(const v8::Arguments& args) {
+  static void makeCurrentContext(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     [context makeCurrentContext];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> createSyphonServer(const v8::Arguments& args) {
+  static void createSyphonServer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     v8::String::Utf8Value name(args[0]);
@@ -812,12 +903,12 @@ class NSOpenGLContextWrapper {
         initWithName:[NSString stringWithUTF8String:*name]
         context:reinterpret_cast<CGLContextObj>([context CGLContextObj])
         options:nil];
-    return SyphonServerWrapper::NewFromSyphonServer(server);
+    return args.GetReturnValue().Set(SyphonServerWrapper::NewFromSyphonServer(server));
   }
 
-  static v8::Handle<v8::Value> createSyphonClient(const v8::Arguments& args) {
+  static void createSyphonClient(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.This());
     //v8::String::Utf8Value uuid(args[0]);
@@ -841,32 +932,32 @@ class NSOpenGLContextWrapper {
     }
 
     if (!found_server)
-      return v8_utils::ThrowError("No server found matching given name.");
+      return v8_utils::ThrowError(isolate, "No server found matching given name.");
 
     SyphonClient* client = [[SyphonClient alloc]
         initWithServerDescription:found_server
         options:nil
         newFrameHandler:nil];
-    return SyphonClientWrapper::NewFromSyphonClient(
-        client, reinterpret_cast<CGLContextObj>([context CGLContextObj]));
+    return args.GetReturnValue().Set(SyphonClientWrapper::NewFromSyphonClient(
+        client, reinterpret_cast<CGLContextObj>([context CGLContextObj])));
   }
 
   // aka vsync.
-  static v8::Handle<v8::Value> setSwapInterval(const v8::Arguments& args) {
+  static void setSwapInterval(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     GLint interval = args[0]->Int32Value();
     [context setValues:&interval forParameter:NSOpenGLCPSwapInterval];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // TODO(deanm): Share more code with SkCanvas#writeImage.
-  static v8::Handle<v8::Value> writeImage(const v8::Arguments& args) {
+  static void writeImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
     const uint32_t rmask = SK_R32_MASK << SK_R32_SHIFT;
     const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
     const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
 
     if (args.Length() < 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     // TODO(deanm): There should be a better way to get the width and height.
@@ -882,10 +973,10 @@ class NSOpenGLContextWrapper {
     // TODO(deanm): Also allow passing the x/y ?
     if (args.Length() >= 3 && args[2]->IsObject()) {
       v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
-      if (opts->Has(v8::String::New("width")))
-        width = opts->Get(v8::String::New("width"))->Int32Value();
-      if (opts->Has(v8::String::New("height")))
-        height = opts->Get(v8::String::New("height"))->Int32Value();
+      if (opts->Has(v8::String::NewFromUtf8(isolate, "width")))
+        width = opts->Get(v8::String::NewFromUtf8(isolate, "width"))->Int32Value();
+      if (opts->Has(v8::String::NewFromUtf8(isolate, "height")))
+        height = opts->Get(v8::String::NewFromUtf8(isolate, "height"))->Int32Value();
     }
 
     FREE_IMAGE_FORMAT format;
@@ -898,7 +989,7 @@ class NSOpenGLContextWrapper {
     } else if (strcmp(*type, "targa") == 0) {
       format = FIF_TARGA;
     } else {
-      return v8_utils::ThrowError("writeImage unsupported output type.");
+      return v8_utils::ThrowError(isolate, "writeImage unsupported output type.");
     }
 
     v8::String::Utf8Value filename(args[1]);
@@ -915,11 +1006,11 @@ class NSOpenGLContextWrapper {
           rmask, gmask, bmask, FALSE);
       free(pixels);
       if (!fb)
-        return v8_utils::ThrowError("Couldn't allocate FreeImage bitmap.");
+        return v8_utils::ThrowError(isolate, "Couldn't allocate FreeImage bitmap.");
     } else {  // Floating point depth buffer
       fb = FreeImage_AllocateT(FIT_FLOAT, width, height);
       if (!fb)
-        return v8_utils::ThrowError("Couldn't allocate FreeImage bitmap.");
+        return v8_utils::ThrowError(isolate, "Couldn't allocate FreeImage bitmap.");
       glReadPixels(0, 0, width, height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, FreeImage_GetBits(fb));
     }
@@ -928,16 +1019,16 @@ class NSOpenGLContextWrapper {
 
     if (args.Length() >= 3 && args[2]->IsObject()) {
       v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
-      if (opts->Has(v8::String::New("dotsPerMeterX"))) {
+      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))) {
         FreeImage_SetDotsPerMeterX(fb,
-            opts->Get(v8::String::New("dotsPerMeterX"))->Uint32Value());
+            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))->Uint32Value());
       }
-      if (opts->Has(v8::String::New("dotsPerMeterY"))) {
+      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))) {
         FreeImage_SetDotsPerMeterY(fb,
-            opts->Get(v8::String::New("dotsPerMeterY"))->Uint32Value());
+            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))->Uint32Value());
       }
-      if (format == FIF_TIFF && opts->Has(v8::String::New("tiffCompression"))) {
-        if (!opts->Get(v8::String::New("tiffCompression"))->BooleanValue())
+      if (format == FIF_TIFF && opts->Has(v8::String::NewFromUtf8(isolate, "tiffCompression"))) {
+        if (!opts->Get(v8::String::NewFromUtf8(isolate, "tiffCompression"))->BooleanValue())
           save_flags = TIFF_NONE;
       }
     }
@@ -946,392 +1037,382 @@ class NSOpenGLContextWrapper {
     FreeImage_Unload(fb);
 
     if (!saved)
-      return v8_utils::ThrowError("Failed to save png.");
+      return v8_utils::ThrowError(isolate, "Failed to save png.");
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void activeTexture(GLenum texture)
-  static v8::Handle<v8::Value> activeTexture(const v8::Arguments& args) {
+  static void activeTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     glActiveTexture(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void attachShader(WebGLProgram program, WebGLShader shader)
-  static v8::Handle<v8::Value> attachShader(const v8::Arguments& args) {
+  static void attachShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    if (!WebGLShader::HasInstance(args[1]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
     GLuint shader = WebGLShader::ExtractNameFromValue(args[1]);
 
     glAttachShader(program, shader);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bindAttribLocation(WebGLProgram program, GLuint index, DOMString name)
-  static v8::Handle<v8::Value> bindAttribLocation(const v8::Arguments& args) {
+  static void bindAttribLocation(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
     v8::String::Utf8Value name(args[2]);
     glBindAttribLocation(program, args[1]->Uint32Value(), *name);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bindBuffer(GLenum target, WebGLBuffer buffer)
-  static v8::Handle<v8::Value> bindBuffer(const v8::Arguments& args) {
+  static void bindBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!args[1]->IsNull() && !WebGLBuffer::HasInstance(args[1]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[1]->IsNull() && !WebGLBuffer::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint buffer = WebGLBuffer::ExtractNameFromValue(args[1]);
 
     glBindBuffer(args[0]->Uint32Value(), buffer);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bindFramebuffer(GLenum target, WebGLFramebuffer framebuffer)
-  static v8::Handle<v8::Value> bindFramebuffer(const v8::Arguments& args) {
+  static void bindFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // NOTE: ExtractNameFromValue handles null.
-    if (!args[1]->IsNull() && !WebGLFramebuffer::HasInstance(args[1]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[1]->IsNull() && !WebGLFramebuffer::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glBindFramebuffer(
         args[0]->Uint32Value(),
         WebGLFramebuffer::ExtractNameFromValue(args[1]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bindRenderbuffer(GLenum target, WebGLRenderbuffer renderbuffer)
-  static v8::Handle<v8::Value> bindRenderbuffer(const v8::Arguments& args) {
+  static void bindRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // NOTE: ExtractNameFromValue handles null.
-    if (!args[1]->IsNull() && !WebGLRenderbuffer::HasInstance(args[1]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[1]->IsNull() && !WebGLRenderbuffer::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glBindRenderbuffer(
         args[0]->Uint32Value(),
         WebGLRenderbuffer::ExtractNameFromValue(args[1]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bindTexture(GLenum target, WebGLTexture texture)
-  static v8::Handle<v8::Value> bindTexture(const v8::Arguments& args) {
+  static void bindTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // NOTE: ExtractNameFromValue handles null.
-    if (!args[1]->IsNull() && !WebGLTexture::HasInstance(args[1]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[1]->IsNull() && !WebGLTexture::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glBindTexture(args[0]->Uint32Value(),
                   WebGLTexture::ExtractNameFromValue(args[1]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bindVertexArray(WebGLVertexArrayObject? vertexArray)
-  static v8::Handle<v8::Value> bindVertexArray(const v8::Arguments& args) {
+  static void bindVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // NOTE: ExtractNameFromValue handles null.
-    if (!args[0]->IsNull() && !WebGLVertexArrayObject::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[0]->IsNull() && !WebGLVertexArrayObject::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glBindVertexArrayAPPLE(WebGLVertexArrayObject::ExtractNameFromValue(args[0]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void blendColor(GLclampf red, GLclampf green,
   //                 GLclampf blue, GLclampf alpha)
-  static v8::Handle<v8::Value> blendColor(const v8::Arguments& args) {
+  static void blendColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glBlendColor(args[0]->NumberValue(),
                  args[1]->NumberValue(),
                  args[2]->NumberValue(),
                  args[3]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void blendEquation(GLenum mode)
-  static v8::Handle<v8::Value> blendEquation(const v8::Arguments& args) {
+  static void blendEquation(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     glBlendEquation(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void blendEquationSeparate(GLenum modeRGB, GLenum modeAlpha)
-  static v8::Handle<v8::Value> blendEquationSeparate(
-      const v8::Arguments& args) {
+  static void blendEquationSeparate(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     glBlendEquationSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
 
   // void blendFunc(GLenum sfactor, GLenum dfactor)
-  static v8::Handle<v8::Value> blendFunc(
-      const v8::Arguments& args) {
+  static void blendFunc(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     glBlendFunc(args[0]->Uint32Value(), args[1]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void blendFuncSeparate(GLenum srcRGB, GLenum dstRGB,
   //                        GLenum srcAlpha, GLenum dstAlpha)
-  static v8::Handle<v8::Value> blendFuncSeparate(
-      const v8::Arguments& args) {
+  static void blendFuncSeparate(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     glBlendFuncSeparate(args[0]->Uint32Value(), args[1]->Uint32Value(),
                         args[2]->Uint32Value(), args[3]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bufferData(GLenum target, GLsizei size, GLenum usage)
   // void bufferData(GLenum target, ArrayBufferView data, GLenum usage)
   // void bufferData(GLenum target, ArrayBuffer data, GLenum usage)
-  static v8::Handle<v8::Value> bufferData(
-      const v8::Arguments& args) {
+  static void bufferData(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     GLsizeiptr size = 0;
     GLvoid* data = NULL;
 
     if (args[1]->IsObject()) {
-      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[1]);
-      if (!obj->HasIndexedPropertiesInExternalArrayData())
-        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
-      int element_size = v8_typed_array::SizeOfArrayElementForType(
-          obj->GetIndexedPropertiesExternalArrayDataType());
-      size = obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
-      data = obj->GetIndexedPropertiesExternalArrayData();
+      if (!GetTypedArrayBytes(args[1], &data, &size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
     } else {
       size = args[1]->Uint32Value();
     }
 
     glBufferData(args[0]->Uint32Value(), size, data, args[2]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void bufferSubData(GLenum target, GLsizeiptr offset, ArrayBufferView data)
   // void bufferSubData(GLenum target, GLsizeiptr offset, ArrayBuffer data)
-  static v8::Handle<v8::Value> bufferSubData(
-      const v8::Arguments& args) {
+  static void bufferSubData(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     GLsizeiptr size = 0;
     GLintptr offset = args[1]->Int32Value();
     GLvoid* data = NULL;
 
     if (args[2]->IsObject()) {
-      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[2]);
-      if (!obj->HasIndexedPropertiesInExternalArrayData())
-        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
-      int element_size = v8_typed_array::SizeOfArrayElementForType(
-          obj->GetIndexedPropertiesExternalArrayDataType());
-      size = obj->GetIndexedPropertiesExternalArrayDataLength() * element_size;
-      data = obj->GetIndexedPropertiesExternalArrayData();
+      if (!GetTypedArrayBytes(args[2], &data, &size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
     } else {
-      size = args[1]->Uint32Value();
+      size = args[2]->Uint32Value();
     }
 
     glBufferSubData(args[0]->Uint32Value(), offset, size, data);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // GLenum checkFramebufferStatus(GLenum target)
-  static v8::Handle<v8::Value> checkFramebufferStatus(
-      const v8::Arguments& args) {
+  static void checkFramebufferStatus(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
-    return v8::Integer::NewFromUnsigned(
-        glCheckFramebufferStatus(args[0]->Uint32Value()));
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate,
+        glCheckFramebufferStatus(args[0]->Uint32Value())));
   }
 
   // void clear(GLbitfield mask)
-  static v8::Handle<v8::Value> clear(const v8::Arguments& args) {
+  static void clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     glClear(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void clearColor(GLclampf red, GLclampf green,
   //                 GLclampf blue, GLclampf alpha)
-  static v8::Handle<v8::Value> clearColor(const v8::Arguments& args) {
+  static void clearColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glClearColor(args[0]->NumberValue(),
                  args[1]->NumberValue(),
                  args[2]->NumberValue(),
                  args[3]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void clearDepth(GLclampf depth)
-  static v8::Handle<v8::Value> clearDepth(const v8::Arguments& args) {
+  static void clearDepth(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glClearDepth(args[0]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void clearStencil(GLint s)
-  static v8::Handle<v8::Value> clearStencil(const v8::Arguments& args) {
+  static void clearStencil(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glClearStencil(args[0]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void colorMask(GLboolean red, GLboolean green,
   //                GLboolean blue, GLboolean alpha)
-  static v8::Handle<v8::Value> colorMask(const v8::Arguments& args) {
+  static void colorMask(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glColorMask(args[0]->BooleanValue(),
                 args[1]->BooleanValue(),
                 args[2]->BooleanValue(),
                 args[3]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void compileShader(WebGLShader shader)
-  static v8::Handle<v8::Value> compileShader(const v8::Arguments& args) {
+  static void compileShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
 
     glCompileShader(shader);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // WebGLBuffer createBuffer()
-  static v8::Handle<v8::Value> createBuffer(const v8::Arguments& args) {
+  static void createBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     GLuint buffer;
     glGenBuffers(1, &buffer);
-    return WebGLBuffer::NewFromName(buffer);
+    return args.GetReturnValue().Set(WebGLBuffer::NewFromName(buffer));
   }
 
   // WebGLFramebuffer createFramebuffer()
-  static v8::Handle<v8::Value> createFramebuffer(const v8::Arguments& args) {
+  static void createFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     GLuint framebuffer;
     glGenFramebuffers(1, &framebuffer);
-    return WebGLFramebuffer::NewFromName(framebuffer);
+    return args.GetReturnValue().Set(WebGLFramebuffer::NewFromName(framebuffer));
   }
 
   // WebGLProgram createProgram()
-  static v8::Handle<v8::Value> createProgram(const v8::Arguments& args) {
-    return WebGLProgram::NewFromName(glCreateProgram());
+  static void createProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return args.GetReturnValue().Set(WebGLProgram::NewFromName(glCreateProgram()));
   }
 
   // WebGLRenderbuffer createRenderbuffer()
-  static v8::Handle<v8::Value> createRenderbuffer(const v8::Arguments& args) {
+  static void createRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     GLuint renderbuffer;
     glGenRenderbuffers(1, &renderbuffer);
-    return WebGLRenderbuffer::NewFromName(renderbuffer);
+    return args.GetReturnValue().Set(WebGLRenderbuffer::NewFromName(renderbuffer));
   }
 
   // WebGLShader createShader(GLenum type)
-  static v8::Handle<v8::Value> createShader(const v8::Arguments& args) {
+  static void createShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    return WebGLShader::NewFromName(
-        glCreateShader(args[0]->Uint32Value()));
+    return args.GetReturnValue().Set(WebGLShader::NewFromName(
+        glCreateShader(args[0]->Uint32Value())));
   }
 
   // WebGLTexture createTexture()
-  static v8::Handle<v8::Value> createTexture(const v8::Arguments& args) {
+  static void createTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
     GLuint texture;
     glGenTextures(1, &texture);
-    return WebGLTexture::NewFromName(texture);
+    return args.GetReturnValue().Set(WebGLTexture::NewFromName(texture));
   }
 
   // WebGLVertexArrayObject? createVertexArray()
-  static v8::Handle<v8::Value> createVertexArray(const v8::Arguments& args) {
+  static void createVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
     GLuint vao;
     glGenVertexArraysAPPLE(1, &vao);
-    return WebGLVertexArrayObject::NewFromName(vao);
+    return args.GetReturnValue().Set(WebGLVertexArrayObject::NewFromName(vao));
   }
 
   // void cullFace(GLenum mode)
-  static v8::Handle<v8::Value> cullFace(const v8::Arguments& args) {
+  static void cullFace(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glCullFace(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteBuffer(WebGLBuffer buffer)
-  static v8::Handle<v8::Value> deleteBuffer(const v8::Arguments& args) {
+  static void deleteBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLBuffer::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLBuffer::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint buffer = WebGLBuffer::ExtractNameFromValue(args[0]);
     if (buffer != 0) {
       glDeleteBuffers(1, &buffer);
       WebGLBuffer::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteFramebuffer(WebGLFramebuffer framebuffer)
-  static v8::Handle<v8::Value> deleteFramebuffer(const v8::Arguments& args) {
+  static void deleteFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLFramebuffer::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLFramebuffer::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint framebuffer =
         WebGLFramebuffer::ExtractNameFromValue(args[0]);
@@ -1339,40 +1420,40 @@ class NSOpenGLContextWrapper {
       glDeleteFramebuffers(1, &framebuffer);
       WebGLFramebuffer::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteProgram(WebGLProgram program)
-  static v8::Handle<v8::Value> deleteProgram(const v8::Arguments& args) {
+  static void deleteProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
     if (program != 0) {
       glDeleteProgram(program);
       WebGLProgram::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteRenderbuffer(WebGLRenderbuffer renderbuffer)
-  static v8::Handle<v8::Value> deleteRenderbuffer(const v8::Arguments& args) {
+  static void deleteRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLRenderbuffer::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLRenderbuffer::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint renderbuffer =
         WebGLRenderbuffer::ExtractNameFromValue(args[0]);
@@ -1380,40 +1461,40 @@ class NSOpenGLContextWrapper {
       glDeleteRenderbuffers(1, &renderbuffer);
       WebGLRenderbuffer::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteShader(WebGLShader shader)
-  static v8::Handle<v8::Value> deleteShader(const v8::Arguments& args) {
+  static void deleteShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
     if (shader != 0) {
       glDeleteShader(shader);
       WebGLShader::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteTexture(WebGLTexture texture)
-  static v8::Handle<v8::Value> deleteTexture(const v8::Arguments& args) {
+  static void deleteTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLTexture::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLTexture::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint texture =
         WebGLTexture::ExtractNameFromValue(args[0]);
@@ -1421,267 +1502,267 @@ class NSOpenGLContextWrapper {
       glDeleteTextures(1, &texture);
       WebGLTexture::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void deleteVertexArray(WebGLVertexArrayObject? vertexArray)
-  static v8::Handle<v8::Value> deleteVertexArray(const v8::Arguments& args) {
+  static void deleteVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLVertexArrayObject::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLVertexArrayObject::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint vao = WebGLVertexArrayObject::ExtractNameFromValue(args[0]);
     if (vao != 0) {
       glDeleteVertexArraysAPPLE(1, &vao);
       WebGLVertexArrayObject::ClearName(args[0]);
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void depthFunc(GLenum func)
-  static v8::Handle<v8::Value> depthFunc(const v8::Arguments& args) {
+  static void depthFunc(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDepthFunc(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void depthMask(GLboolean flag)
-  static v8::Handle<v8::Value> depthMask(const v8::Arguments& args) {
+  static void depthMask(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDepthMask(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void depthRange(GLclampf zNear, GLclampf zFar)
-  static v8::Handle<v8::Value> depthRange(const v8::Arguments& args) {
+  static void depthRange(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDepthRange(args[0]->NumberValue(), args[1]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void detachShader(WebGLProgram program, WebGLShader shader)
-  static v8::Handle<v8::Value> detachShader(const v8::Arguments& args) {
+  static void detachShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    if (!WebGLShader::HasInstance(args[1]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
     GLuint shader = WebGLShader::ExtractNameFromValue(args[1]);
 
     glDetachShader(program, shader);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void disable(GLenum cap)
-  static v8::Handle<v8::Value> disable(const v8::Arguments& args) {
+  static void disable(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDisable(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void disableVertexAttribArray(GLuint index)
-  static v8::Handle<v8::Value> disableVertexAttribArray(
-      const v8::Arguments& args) {
+  static void disableVertexAttribArray(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDisableVertexAttribArray(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void drawArrays(GLenum mode, GLint first, GLsizei count)
-  static v8::Handle<v8::Value> drawArrays(const v8::Arguments& args) {
+  static void drawArrays(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDrawArrays(args[0]->Uint32Value(),
                  args[1]->Int32Value(), args[2]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void drawElements(GLenum mode, GLsizei count,
   //                   GLenum type, GLsizeiptr offset)
-  static v8::Handle<v8::Value> drawElements(const v8::Arguments& args) {
+  static void drawElements(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glDrawElements(args[0]->Uint32Value(),
                    args[1]->Int32Value(),
                    args[2]->Uint32Value(),
                    reinterpret_cast<GLvoid*>(args[3]->Int32Value()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void vertexAttribDivisor(GLuint index, GLuint divisor)
-  static v8::Handle<v8::Value> vertexAttribDivisor(const v8::Arguments& args) {
+  static void vertexAttribDivisor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    glVertexAttribDivisor(args[0]->Uint32Value(),
-                          args[1]->Uint32Value());
-    return v8::Undefined();
+    glVertexAttribDivisorARB(args[0]->Uint32Value(),
+                             args[1]->Uint32Value());
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void drawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instanceCount)
-  static v8::Handle<v8::Value> drawArraysInstanced(const v8::Arguments& args) {
+  static void drawArraysInstanced(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    glDrawArraysInstanced(args[0]->Uint32Value(),
-                          args[1]->Int32Value(),
-                          args[2]->Int32Value(),
-                          args[3]->Int32Value());
-    return v8::Undefined();
+    glDrawArraysInstancedARB(args[0]->Uint32Value(),
+                             args[1]->Int32Value(),
+                             args[2]->Int32Value(),
+                             args[3]->Int32Value());
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void drawElementsInstanced(GLenum mode, GLsizei count,
   //                            GLenum type, GLintptr offset,
   //                            GLsizei instanceCount)
-  static v8::Handle<v8::Value> drawElementsInstanced(const v8::Arguments& args) {
+  static void drawElementsInstanced(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 5)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    glDrawElementsInstanced(args[0]->Uint32Value(),
-                            args[1]->Int32Value(),
-                            args[2]->Uint32Value(),
-                            reinterpret_cast<GLvoid*>(args[3]->Int32Value()),
-                            args[4]->Int32Value());
-    return v8::Undefined();
+    glDrawElementsInstancedARB(args[0]->Uint32Value(),
+                               args[1]->Int32Value(),
+                               args[2]->Uint32Value(),
+                               reinterpret_cast<GLvoid*>(args[3]->Int32Value()),
+                               args[4]->Int32Value());
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void drawRangeElements(GLenum mode,
   //                        GLuint start, GLuint end,
   //                        GLsizei count, GLenum type, GLintptr offset)
-  static v8::Handle<v8::Value> drawRangeElements(const v8::Arguments& args) {
+  static void drawRangeElements(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 6)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    glDrawRangeElements(args[0]->Uint32Value(),
-                        args[1]->Uint32Value(),
-                        args[2]->Uint32Value(),
-                        args[3]->Int32Value(),
-                        args[4]->Uint32Value(),
-                        reinterpret_cast<GLvoid*>(args[5]->Int32Value()));
-    return v8::Undefined();
+    glDrawRangeElementsEXT(args[0]->Uint32Value(),
+                           args[1]->Uint32Value(),
+                           args[2]->Uint32Value(),
+                           args[3]->Int32Value(),
+                           args[4]->Uint32Value(),
+                           reinterpret_cast<GLvoid*>(args[5]->Int32Value()));
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void enable(GLenum cap)
-  static v8::Handle<v8::Value> enable(const v8::Arguments& args) {
+  static void enable(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glEnable(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void enableVertexAttribArray(GLuint index)
-  static v8::Handle<v8::Value> enableVertexAttribArray(
-      const v8::Arguments& args) {
+  static void enableVertexAttribArray(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glEnableVertexAttribArray(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void finish()
-  static v8::Handle<v8::Value> finish(const v8::Arguments& args) {
+  static void finish(const v8::FunctionCallbackInfo<v8::Value>& args) {
     glFinish();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void flush()
-  static v8::Handle<v8::Value> flush(const v8::Arguments& args) {
+  static void flush(const v8::FunctionCallbackInfo<v8::Value>& args) {
     glFlush();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void framebufferRenderbuffer(GLenum target, GLenum attachment,
   //                              GLenum renderbuffertarget,
   //                              WebGLRenderbuffer renderbuffer)
-  static v8::Handle<v8::Value> framebufferRenderbuffer(
-      const v8::Arguments& args) {
+  static void framebufferRenderbuffer(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // NOTE: ExtractNameFromValue will handle null.
-    if (!args[3]->IsNull() && !WebGLRenderbuffer::HasInstance(args[3]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[3]->IsNull() && !WebGLRenderbuffer::HasInstance(isolate, args[3]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glFramebufferRenderbuffer(
         args[0]->Uint32Value(),
         args[1]->Uint32Value(),
         args[2]->Uint32Value(),
         WebGLRenderbuffer::ExtractNameFromValue(args[3]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void framebufferTexture2D(GLenum target, GLenum attachment,
   //                           GLenum textarget, WebGLTexture texture,
   //                           GLint level)
-  static v8::Handle<v8::Value> framebufferTexture2D(
-      const v8::Arguments& args) {
+  static void framebufferTexture2D(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 5)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // NOTE: ExtractNameFromValue will handle null.
-    if (!args[3]->IsNull() && !WebGLTexture::HasInstance(args[3]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[3]->IsNull() && !WebGLTexture::HasInstance(isolate, args[3]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glFramebufferTexture2D(args[0]->Uint32Value(),
                            args[1]->Uint32Value(),
                            args[2]->Uint32Value(),
                            WebGLTexture::ExtractNameFromValue(args[3]),
                            args[4]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void frontFace(GLenum mode)
-  static v8::Handle<v8::Value> frontFace(
-      const v8::Arguments& args) {
+  static void frontFace(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glFrontFace(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void generateMipmap(GLenum target)
-  static v8::Handle<v8::Value> generateMipmap(
-      const v8::Arguments& args) {
+  static void generateMipmap(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glGenerateMipmap(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // WebGLActiveInfo getActiveAttrib(WebGLProgram program, GLuint index)
-  static v8::Handle<v8::Value> getActiveAttrib(const v8::Arguments& args) {
+  static void getActiveAttrib(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
@@ -1692,16 +1773,17 @@ class NSOpenGLContextWrapper {
     glGetActiveAttrib(program, args[1]->Uint32Value(),
                       sizeof(namebuf), NULL, &size, &type, namebuf);
 
-    return WebGLActiveInfo::NewFromSizeTypeName(size, type, namebuf);
+    return args.GetReturnValue().Set(
+        WebGLActiveInfo::NewFromSizeTypeName(size, type, namebuf));
   }
 
   // WebGLActiveInfo getActiveUniform(WebGLProgram program, GLuint index)
-  static v8::Handle<v8::Value> getActiveUniform(const v8::Arguments& args) {
+  static void getActiveUniform(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
@@ -1712,16 +1794,16 @@ class NSOpenGLContextWrapper {
     glGetActiveUniform(program, args[1]->Uint32Value(),
                        sizeof(namebuf), NULL, &size, &type, namebuf);
 
-    return WebGLActiveInfo::NewFromSizeTypeName(size, type, namebuf);
+    return args.GetReturnValue().Set(WebGLActiveInfo::NewFromSizeTypeName(size, type, namebuf));
   }
 
   // WebGLShader[ ] getAttachedShaders(WebGLProgram program)
-  static v8::Handle<v8::Value> getAttachedShaders(const v8::Arguments& args) {
+  static void getAttachedShaders(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
@@ -1729,27 +1811,27 @@ class NSOpenGLContextWrapper {
     GLsizei count;
     glGetAttachedShaders(program, 10, &count, shaders);
 
-    v8::Local<v8::Array> res = v8::Array::New(count);
+    v8::Local<v8::Array> res = v8::Array::New(isolate, count);
     for (int i = 0; i < count; ++i) {
-      res->Set(v8::Integer::New(i),
-               WebGLShader::LookupFromName(shaders[i]));
+      res->Set(v8::Integer::New(isolate, i),
+               WebGLShader::LookupFromName(isolate, shaders[i]));
     }
 
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
   // GLint getAttribLocation(WebGLProgram program, DOMString name)
-  static v8::Handle<v8::Value> getAttribLocation(const v8::Arguments& args) {
+  static void getAttribLocation(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
     v8::String::Utf8Value name(args[1]);
-    return v8::Integer::New(glGetAttribLocation(program, *name));
+    return args.GetReturnValue().Set(v8::Integer::New(isolate, glGetAttribLocation(program, *name)));
   }
 
   static WebGLType get_parameter_type(GLenum pname) {
@@ -1764,12 +1846,13 @@ class NSOpenGLContextWrapper {
   }
 
   static v8::Handle<v8::Value> getBooleanArrayParameter(
+      v8::Isolate* isolate,
       unsigned long pname, int length) {
     GLboolean* value = new GLboolean[length];
     glGetBooleanv(pname, value);
-    v8::Local<v8::Array> ta = v8::Array::New(length);
+    v8::Local<v8::Array> ta = v8::Array::New(isolate, length);
     for (int i = 0; i < length; ++i) {
-      ta->Set(i, v8::Boolean::New(value[i]));
+      ta->Set(i, v8::Boolean::New(isolate, value[i]));
     }
     delete[] value;
 
@@ -1777,16 +1860,16 @@ class NSOpenGLContextWrapper {
   }
 
   static v8::Handle<v8::Value> getFloat32ArrayParameter(
+      v8::Isolate* isolate,
       unsigned long pname, int length) {
     float* value = new float[length];
     glGetFloatv(pname, value);
-    v8::Handle<v8::Value> ta_args[1] = {v8::Integer::New(length)};
-    // TODO(deanm): A better way of getting the TypedArray constructors.
-    v8::Handle<v8::Object> ta = v8::Handle<v8::Function>::Cast(
-        v8::Context::GetCurrent()->Global()->
-           Get(v8::String::New("Float32Array")))->NewInstance(1, ta_args);
+    v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
+        isolate, sizeof(*value) * length);
+    v8::Handle<v8::Float32Array> ta = v8::Float32Array::New(
+        buffer, 0, buffer->ByteLength());
     for (int i = 0; i < length; ++i) {
-      ta->Set(i, v8::Number::New(value[i]));
+      ta->Set(i, v8::Number::New(isolate, value[i]));
     }
     delete[] value;
 
@@ -1794,26 +1877,41 @@ class NSOpenGLContextWrapper {
   }
 
   static v8::Handle<v8::Value> getInt32ArrayParameter(
+      v8::Isolate* isolate,
       unsigned long pname, int length) {
     int* value = new int[length];
     glGetIntegerv(pname, value);
-    v8::Handle<v8::Value> ta_args[1] = {v8::Integer::New(length)};
-    // TODO(deanm): A better way of getting the TypedArray constructors.
-    v8::Handle<v8::Object> ta = v8::Handle<v8::Function>::Cast(
-        v8::Context::GetCurrent()->Global()->
-           Get(v8::String::New("Int32Array")))->NewInstance(1, ta_args);
+    v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
+        isolate, sizeof(*value) * length);
+    v8::Handle<v8::Int32Array> ta = v8::Int32Array::New(
+        buffer, 0, buffer->ByteLength());
     for (int i = 0; i < length; ++i) {
-      ta->Set(i, v8::Integer::New(value[i]));
+      ta->Set(i, v8::Integer::New(isolate, value[i]));
     }
     delete[] value;
 
     return ta;
   }
 
+  static void getNameMappedParameter(
+      v8::Isolate* isolate,
+      const v8::FunctionCallbackInfo<v8::Value>& args,
+      unsigned long pname,
+      std::map<GLuint, v8::UniquePersistent<v8::Value> >& map) {
+    int value;
+    glGetIntegerv(pname, &value);
+    GLuint name = static_cast<unsigned int>(value);
+    if (name != 0 && map.count(name) == 1) {
+      return args.GetReturnValue().Set(PersistentToLocal(isolate, map[name]));
+    } else {
+      return args.GetReturnValue().SetNull();
+    }
+  }
+
   // any getParameter(GLenum pname)
-  static v8::Handle<v8::Value> getParameter(const v8::Arguments& args) {
+  static void getParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     unsigned long pname = args[0]->Uint32Value();
 
@@ -1823,124 +1921,99 @@ class NSOpenGLContextWrapper {
         std::string str = "WebGL GLSL ES 1.0 (";
         str.append(reinterpret_cast<const char*>(glGetString(pname)));
         str.push_back(')');
-        return v8::String::New(str.c_str());
+        return args.GetReturnValue().Set(
+            v8::String::NewFromUtf8(isolate, str.c_str()));
       }
       case WEBGL_VENDOR:
       {
         std::string str = "Plask (";
         str.append(reinterpret_cast<const char*>(glGetString(pname)));
         str.push_back(')');
-        return v8::String::New(str.c_str());
+        return args.GetReturnValue().Set(
+            v8::String::NewFromUtf8(isolate, str.c_str()));
       }
       case WEBGL_VERSION:
       {
         std::string str = "WebGL 1.0 (";
         str.append(reinterpret_cast<const char*>(glGetString(pname)));
         str.push_back(')');
-        return v8::String::New(str.c_str());
+        return args.GetReturnValue().Set(
+            v8::String::NewFromUtf8(isolate, str.c_str()));
       }
     }
 
     WebGLType ptype = get_parameter_type(pname);
     switch (ptype) {
       case WebGLTypeDOMString:
-        return v8::String::New(
-            reinterpret_cast<const char*>(glGetString(pname)));
+        return args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate,
+            reinterpret_cast<const char*>(glGetString(pname))));
       case WebGLTypeFloat32Arrayx2:
-        return getFloat32ArrayParameter(pname, 2);
+        return args.GetReturnValue().Set(
+            getFloat32ArrayParameter(isolate, pname, 2));
       case WebGLTypeFloat32Arrayx4:
-        return getFloat32ArrayParameter(pname, 4);
+        return args.GetReturnValue().Set(
+            getFloat32ArrayParameter(isolate, pname, 4));
       case WebGLTypeGLboolean:
       {
         GLboolean value;
         glGetBooleanv(pname, &value);
-        return v8::Boolean::New(value);
+        return args.GetReturnValue().Set((bool)static_cast<bool>(value));
       }
       case WebGLTypeGLbooleanx4:
-        return getBooleanArrayParameter(pname, 4);
+        return args.GetReturnValue().Set(
+            getBooleanArrayParameter(isolate, pname, 4));
       case WebGLTypeGLenum:
       case WebGLTypeGLuint:
       {
         GLuint value;
         glGetIntegerv(pname, reinterpret_cast<GLint*>(&value));
-        return v8::Integer::NewFromUnsigned(value);
+        return args.GetReturnValue().Set(value);
       }
       case WebGLTypeGLfloat:
       {
         float value;
         glGetFloatv(pname, &value);
-        return v8::Number::New(value);
+        return args.GetReturnValue().Set(value);
       }
       case WebGLTypeGLint:
       {
         GLint value;
         glGetIntegerv(pname, &value);
-        return v8::Integer::New(value);
+        return args.GetReturnValue().Set(value);
       }
       case WebGLTypeInt32Arrayx2:
-        return getInt32ArrayParameter(pname, 2);
-        break;
+        return args.GetReturnValue().Set(
+            getInt32ArrayParameter(isolate, pname, 2));
       case WebGLTypeInt32Arrayx4:
-        return getInt32ArrayParameter(pname, 4);
-        break;
+        return args.GetReturnValue().Set(
+            getInt32ArrayParameter(isolate, pname, 4));
       case WebGLTypeUint32Array:
         // Only for compressed texture formats?
-        return v8_utils::ThrowError("Unimplemented.");
+        return v8_utils::ThrowError(isolate, "Unimplemented.");
         break;
       case WebGLTypeWebGLBuffer:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint buffer = static_cast<unsigned int>(value);
-        return WebGLBuffer::LookupFromName(buffer);
-      }
+        return getNameMappedParameter(isolate, args, pname, WebGLBuffer::Map());
       case WebGLTypeWebGLFramebuffer:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint framebuffer = static_cast<unsigned int>(value);
-        return WebGLFramebuffer::LookupFromName(framebuffer);
-      }
+        return getNameMappedParameter(isolate, args, pname, WebGLFramebuffer::Map());
       case WebGLTypeWebGLProgram:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint program = static_cast<unsigned int>(value);
-        return WebGLProgram::LookupFromName(program);
-      }
+        return getNameMappedParameter(isolate, args, pname, WebGLProgram::Map());
       case WebGLTypeWebGLRenderbuffer:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint renderbuffer = static_cast<unsigned int>(value);
-        return WebGLRenderbuffer::LookupFromName(
-            renderbuffer);
-      }
+        return getNameMappedParameter(isolate, args, pname, WebGLRenderbuffer::Map());
       case WebGLTypeWebGLTexture:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint texture = static_cast<unsigned int>(value);
-        return WebGLTexture::LookupFromName(texture);
-      }
+        return getNameMappedParameter(isolate, args, pname, WebGLTexture::Map());
       case WebGLTypeWebGLVertexArrayObject:
-      {
-        int value;
-        glGetIntegerv(pname, &value);
-        GLuint name = static_cast<unsigned int>(value);
-        return WebGLVertexArrayObject::LookupFromName(name);
-      }
+        return getNameMappedParameter(isolate, args, pname, WebGLVertexArrayObject::Map());
       case WebGLTypeInvalid:
         break;  // fall out.
     }
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // any getBufferParameter(GLenum target, GLenum pname)
-  static v8::Handle<v8::Value> getBufferParameter(const v8::Arguments& args) {
+  static void getBufferParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     GLenum target = args[0]->Int32Value();
     GLenum pname = args[1]->Int32Value();
@@ -1950,60 +2023,63 @@ class NSOpenGLContextWrapper {
       {
         GLint value;
         glGetBufferParameteriv(target, pname, &value);
-        return v8::Integer::New(static_cast<long>(value));
+        return args.GetReturnValue().Set(value);
       }
     }
 
-    return v8_utils::ThrowError("INVALID_ENUM");
+    return v8_utils::ThrowError(isolate, "INVALID_ENUM");
   }
 
   // GLenum getError()
-  static v8::Handle<v8::Value> getError(const v8::Arguments& args) {
-    return v8::Integer::NewFromUnsigned(glGetError());
+  static void getError(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, glGetError()));
   }
 
   // any getFramebufferAttachmentParameter(GLenum target, GLenum attachment,
   //                                       GLenum pname)
-  static v8::Handle<v8::Value> getFramebufferAttachmentParameter(
-      const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+  static void getFramebufferAttachmentParameter(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
   // any getProgramParameter(WebGLProgram program, GLenum pname)
-  static v8::Handle<v8::Value> getProgramParameter(const v8::Arguments& args) {
+  static void getProgramParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
-      case WEBGL_DELETE_STATUS:
-      case WEBGL_VALIDATE_STATUS:
-      case WEBGL_LINK_STATUS:
+      case GL_DELETE_STATUS:
+      case GL_VALIDATE_STATUS:
+      case GL_LINK_STATUS:
         glGetProgramiv(program, pname, &value);
-        return v8::Boolean::New(value);
-      case WEBGL_ATTACHED_SHADERS:
-      case WEBGL_ACTIVE_ATTRIBUTES:
-      case WEBGL_ACTIVE_UNIFORMS:
+        return args.GetReturnValue().Set((bool)value);
+      case GL_INFO_LOG_LENGTH:
+      case GL_ATTACHED_SHADERS:
+      case GL_ACTIVE_ATTRIBUTES:
+      case GL_ACTIVE_ATTRIBUTE_MAX_LENGTH:
+      case GL_ACTIVE_UNIFORMS:
+      case GL_ACTIVE_UNIFORM_MAX_LENGTH:
         glGetProgramiv(program, pname, &value);
-        return v8::Integer::New(value);
+        return args.GetReturnValue().Set(v8::Integer::New(isolate, value));
       default:
-        return v8::Undefined();
+        return args.GetReturnValue().SetUndefined();
     }
   }
 
   // DOMString getProgramInfoLog(WebGLProgram program)
-  static v8::Handle<v8::Value> getProgramInfoLog(const v8::Arguments& args) {
+  static void getProgramInfoLog(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
@@ -2011,291 +2087,298 @@ class NSOpenGLContextWrapper {
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
     glGetProgramInfoLog(program, length + 1, NULL, buf);
-    v8::Handle<v8::Value> res = v8::String::New(buf, length);
+    v8::Handle<v8::Value> res = v8::String::NewFromUtf8(
+        isolate, buf, v8::String::kNormalString, length);
     delete[] buf;
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
   // any getRenderbufferParameter(GLenum target, GLenum pname)
-  static v8::Handle<v8::Value> getRenderbufferParameter(
-      const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+  static void getRenderbufferParameter(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
   // any getShaderParameter(WebGLShader shader, GLenum pname)
-  static v8::Handle<v8::Value> getShaderParameter(const v8::Arguments& args) {
+  static void getShaderParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
     unsigned long pname = args[1]->Uint32Value();
     GLint value = 0;
     switch (pname) {
-      case WEBGL_DELETE_STATUS:
-      case WEBGL_COMPILE_STATUS:
+      case GL_DELETE_STATUS:
+      case GL_COMPILE_STATUS:
         glGetShaderiv(shader, pname, &value);
-        return v8::Boolean::New(value);
-      case WEBGL_SHADER_TYPE:
+        return args.GetReturnValue().Set((bool)value);
+      case GL_SHADER_TYPE:
         glGetShaderiv(shader, pname, &value);
-        return v8::Integer::NewFromUnsigned(value);
+        return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, value));
+      case GL_INFO_LOG_LENGTH:
+      case GL_SHADER_SOURCE_LENGTH:
+        glGetShaderiv(shader, pname, &value);
+        return args.GetReturnValue().Set(v8::Integer::New(isolate, value));
       default:
-        return v8::Undefined();
+        return args.GetReturnValue().SetUndefined();
     }
   }
 
   // DOMString getShaderInfoLog(WebGLShader shader)
-  static v8::Handle<v8::Value> getShaderInfoLog(const v8::Arguments& args) {
+  static void getShaderInfoLog(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
     GLint length = 0;
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
     glGetShaderInfoLog(shader, length + 1, NULL, buf);
-    v8::Handle<v8::Value> res = v8::String::New(buf, length);
+    v8::Handle<v8::Value> res = v8::String::NewFromUtf8(
+        isolate, buf, v8::String::kNormalString, length);
     delete[] buf;
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
   // DOMString getShaderSource(WebGLShader shader)
-  static v8::Handle<v8::Value> getShaderSource(const v8::Arguments& args) {
+  static void getShaderSource(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
     GLint length = 0;
     glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &length);
     GLchar* buf = new GLchar[length + 1];
     glGetShaderSource(shader, length + 1, NULL, buf);
-    v8::Handle<v8::Value> res = v8::String::New(buf, length);
+    v8::Handle<v8::Value> res = v8::String::NewFromUtf8(
+        isolate, buf, v8::String::kNormalString, length);
     delete[] buf;
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
   // any getTexParameter(GLenum target, GLenum pname)
-  static v8::Handle<v8::Value> getTexParameter(const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+  static void getTexParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
   // any getUniform(WebGLProgram program, WebGLUniformLocation location)
-  static v8::Handle<v8::Value> getUniform(const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+  static void getUniform(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
   // WebGLUniformLocation getUniformLocation(WebGLProgram program,
   //                                         DOMString name)
-  static v8::Handle<v8::Value> getUniformLocation(const v8::Arguments& args) {
+  static void getUniformLocation(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
     v8::String::Utf8Value name(args[1]);
     GLint location = glGetUniformLocation(program, *name);
     if (location == -1)
-      return v8::Null();
-    return WebGLUniformLocation::NewFromLocation(location);
+      return args.GetReturnValue().SetNull();
+    return args.GetReturnValue().Set(WebGLUniformLocation::NewFromLocation(location));
   }
 
   // any getVertexAttrib(GLuint index, GLenum pname)
-  static v8::Handle<v8::Value> getVertexAttrib(
-      const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+  static void getVertexAttrib(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
   // GLsizeiptr getVertexAttribOffset(GLuint index, GLenum pname)
-  static v8::Handle<v8::Value> getVertexAttribOffset(
-      const v8::Arguments& args) {
-    return v8_utils::ThrowError("Unimplemented.");
+  static void getVertexAttribOffset(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
   // void hint(GLenum target, GLenum mode)
-  static v8::Handle<v8::Value> hint(const v8::Arguments& args) {
+  static void hint(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glHint(args[0]->Uint32Value(), args[1]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // GLboolean isBuffer(WebGLBuffer buffer)
-  static v8::Handle<v8::Value> isBuffer(const v8::Arguments& args) {
+  static void isBuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLBuffer::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLBuffer::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsBuffer(
+    return args.GetReturnValue().Set((bool)glIsBuffer(
         WebGLBuffer::ExtractNameFromValue(args[0])));
   }
 
   // GLboolean isEnabled(GLenum cap)
-  static v8::Handle<v8::Value> isEnabled(const v8::Arguments& args) {
+  static void isEnabled(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    return v8::Boolean::New(glIsEnabled(args[0]->Uint32Value()));
+    return args.GetReturnValue().Set((bool)glIsEnabled(args[0]->Uint32Value()));
   }
 
   // GLboolean isFramebuffer(WebGLFramebuffer framebuffer)
-  static v8::Handle<v8::Value> isFramebuffer(const v8::Arguments& args) {
+  static void isFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLFramebuffer::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLFramebuffer::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsFramebuffer(
+    return args.GetReturnValue().Set((bool)glIsFramebuffer(
         WebGLFramebuffer::ExtractNameFromValue(args[0])));
   }
 
   // GLboolean isProgram(WebGLProgram program)
-  static v8::Handle<v8::Value> isProgram(const v8::Arguments& args) {
+  static void isProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsProgram(
+    return args.GetReturnValue().Set((bool)glIsProgram(
         WebGLProgram::ExtractNameFromValue(args[0])));
   }
 
   // GLboolean isRenderbuffer(WebGLRenderbuffer renderbuffer)
-  static v8::Handle<v8::Value> isRenderbuffer(const v8::Arguments& args) {
+  static void isRenderbuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLRenderbuffer::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLRenderbuffer::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsRenderbuffer(
+    return args.GetReturnValue().Set((bool)glIsRenderbuffer(
         WebGLRenderbuffer::ExtractNameFromValue(args[0])));
   }
 
   // GLboolean isShader(WebGLShader shader)
-  static v8::Handle<v8::Value> isShader(const v8::Arguments& args) {
+  static void isShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsShader(
+    return args.GetReturnValue().Set((bool)glIsShader(
         WebGLShader::ExtractNameFromValue(args[0])));
   }
 
   // GLboolean isTexture(WebGLTexture texture)
-  static v8::Handle<v8::Value> isTexture(const v8::Arguments& args) {
+  static void isTexture(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLTexture::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLTexture::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsTexture(
+    return args.GetReturnValue().Set((bool)glIsTexture(
         WebGLTexture::ExtractNameFromValue(args[0])));
   }
 
   // GLboolean isVertexArray(WebGLVertexArrayObject? vertexArray)
-  static v8::Handle<v8::Value> isVertexArray(const v8::Arguments& args) {
+  static void isVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Seems that Chrome does this...
     if (args[0]->IsNull() || args[0]->IsUndefined())
-      return v8::False();
+      return args.GetReturnValue().Set(false);
 
-    if (!WebGLVertexArrayObject::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLVertexArrayObject::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
-    return v8::Boolean::New(glIsVertexArrayAPPLE(
+    return args.GetReturnValue().Set((bool)glIsVertexArrayAPPLE(
         WebGLVertexArrayObject::ExtractNameFromValue(args[0])));
   }
 
   // void lineWidth(GLfloat width)
-  static v8::Handle<v8::Value> lineWidth(const v8::Arguments& args) {
+  static void lineWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glLineWidth(args[0]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void linkProgram(WebGLProgram program)
-  static v8::Handle<v8::Value> linkProgram(const v8::Arguments& args) {
+  static void linkProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glLinkProgram(WebGLProgram::ExtractNameFromValue(args[0]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void pixelStorei(GLenum pname, GLint param)
-  static v8::Handle<v8::Value> pixelStorei(const v8::Arguments& args) {
+  static void pixelStorei(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glPixelStorei(args[0]->Uint32Value(), args[1]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void polygonOffset(GLfloat factor, GLfloat units)
-  static v8::Handle<v8::Value> polygonOffset(const v8::Arguments& args) {
+  static void polygonOffset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glPolygonOffset(args[0]->NumberValue(), args[1]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
   //                 GLenum format, GLenum type, ArrayBufferView pixels)
-  static v8::Handle<v8::Value> readPixels(
-      const v8::Arguments& args) {
+  static void readPixels(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 7)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     GLint x = args[0]->Int32Value();
     GLint y = args[1]->Int32Value();
@@ -2304,75 +2387,75 @@ class NSOpenGLContextWrapper {
     GLenum format = args[4]->Int32Value();
     GLenum type = args[5]->Int32Value();
     if (format != GL_RGBA)
-      return v8_utils::ThrowError("readPixels only supports GL_RGBA.");
+      return v8_utils::ThrowError(isolate, "readPixels only supports GL_RGBA.");
     //format = GL_BGRA;  // TODO(deanm): Fixme.
 
     if (type != GL_UNSIGNED_BYTE)
-      return v8_utils::ThrowError("readPixels only supports GL_UNSIGNED_BYTE.");
+      return v8_utils::ThrowError(isolate, "readPixels only supports GL_UNSIGNED_BYTE.");
 
     if (!args[6]->IsObject())
-      return v8_utils::ThrowError("readPixels only supports Uint8Array.");
+      return v8_utils::ThrowError(isolate, "readPixels only supports Uint8Array.");
 
     v8::Handle<v8::Object> data = v8::Handle<v8::Object>::Cast(args[6]);
 
     if (data->GetIndexedPropertiesExternalArrayDataType() !=
         v8::kExternalUnsignedByteArray)
-      return v8_utils::ThrowError("readPixels only supports Uint8Array.");
+      return v8_utils::ThrowError(isolate, "readPixels only supports Uint8Array.");
 
     // TODO(deanm):  From the spec (requires synthesizing gl errors):
     //   If pixels is non-null, but is not large enough to retrieve all of the
     //   pixels in the specified rectangle taking into account pixel store
     //   modes, an INVALID_OPERATION value is generated.
     if (data->GetIndexedPropertiesExternalArrayDataLength() < width*height*4)
-      return v8_utils::ThrowError("Uint8Array buffer too small.");
+      return v8_utils::ThrowError(isolate, "Uint8Array buffer too small.");
 
     glReadPixels(x, y, width, height, format, type,
                  data->GetIndexedPropertiesExternalArrayData());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void renderbufferStorage(GLenum target, GLenum internalformat,
   //                          GLsizei width, GLsizei height)
-  static v8::Handle<v8::Value> renderbufferStorage(const v8::Arguments& args) {
+  static void renderbufferStorage(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glRenderbufferStorage(args[0]->Uint32Value(),
                           args[1]->Uint32Value(),
                           args[2]->Int32Value(),
                           args[3]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void sampleCoverage(GLclampf value, GLboolean invert)
-  static v8::Handle<v8::Value> sampleCoverage(const v8::Arguments& args) {
+  static void sampleCoverage(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glSampleCoverage(args[0]->NumberValue(),
                      args[1]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void scissor(GLint x, GLint y, GLsizei width, GLsizei height)
-  static v8::Handle<v8::Value> scissor(const v8::Arguments& args) {
+  static void scissor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glScissor(args[0]->Int32Value(),
               args[1]->Int32Value(),
               args[2]->Int32Value(),
               args[3]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void shaderSource(WebGLShader shader, DOMString source)
-  static v8::Handle<v8::Value> shaderSource(const v8::Arguments& args) {
+  static void shaderSource(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLShader::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
 
@@ -2381,72 +2464,72 @@ class NSOpenGLContextWrapper {
     // than sneaking in a #version at the beginning?
     const GLchar* strs[] = { "#version 120\n", *data };
     glShaderSource(shader, 2, strs, NULL);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilFunc(GLenum func, GLint ref, GLuint mask)
-  static v8::Handle<v8::Value> stencilFunc(const v8::Arguments& args) {
+  static void stencilFunc(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glStencilFunc(args[0]->Uint32Value(),
                   args[1]->Int32Value(),
                   args[2]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilFuncSeparate(GLenum face, GLenum func, GLint ref, GLuint mask)
-  static v8::Handle<v8::Value> stencilFuncSeparate(const v8::Arguments& args) {
+  static void stencilFuncSeparate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glStencilFuncSeparate(args[0]->Uint32Value(),
                           args[1]->Uint32Value(),
                           args[2]->Int32Value(),
                           args[3]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilMask(GLuint mask)
-  static v8::Handle<v8::Value> stencilMask(const v8::Arguments& args) {
+  static void stencilMask(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glStencilMask(args[0]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilMaskSeparate(GLenum face, GLuint mask)
-  static v8::Handle<v8::Value> stencilMaskSeparate(const v8::Arguments& args) {
+  static void stencilMaskSeparate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glStencilMaskSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilOp(GLenum fail, GLenum zfail, GLenum zpass)
-  static v8::Handle<v8::Value> stencilOp(const v8::Arguments& args) {
+  static void stencilOp(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glStencilOp(args[0]->Uint32Value(),
                 args[1]->Uint32Value(),
                 args[2]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void stencilOpSeparate(GLenum face, GLenum fail,
   //                        GLenum zfail, GLenum zpass)
-  static v8::Handle<v8::Value> stencilOpSeparate(const v8::Arguments& args) {
+  static void stencilOpSeparate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glStencilOpSeparate(args[0]->Uint32Value(),
                         args[1]->Uint32Value(),
                         args[2]->Uint32Value(),
                         args[3]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void texImage2D(GLenum target, GLint level, GLenum internalformat,
@@ -2460,22 +2543,17 @@ class NSOpenGLContextWrapper {
   //                 GLenum format, GLenum type, HTMLCanvasElement canvas)
   // void texImage2D(GLenum target, GLint level, GLenum internalformat,
   //                 GLenum format, GLenum type, HTMLVideoElement video)
-  static v8::Handle<v8::Value> texImage2D(const v8::Arguments& args) {
+  static void texImage2D(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 9)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     GLvoid* data = NULL;
+    GLsizeiptr size = 0;  // FIXME use size
 
     if (!args[8]->IsNull()) {
-      if (!args[8]->IsObject())
-        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
-
-      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[8]);
-      if (!obj->HasIndexedPropertiesInExternalArrayData())
-        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
-
       // TODO(deanm): Check size / format.  For now just use it correctly.
-      data = obj->GetIndexedPropertiesExternalArrayData();
+      if (!GetTypedArrayBytes(args[8], &data, &size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
     }
 
     // TODO(deanm): Support more than just the zero initialization case.
@@ -2488,33 +2566,33 @@ class NSOpenGLContextWrapper {
                  args[6]->Uint32Value(),  // format
                  args[7]->Uint32Value(),  // type
                  data);                   // data
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // NOTE: implemented outside of class definition (SkCanvasWrapper dependency).
-  static v8::Handle<v8::Value> texImage2DSkCanvasB(const v8::Arguments& args);
-  static v8::Handle<v8::Value> drawSkCanvas(const v8::Arguments& args);
+  static void texImage2DSkCanvasB(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void drawSkCanvas(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   // void texParameterf(GLenum target, GLenum pname, GLfloat param)
-  static v8::Handle<v8::Value> texParameterf(const v8::Arguments& args) {
+  static void texParameterf(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glTexParameterf(args[0]->Uint32Value(),
                     args[1]->Uint32Value(),
                     args[2]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void texParameteri(GLenum target, GLenum pname, GLint param)
-  static v8::Handle<v8::Value> texParameteri(const v8::Arguments& args) {
+  static void texParameteri(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glTexParameteri(args[0]->Uint32Value(),
                     args[1]->Uint32Value(),
                     args[2]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void texSubImage2D(GLenum target, GLint level,
@@ -2534,22 +2612,16 @@ class NSOpenGLContextWrapper {
   //                    GLint xoffset, GLint yoffset,
   //                    GLenum format, GLenum type, HTMLVideoElement video)
 
-  static v8::Handle<v8::Value> texSubImage2D(const v8::Arguments& args) {
+  static void texSubImage2D(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 9)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     GLvoid* data = NULL;
+    GLsizeiptr size = 0;  // FIXME use size
 
     if (!args[8]->IsNull()) {
-      if (!args[8]->IsObject())
-        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
-
-      v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(args[8]);
-      if (!obj->HasIndexedPropertiesInExternalArrayData())
-        return v8_utils::ThrowError("Data must be an ArrayBuffer.");
-
-      // TODO(deanm): Check size / format.  For now just use it correctly.
-      data = obj->GetIndexedPropertiesExternalArrayData();
+      if (!GetTypedArrayBytes(args[8], &data, &size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
     }
 
     glTexSubImage2D(args[0]->Uint32Value(),  // target
@@ -2561,247 +2633,247 @@ class NSOpenGLContextWrapper {
                     args[6]->Uint32Value(),  // format
                     args[7]->Uint32Value(),  // type
                     data);                   // data
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> uniformfvHelper(
+  static void uniformfvHelper(
       void (*uniformFunc)(GLint, GLsizei, const GLfloat*),
       GLsizei numcomps,
-      const v8::Arguments& args) {
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     int length = 0;
     if (!args[1]->IsObject())
-      return v8_utils::ThrowError("value must be an Sequence.");
+      return v8_utils::ThrowError(isolate, "value must be an Sequence.");
 
     v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[1]);
-    if (obj->HasIndexedPropertiesInExternalArrayData()) {
-      length = obj->GetIndexedPropertiesExternalArrayDataLength();
+    if (obj->IsTypedArray()) {
+      length = v8::Handle<v8::TypedArray>::Cast(obj)->Length();
     } else if (obj->IsArray()) {
       length = v8::Handle<v8::Array>::Cast(obj)->Length();
     } else {
-      return v8_utils::ThrowError("value must be an Sequence.");
+      return v8_utils::ThrowError(isolate, "value must be an Sequence.");
     }
 
     if (length % numcomps)
-      return v8_utils::ThrowError("Sequence size not multiple of components.");
+      return v8_utils::ThrowError(isolate, "Sequence size not multiple of components.");
 
     float* buffer = new float[length];
     if (!buffer)
-      return v8_utils::ThrowError("Unable to allocate memory for sequence.");
+      return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
 
     for (int i = 0; i < length; ++i) {
       buffer[i] = obj->Get(i)->NumberValue();
     }
     uniformFunc(location, length / numcomps, buffer);
     delete[] buffer;
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> uniformivHelper(
+  static void uniformivHelper(
       void (*uniformFunc)(GLint, GLsizei, const GLint*),
       GLsizei numcomps,
-      const v8::Arguments& args) {
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     int length = 0;
     if (!args[1]->IsObject())
-      return v8_utils::ThrowError("value must be an Sequence.");
+      return v8_utils::ThrowError(isolate, "value must be an Sequence.");
 
     v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[1]);
-    if (obj->HasIndexedPropertiesInExternalArrayData()) {
-      length = obj->GetIndexedPropertiesExternalArrayDataLength();
+    if (obj->IsTypedArray()) {
+      length = v8::Handle<v8::TypedArray>::Cast(obj)->Length();
     } else if (obj->IsArray()) {
       length = v8::Handle<v8::Array>::Cast(obj)->Length();
     } else {
-      return v8_utils::ThrowError("value must be an Sequence.");
+      return v8_utils::ThrowError(isolate, "value must be an Sequence.");
     }
 
     if (length % numcomps)
-      return v8_utils::ThrowError("Sequence size not multiple of components.");
+      return v8_utils::ThrowError(isolate, "Sequence size not multiple of components.");
 
     GLint* buffer = new GLint[length];
     if (!buffer)
-      return v8_utils::ThrowError("Unable to allocate memory for sequence.");
+      return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
 
     for (int i = 0; i < length; ++i) {
       buffer[i] = obj->Get(i)->Int32Value();
     }
     uniformFunc(location, length / numcomps, buffer);
     delete[] buffer;
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform1f(WebGLUniformLocation location, GLfloat x)
-  static v8::Handle<v8::Value> uniform1f(const v8::Arguments& args) {
+  static void uniform1f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform1f(location, args[1]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform1fv(WebGLUniformLocation location, Float32Array v)
   // void uniform1fv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform1fv(const v8::Arguments& args) {
+  static void uniform1fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformfvHelper(glUniform1fv, 1, args);
   }
 
   // void uniform1i(WebGLUniformLocation location, GLint x)
-  static v8::Handle<v8::Value> uniform1i(const v8::Arguments& args) {
+  static void uniform1i(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform1i(location, args[1]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform1iv(WebGLUniformLocation location, Int32Array v)
   // void uniform1iv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform1iv(const v8::Arguments& args) {
+  static void uniform1iv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformivHelper(glUniform1iv, 1, args);
   }
 
   // void uniform2f(WebGLUniformLocation location, GLfloat x, GLfloat y)
-  static v8::Handle<v8::Value> uniform2f(const v8::Arguments& args) {
+  static void uniform2f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform2f(location,
                 args[1]->NumberValue(),
                 args[2]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform2fv(WebGLUniformLocation location, Float32Array v)
   // void uniform2fv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform2fv(const v8::Arguments& args) {
+  static void uniform2fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformfvHelper(glUniform2fv, 2, args);
   }
 
   // void uniform2i(WebGLUniformLocation location, GLint x, GLint y)
-  static v8::Handle<v8::Value> uniform2i(const v8::Arguments& args) {
+  static void uniform2i(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform2i(location,
                 args[1]->Int32Value(),
                 args[2]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform2iv(WebGLUniformLocation location, Int32Array v)
   // void uniform2iv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform2iv(const v8::Arguments& args) {
+  static void uniform2iv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformivHelper(glUniform2iv, 2, args);
   }
 
   // void uniform3f(WebGLUniformLocation location, GLfloat x, GLfloat y,
   //                GLfloat z)
-  static v8::Handle<v8::Value> uniform3f(const v8::Arguments& args) {
+  static void uniform3f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform3f(location,
                 args[1]->NumberValue(),
                 args[2]->NumberValue(),
                 args[3]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform3fv(WebGLUniformLocation location, Float32Array v)
   // void uniform3fv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform3fv(const v8::Arguments& args) {
+  static void uniform3fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformfvHelper(glUniform3fv, 3, args);
   }
 
   // void uniform3i(WebGLUniformLocation location, GLint x, GLint y, GLint z)
-  static v8::Handle<v8::Value> uniform3i(const v8::Arguments& args) {
+  static void uniform3i(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform3i(location,
                 args[1]->Int32Value(),
                 args[2]->Int32Value(),
                 args[3]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform3iv(WebGLUniformLocation location, Int32Array v)
   // void uniform3iv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform3iv(const v8::Arguments& args) {
+  static void uniform3iv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformivHelper(glUniform3iv, 3, args);
   }
 
   // void uniform4f(WebGLUniformLocation location, GLfloat x, GLfloat y,
   //                GLfloat z, GLfloat w)
-  static v8::Handle<v8::Value> uniform4f(const v8::Arguments& args) {
+  static void uniform4f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 5)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform4f(location,
@@ -2809,26 +2881,26 @@ class NSOpenGLContextWrapper {
                 args[2]->NumberValue(),
                 args[3]->NumberValue(),
                 args[4]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform4fv(WebGLUniformLocation location, Float32Array v)
   // void uniform4fv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform4fv(const v8::Arguments& args) {
+  static void uniform4fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformfvHelper(glUniform4fv, 4, args);
   }
 
   // void uniform4i(WebGLUniformLocation location, GLint x, GLint y,
   //                GLint z, GLint w)
-  static v8::Handle<v8::Value> uniform4i(const v8::Arguments& args) {
+  static void uniform4i(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 5)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     glUniform4i(location,
@@ -2836,62 +2908,62 @@ class NSOpenGLContextWrapper {
                 args[2]->Int32Value(),
                 args[3]->Int32Value(),
                 args[4]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniform4iv(WebGLUniformLocation location, Int32Array v)
   // void uniform4iv(WebGLUniformLocation location, sequence v)
-  static v8::Handle<v8::Value> uniform4iv(const v8::Arguments& args) {
+  static void uniform4iv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformivHelper(glUniform4iv, 4, args);
   }
 
-  static v8::Handle<v8::Value> uniformMatrixfvHelper(
+  static void uniformMatrixfvHelper(
       void (*uniformFunc)(GLint, GLsizei, GLboolean, const GLfloat*),
       GLsizei numcomps,
-      const v8::Arguments& args) {
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (args[0]->IsNull())  // null location is silently ignored.
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
-    if (!WebGLUniformLocation::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Expected a WebGLUniformLocation.");
+    if (!WebGLUniformLocation::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
     int length = 0;
     if (!args[2]->IsObject())
-      return v8_utils::ThrowError("value must be an Sequence.");
+      return v8_utils::ThrowError(isolate, "value must be an Sequence.");
 
     v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[2]);
-    if (obj->HasIndexedPropertiesInExternalArrayData()) {
-      length = obj->GetIndexedPropertiesExternalArrayDataLength();
+    if (obj->IsTypedArray()) {
+      length = v8::Handle<v8::TypedArray>::Cast(obj)->Length();
     } else if (obj->IsArray()) {
       length = v8::Handle<v8::Array>::Cast(obj)->Length();
     } else {
-      return v8_utils::ThrowError("value must be an Sequence.");
+      return v8_utils::ThrowError(isolate, "value must be an Sequence.");
     }
 
     if (length % numcomps)
-      return v8_utils::ThrowError("Sequence size not multiple of components.");
+      return v8_utils::ThrowError(isolate, "Sequence size not multiple of components.");
 
     float* buffer = new float[length];
     if (!buffer)
-      return v8_utils::ThrowError("Unable to allocate memory for sequence.");
+      return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
 
     for (int i = 0; i < length; ++i) {
       buffer[i] = obj->Get(i)->NumberValue();
     }
     uniformFunc(location, length / numcomps, GL_FALSE, buffer);
     delete[] buffer;
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose,
   //                       Float32Array value)
   // void uniformMatrix2fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
-  static v8::Handle<v8::Value> uniformMatrix2fv(const v8::Arguments& args) {
+  static void uniformMatrix2fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformMatrixfvHelper(glUniformMatrix2fv, 4, args);
   }
 
@@ -2899,7 +2971,7 @@ class NSOpenGLContextWrapper {
   //                       Float32Array value)
   // void uniformMatrix3fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
-  static v8::Handle<v8::Value> uniformMatrix3fv(const v8::Arguments& args) {
+  static void uniformMatrix3fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformMatrixfvHelper(glUniformMatrix3fv, 9, args);
   }
 
@@ -2907,37 +2979,37 @@ class NSOpenGLContextWrapper {
   //                       Float32Array value)
   // void uniformMatrix4fv(WebGLUniformLocation location, GLboolean transpose,
   //                       sequence value)
-  static v8::Handle<v8::Value> uniformMatrix4fv(const v8::Arguments& args) {
+  static void uniformMatrix4fv(const v8::FunctionCallbackInfo<v8::Value>& args) {
     return uniformMatrixfvHelper(glUniformMatrix4fv, 16, args);
   }
 
   // void useProgram(WebGLProgram program)
-  static v8::Handle<v8::Value> useProgram(const v8::Arguments& args) {
+  static void useProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     // Break the WebGL spec by allowing you to pass 'null' to unbind
     // the shader, handy for drawSkCanvas, for example.
     // NOTE: ExtractNameFromValue handles null.
-    if (!args[0]->IsNull() && !WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!args[0]->IsNull() && !WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     glUseProgram(WebGLProgram::ExtractNameFromValue(args[0]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void validateProgram(WebGLProgram program)
-  static v8::Handle<v8::Value> validateProgram(const v8::Arguments& args) {
+  static void validateProgram(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!WebGLProgram::HasInstance(args[0]))
-      return v8_utils::ThrowTypeError("Type error");
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
 
     GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
 
     glValidateProgram(program);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // NOTE: The array forms (functions that end in v) are handled in plask.js.
@@ -2945,64 +3017,64 @@ class NSOpenGLContextWrapper {
   // void vertexAttrib1f(GLuint indx, GLfloat x)
   // void vertexAttrib1fv(GLuint indx, Float32Array values)
   // void vertexAttrib1fv(GLuint indx, sequence values)
-  static v8::Handle<v8::Value> vertexAttrib1f(const v8::Arguments& args) {
+  static void vertexAttrib1f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glVertexAttrib1f(args[0]->Uint32Value(),
                      args[1]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void vertexAttrib2f(GLuint indx, GLfloat x, GLfloat y)
   // void vertexAttrib2fv(GLuint indx, Float32Array values)
   // void vertexAttrib2fv(GLuint indx, sequence values)
-  static v8::Handle<v8::Value> vertexAttrib2f(const v8::Arguments& args) {
+  static void vertexAttrib2f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 3)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glVertexAttrib2f(args[0]->Uint32Value(),
                      args[1]->NumberValue(),
                      args[2]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void vertexAttrib3f(GLuint indx, GLfloat x, GLfloat y, GLfloat z)
   // void vertexAttrib3fv(GLuint indx, Float32Array values)
   // void vertexAttrib3fv(GLuint indx, sequence values)
-  static v8::Handle<v8::Value> vertexAttrib3f(const v8::Arguments& args) {
+  static void vertexAttrib3f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glVertexAttrib3f(args[0]->Uint32Value(),
                      args[1]->NumberValue(),
                      args[2]->NumberValue(),
                      args[3]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void vertexAttrib4f(GLuint indx, GLfloat x, GLfloat y,
   //                     GLfloat z, GLfloat w)
   // void vertexAttrib4fv(GLuint indx, Float32Array values)
   // void vertexAttrib4fv(GLuint indx, sequence values)
-  static v8::Handle<v8::Value> vertexAttrib4f(const v8::Arguments& args) {
+  static void vertexAttrib4f(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 5)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glVertexAttrib4f(args[0]->Uint32Value(),
                      args[1]->NumberValue(),
                      args[2]->NumberValue(),
                      args[3]->NumberValue(),
                      args[4]->NumberValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void vertexAttribPointer(GLuint indx, GLint size, GLenum type,
   //                          GLboolean normalized, GLsizei stride,
   //                          GLsizeiptr offset)
-  static v8::Handle<v8::Value> vertexAttribPointer(const v8::Arguments& args) {
+  static void vertexAttribPointer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 6)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glVertexAttribPointer(args[0]->Uint32Value(),
                           args[1]->Int32Value(),
@@ -3010,28 +3082,28 @@ class NSOpenGLContextWrapper {
                           args[3]->BooleanValue(),
                           args[4]->Int32Value(),
                           reinterpret_cast<GLvoid*>(args[5]->Int32Value()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void viewport(GLint x, GLint y, GLsizei width, GLsizei height)
-  static v8::Handle<v8::Value> viewport(const v8::Arguments& args) {
+  static void viewport(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glViewport(args[0]->Int32Value(),
                args[1]->Int32Value(),
                args[2]->Int32Value(),
                args[3]->Int32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void DrawBuffersARB(sizei n, const enum *bufs);
-  static v8::Handle<v8::Value> drawBuffers(const v8::Arguments& args) {
+  static void drawBuffers(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (!args[0]->IsArray())
-      return v8_utils::ThrowError("Sequence must be an Array.");
+      return v8_utils::ThrowError(isolate, "Sequence must be an Array.");
 
     v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[0]);
 
@@ -3043,7 +3115,7 @@ class NSOpenGLContextWrapper {
 
     glDrawBuffers(length, attachments);
     delete[] attachments;
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void glBlitFramebuffer(GLint srcX0,
@@ -3056,9 +3128,9 @@ class NSOpenGLContextWrapper {
   //                        GLint dstY1,
   //                        GLbitfield mask,
   //                        GLenum filter);
-  static v8::Handle<v8::Value> blitFramebuffer(const v8::Arguments& args) {
+  static void blitFramebuffer(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 10)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     glBlitFramebuffer(args[0]->Int32Value(),
                       args[1]->Int32Value(),
@@ -3070,25 +3142,24 @@ class NSOpenGLContextWrapper {
                       args[7]->Int32Value(),
                       args[8]->Uint32Value(),
                       args[9]->Uint32Value());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 };
 
 
 class NSWindowWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&NSWindowWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &NSWindowWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(3);  // NSWindow, bitmap, and context.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -3115,45 +3186,46 @@ class NSWindowWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static WrappedNSWindow* ExtractWindowPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<WrappedNSWindow>(obj->GetInternalField(0));
+    return reinterpret_cast<WrappedNSWindow*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
   static SkBitmap* ExtractSkBitmapPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<SkBitmap>(obj->GetInternalField(1));
+    return reinterpret_cast<SkBitmap*>(obj->GetAlignedPointerFromInternalField(1));
   }
 
   static NSOpenGLContext* ExtractContextPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<NSOpenGLContext>(obj->GetInternalField(2));
+    return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(2));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     if (args.Length() != 8)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     uint32_t type = args[0]->Uint32Value();
     uint32_t bwidth = args[1]->Uint32Value();
     uint32_t bheight = args[2]->Uint32Value();
@@ -3221,9 +3293,12 @@ class NSWindowWrapper {
     NSOpenGLContext* context = NULL;
 
     if (type == 0) {  // 2d window.
+      SkImageInfo info = SkImageInfo::Make(
+          width, height, kBGRA_8888_SkColorType, kPremul_SkAlphaType);
       bitmap = new SkBitmap;
-      bitmap->setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
-      bitmap->allocPixels();
+      //bitmap->setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
+      //bitmap->allocPixels();
+      bitmap->allocPixels(info, width * 4);
       bitmap->eraseARGB(0, 0, 0, 0);
 
       BlitImageView* view = [[BlitImageView alloc] initWithSkBitmap:bitmap];
@@ -3279,11 +3354,12 @@ class NSWindowWrapper {
       glEnable(GL_POINT_SPRITE);
       glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
-      v8::Local<v8::Object> context_wrapper =
-          NSOpenGLContextWrapper::GetTemplate()->
-              InstanceTemplate()->NewInstance();
-      context_wrapper->SetInternalField(0, v8_utils::WrapCPointer(context));
-      args.This()->Set(v8::String::New("context"), context_wrapper);
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, NSOpenGLContextWrapper::GetTemplate(isolate));
+      v8::Local<v8::Object> context_wrapper = ft->
+          InstanceTemplate()->NewInstance();
+      context_wrapper->SetAlignedPointerInInternalField(0, context);
+      args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
     }
 
     if (fullscreen)
@@ -3297,14 +3373,14 @@ class NSWindowWrapper {
     // [window setDelegate:[[WindowDelegate alloc] init]];
     [window makeKeyAndOrderFront:nil];
 
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(window));
-    args.This()->SetInternalField(1, v8_utils::WrapCPointer(bitmap));
-    args.This()->SetInternalField(2, v8_utils::WrapCPointer(context));
+    args.This()->SetAlignedPointerInInternalField(0, window);
+    args.This()->SetAlignedPointerInInternalField(1, bitmap);
+    args.This()->SetAlignedPointerInInternalField(2, context);
 
-    return args.This();
+
   }
 
-  static v8::Handle<v8::Value> blit(const v8::Arguments& args) {
+  static void blit(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     if (context) {  // 3d, swap the buffers.
@@ -3312,28 +3388,28 @@ class NSWindowWrapper {
     } else {  // 2d, redisplay the view.
       [[window contentView] display];
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> mouseLocationOutsideOfEventStream(
-      const v8::Arguments& args) {
+  static void mouseLocationOutsideOfEventStream(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     NSPoint pos = [window mouseLocationOutsideOfEventStream];
-    v8::Local<v8::Object> res = v8::Object::New();
-    res->Set(v8::String::New("x"), v8::Number::New(pos.x));
-    res->Set(v8::String::New("y"), v8::Number::New(pos.y));
-    return res;
+    v8::Local<v8::Object> res = v8::Object::New(isolate);
+    res->Set(v8::String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, pos.x));
+    res->Set(v8::String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, pos.y));
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> setAcceptsMouseMovedEvents(
-      const v8::Arguments& args) {
+  static void setAcceptsMouseMovedEvents(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window setAcceptsMouseMovedEvents:args[0]->BooleanValue()];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setAcceptsFileDrag(
-      const v8::Arguments& args) {
+  static void setAcceptsFileDrag(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     if (args[0]->BooleanValue()) {
       [window registerForDraggedTypes:
@@ -3341,56 +3417,56 @@ class NSWindowWrapper {
     } else {
       [window unregisterDraggedTypes];
     }
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // You should only really call this once, it's a pretty raw function.
-  static v8::Handle<v8::Value> setEventCallback(const v8::Arguments& args) {
+  static void setEventCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1 || !args[0]->IsFunction())
-      return v8_utils::ThrowError("Incorrect invocation of setEventCallback.");
+      return v8_utils::ThrowError(isolate, "Incorrect invocation of setEventCallback.");
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window setEventCallbackWithHandle:v8::Handle<v8::Function>::Cast(args[0])];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setTitle(const v8::Arguments& args) {
+  static void setTitle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     v8::String::Utf8Value title(args[0]);
     [window setTitle:[NSString stringWithUTF8String:*title]];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
-  static v8::Handle<v8::Value> setFrameTopLeftPoint(const v8::Arguments& args) {
+  static void setFrameTopLeftPoint(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
     [window setFrameTopLeftPoint:NSMakePoint(args[0]->NumberValue(),
                                              args[1]->NumberValue())];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> center(const v8::Arguments& args) {
+  static void center(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window center];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> hideCursor(const v8::Arguments& args) {
+  static void hideCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     CGDisplayHideCursor(kCGDirectMainDisplay);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> showCursor(const v8::Arguments& args) {
+  static void showCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     CGDisplayShowCursor(kCGDirectMainDisplay);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> hide(const v8::Arguments& args) {
+  static void hide(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     [window orderOut:nil];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> show(const v8::Arguments& args) {
+  static void show(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     switch (args[0]->Uint32Value()) {
       case 0:  // Also when no argument was passed.
@@ -3403,20 +3479,20 @@ class NSWindowWrapper {
         [window orderBack:nil];
         break;
       default:
-        return v8_utils::ThrowError("Unknown argument to show().");
+        return v8_utils::ThrowError(isolate, "Unknown argument to show().");
         break;
     }
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> screenSize(const v8::Arguments& args) {
+  static void screenSize(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     NSRect frame = [[window screen] frame];
-    v8::Local<v8::Object> res = v8::Object::New();
-    res->Set(v8::String::New("width"), v8::Number::New(frame.size.width));
-    res->Set(v8::String::New("height"), v8::Number::New(frame.size.height));
-    return res;
+    v8::Local<v8::Object> res = v8::Object::New(isolate);
+    res->Set(v8::String::NewFromUtf8(isolate, "width"), v8::Number::New(isolate, frame.size.width));
+    res->Set(v8::String::NewFromUtf8(isolate, "height"), v8::Number::New(isolate, frame.size.height));
+    return args.GetReturnValue().Set(res);
   }
 
 };
@@ -3424,18 +3500,17 @@ class NSWindowWrapper {
 
 class NSEventWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&NSEventWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &NSEventWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // NSEvent pointer.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -3499,43 +3574,46 @@ class NSEventWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(class_methods); ++i) {
-      ft_cache->Set(v8::String::New(class_methods[i].name),
-                    v8::FunctionTemplate::New(class_methods[i].func,
+      ft->Set(v8::String::NewFromUtf8(isolate, class_methods[i].name),
+              v8::FunctionTemplate::New(isolate, class_methods[i].func,
                                               v8::Handle<v8::Value>()));
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
   static NSEvent* ExtractPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<NSEvent>(obj->GetInternalField(0));
+    return reinterpret_cast<NSEvent*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
  private:
-  static void WeakCallback(v8::Persistent<v8::Value> value, void* data) {
-    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(value);
-    NSEvent* event = ExtractPointer(obj);
+  static void WeakCallback(
+      const v8::WeakCallbackData<v8::Object, v8::Persistent<v8::Object> >& data) {
+    NSEvent* event = ExtractPointer(data.GetValue());
 
-    value.ClearWeak();
-    value.Dispose();
+    v8::Persistent<v8::Object>* persistent = data.GetParameter();
+    persistent->ClearWeak();
+    persistent->Reset();
+    delete persistent;
 
     [event release];  // Okay even if event is nil.
   }
@@ -3543,104 +3621,104 @@ class NSEventWrapper {
   // This will be called when we create a new instance from the instance
   // template, wrapping a NSEvent*.  It can also be called directly from
   // JavaScript, which is a bit of a problem, but we'll survive.
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(NULL));
+    args.This()->SetAlignedPointerInInternalField(0, NULL);
 
-    v8::Persistent<v8::Object> persistent =
-        v8::Persistent<v8::Object>::New(args.This());
-    persistent.MakeWeak(NULL, &NSEventWrapper::WeakCallback);
+    v8::Persistent<v8::Object>* persistent = new v8::Persistent<v8::Object>;
+    persistent->Reset(isolate, args.This());
+    persistent->SetWeak(persistent, &NSEventWrapper::WeakCallback);
 
-    return args.This();
+    args.GetReturnValue().Set(args.This());
   }
 
-  static v8::Handle<v8::Value> class_pressedMouseButtons(
-      const v8::Arguments& args) {
-    return v8::Integer::NewFromUnsigned([NSEvent pressedMouseButtons]);
+  static void class_pressedMouseButtons(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [NSEvent pressedMouseButtons]));
   }
 
-  static v8::Handle<v8::Value> type(const v8::Arguments& args) {
+  static void type(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Integer::NewFromUnsigned([event type]);
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event type]));
   }
 
-  static v8::Handle<v8::Value> buttonNumber(const v8::Arguments& args) {
+  static void buttonNumber(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Integer::NewFromUnsigned([event buttonNumber]);
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event buttonNumber]));
   }
 
-  static v8::Handle<v8::Value> characters(const v8::Arguments& args) {
+  static void characters(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
     NSString* characters = [event characters];
-    return v8::String::New(
+    return args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate,
         [characters UTF8String],
-        [characters lengthOfBytesUsingEncoding:NSUTF8StringEncoding]);
+        v8::String::kNormalString,
+        [characters lengthOfBytesUsingEncoding:NSUTF8StringEncoding]));
   }
 
-  static v8::Handle<v8::Value> keyCode(const v8::Arguments& args) {
+  static void keyCode(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Integer::NewFromUnsigned([event keyCode]);
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event keyCode]));
   }
 
-  static v8::Handle<v8::Value> locationInWindow(const v8::Arguments& args) {
+  static void locationInWindow(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
     // If window is nil we'll instead get screen coordinates.
     if ([event window] == nil)
-      return v8_utils::ThrowError("Calling locationInWindow with nil window.");
+      return v8_utils::ThrowError(isolate, "Calling locationInWindow with nil window.");
     NSPoint pos = [event locationInWindow];
-    v8::Local<v8::Object> res = v8::Object::New();
-    res->Set(v8::String::New("x"), v8::Number::New(pos.x));
-    res->Set(v8::String::New("y"), v8::Number::New(pos.y));
-    return res;
+    v8::Local<v8::Object> res = v8::Object::New(isolate);
+    res->Set(v8::String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, pos.x));
+    res->Set(v8::String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, pos.y));
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> deltaX(const v8::Arguments& args) {
+  static void deltaX(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Number::New([event deltaX]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [event deltaX]));
   }
 
-  static v8::Handle<v8::Value> deltaY(const v8::Arguments& args) {
+  static void deltaY(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Number::New([event deltaY]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [event deltaY]));
   }
 
-  static v8::Handle<v8::Value> deltaZ(const v8::Arguments& args) {
+  static void deltaZ(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Number::New([event deltaZ]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [event deltaZ]));
   }
 
-  static v8::Handle<v8::Value> pressure(const v8::Arguments& args) {
+  static void pressure(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Number::New([event pressure]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [event pressure]));
   }
 
-  static v8::Handle<v8::Value> isEnteringProximity(const v8::Arguments& args) {
+  static void isEnteringProximity(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Boolean::New([event isEnteringProximity]);
+    return args.GetReturnValue().Set((bool)[event isEnteringProximity]);
   }
 
-  static v8::Handle<v8::Value> modifierFlags(const v8::Arguments& args) {
+  static void modifierFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSEvent* event = ExtractPointer(args.Holder());
-    return v8::Integer::NewFromUnsigned([event modifierFlags]);
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event modifierFlags]));
   }
 };
 
 class SkPathWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&SkPathWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &SkPathWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // SkPath pointer.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -3671,78 +3749,79 @@ class SkPathWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static SkPath* ExtractPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<SkPath>(obj->GetInternalField(0));
+    return reinterpret_cast<SkPath*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static v8::Handle<v8::Value> reset(const v8::Arguments& args) {
+  static void reset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->reset();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> rewind(const v8::Arguments& args) {
+  static void rewind(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->rewind();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> moveTo(const v8::Arguments& args) {
+  static void moveTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->moveTo(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> lineTo(const v8::Arguments& args) {
+  static void lineTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->lineTo(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> rLineTo(const v8::Arguments& args) {
+  static void rLineTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->rLineTo(SkDoubleToScalar(args[0]->NumberValue()),
                   SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> quadTo(const v8::Arguments& args) {
+  static void quadTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->quadTo(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()),
                  SkDoubleToScalar(args[2]->NumberValue()),
                  SkDoubleToScalar(args[3]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> cubicTo(const v8::Arguments& args) {
+  static void cubicTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->cubicTo(SkDoubleToScalar(args[0]->NumberValue()),
@@ -3751,10 +3830,10 @@ class SkPathWrapper {
                   SkDoubleToScalar(args[3]->NumberValue()),
                   SkDoubleToScalar(args[4]->NumberValue()),
                   SkDoubleToScalar(args[5]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> arcTo(const v8::Arguments& args) {
+  static void arcTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     SkRect rect = { SkDoubleToScalar(args[0]->NumberValue()),
@@ -3765,10 +3844,10 @@ class SkPathWrapper {
                 SkDoubleToScalar(args[4]->NumberValue()),
                 SkDoubleToScalar(args[5]->NumberValue()),
                 args[6]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> arct(const v8::Arguments& args) {
+  static void arct(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->arcTo(SkDoubleToScalar(args[0]->NumberValue()),
@@ -3776,10 +3855,10 @@ class SkPathWrapper {
                 SkDoubleToScalar(args[2]->NumberValue()),
                 SkDoubleToScalar(args[3]->NumberValue()),
                 SkDoubleToScalar(args[4]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> addRect(const v8::Arguments& args) {
+  static void addRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->addRect(SkDoubleToScalar(args[0]->NumberValue()),
@@ -3788,10 +3867,10 @@ class SkPathWrapper {
                   SkDoubleToScalar(args[3]->NumberValue()),
                   args[4]->BooleanValue() ? SkPath::kCCW_Direction :
                                             SkPath::kCW_Direction);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> addOval(const v8::Arguments& args) {
+  static void addOval(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     SkRect rect = { SkDoubleToScalar(args[0]->NumberValue()),
@@ -3800,10 +3879,10 @@ class SkPathWrapper {
                     SkDoubleToScalar(args[3]->NumberValue()) };
     path->addOval(rect, args[4]->BooleanValue() ? SkPath::kCCW_Direction :
                                                   SkPath::kCW_Direction);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> addCircle(const v8::Arguments& args) {
+  static void addCircle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
     path->addCircle(SkDoubleToScalar(args[0]->NumberValue()),
@@ -3811,77 +3890,75 @@ class SkPathWrapper {
                     SkDoubleToScalar(args[2]->NumberValue()),
                     args[3]->BooleanValue() ? SkPath::kCCW_Direction :
                                               SkPath::kCW_Direction);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> close(const v8::Arguments& args) {
+  static void close(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->close();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> offset(const v8::Arguments& args) {
+  static void offset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->offset(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getBounds(const v8::Arguments& args) {
+  static void getBounds(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     SkRect bounds = path->getBounds();
-    v8::Local<v8::Array> res = v8::Array::New(4);
-    res->Set(v8::Integer::New(0), v8::Number::New(bounds.fLeft));
-    res->Set(v8::Integer::New(1), v8::Number::New(bounds.fTop));
-    res->Set(v8::Integer::New(2), v8::Number::New(bounds.fRight));
-    res->Set(v8::Integer::New(3), v8::Number::New(bounds.fBottom));
-    return res;
+    v8::Local<v8::Array> res = v8::Array::New(isolate, 4);
+    res->Set(v8::Integer::New(isolate, 0), v8::Number::New(isolate, bounds.fLeft));
+    res->Set(v8::Integer::New(isolate, 1), v8::Number::New(isolate, bounds.fTop));
+    res->Set(v8::Integer::New(isolate, 2), v8::Number::New(isolate, bounds.fRight));
+    res->Set(v8::Integer::New(isolate, 3), v8::Number::New(isolate, bounds.fBottom));
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> toSVGString(const v8::Arguments& args) {
+  static void toSVGString(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     SkString str;
     SkParsePath::ToSVGString(*path, &str);
-    return v8::String::New(str.c_str(), str.size());
+    return args.GetReturnValue().Set(v8::String::NewFromUtf8(
+        isolate, str.c_str(), v8::String::kNormalString, str.size()));
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     SkPath* prev_path = NULL;
-    if (SkPathWrapper::HasInstance(args[0])) {
+    if (SkPathWrapper::HasInstance(isolate, args[0])) {
       prev_path = SkPathWrapper::ExtractPointer(
           v8::Handle<v8::Object>::Cast(args[0]));
     }
 
     SkPath* path = prev_path ? new SkPath(*prev_path) : new SkPath;
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(path));
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, path);
   }
 };
 
 
 class SkPaintWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&SkPaintWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &SkPaintWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // SkPaint pointer.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
       // Flags.
       { "kAntiAliasFlag", SkPaint::kAntiAlias_Flag },
-      { "kFilterBitmapFlag", SkPaint::kFilterBitmap_Flag },
       { "kDitherFlag", SkPaint::kDither_Flag },
       { "kUnderlineTextFlag", SkPaint::kUnderlineText_Flag },
       { "kStrikeThruTextFlag", SkPaint::kStrikeThruText_Flag },
@@ -3936,7 +4013,6 @@ class SkPaintWrapper {
       { "getFlags", &SkPaintWrapper::getFlags },
       { "setFlags", &SkPaintWrapper::setFlags },
       { "setAntiAlias", &SkPaintWrapper::setAntiAlias },
-      { "setFilterBitmap", &SkPaintWrapper::setFilterBitmap },
       { "setDither", &SkPaintWrapper::setDither },
       { "setUnderlineText", &SkPaintWrapper::setUnderlineText },
       { "setStrikeThruText", &SkPaintWrapper::setStrikeThruText },
@@ -3976,202 +4052,197 @@ class SkPaintWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static SkPaint* ExtractPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<SkPaint>(obj->GetInternalField(0));
+    return reinterpret_cast<SkPaint*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static v8::Handle<v8::Value> reset(const v8::Arguments& args) {
+  static void reset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->reset();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getFlags(const v8::Arguments& args) {
+  static void getFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
-    return v8::Uint32::New(paint->getFlags());
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getFlags()));
   }
 
-  static v8::Handle<v8::Value> setFlags(const v8::Arguments& args) {
+  static void setFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFlags(v8_utils::ToInt32(args[0]));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setAntiAlias(const v8::Arguments& args) {
+  static void setAntiAlias(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAntiAlias(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setFilterBitmap(const v8::Arguments& args) {
-    SkPaint* paint = ExtractPointer(args.Holder());
-    paint->setFilterBitmap(args[0]->BooleanValue());
-    return v8::Undefined();
-  }
-
-  static v8::Handle<v8::Value> setDither(const v8::Arguments& args) {
+  static void setDither(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setDither(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setUnderlineText(const v8::Arguments& args) {
+  static void setUnderlineText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setUnderlineText(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setStrikeThruText(const v8::Arguments& args) {
+  static void setStrikeThruText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrikeThruText(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setFakeBoldText(const v8::Arguments& args) {
+  static void setFakeBoldText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFakeBoldText(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setSubpixelText(const v8::Arguments& args) {
+  static void setSubpixelText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setSubpixelText(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setDevKernText(const v8::Arguments& args) {
+  static void setDevKernText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setDevKernText(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setLCDRenderText(const v8::Arguments& args) {
+  static void setLCDRenderText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setLCDRenderText(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setAutohinted(const v8::Arguments& args) {
+  static void setAutohinted(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAutohinted(args[0]->BooleanValue());
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getStrokeWidth(const v8::Arguments& args) {
+  static void getStrokeWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
-    return v8::Number::New(SkScalarToDouble(paint->getStrokeWidth()));
+    return args.GetReturnValue().Set(v8::Number::New(isolate, SkScalarToDouble(paint->getStrokeWidth())));
   }
 
-  static v8::Handle<v8::Value> setStrokeWidth(const v8::Arguments& args) {
+  static void setStrokeWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeWidth(SkDoubleToScalar(args[0]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getStyle(const v8::Arguments& args) {
+  static void getStyle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
-    return v8::Uint32::New(paint->getStyle());
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStyle()));
   }
 
-  static v8::Handle<v8::Value> setStyle(const v8::Arguments& args) {
+  static void setStyle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(static_cast<SkPaint::Style>(v8_utils::ToInt32(args[0])));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setFill(const v8::Arguments& args) {
+  static void setFill(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(SkPaint::kFill_Style);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setStroke(const v8::Arguments& args) {
+  static void setStroke(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(SkPaint::kStroke_Style);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setFillAndStroke(const v8::Arguments& args) {
+  static void setFillAndStroke(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     // We flip the name around because it makes more sense, generally you think
     // of the stroke happening after the fill.
     paint->setStyle(SkPaint::kStrokeAndFill_Style);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getStrokeCap(const v8::Arguments& args) {
+  static void getStrokeCap(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
-    return v8::Uint32::New(paint->getStrokeCap());
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStrokeCap()));
   }
 
-  static v8::Handle<v8::Value> setStrokeCap(const v8::Arguments& args) {
+  static void setStrokeCap(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeCap(static_cast<SkPaint::Cap>(v8_utils::ToInt32(args[0])));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getStrokeJoin(const v8::Arguments& args) {
+  static void getStrokeJoin(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
-    return v8::Uint32::New(paint->getStrokeJoin());
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStrokeJoin()));
   }
 
-  static v8::Handle<v8::Value> setStrokeJoin(const v8::Arguments& args) {
+  static void setStrokeJoin(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeJoin(static_cast<SkPaint::Join>(v8_utils::ToInt32(args[0])));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getStrokeMiter(const v8::Arguments& args) {
+  static void getStrokeMiter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
-    return v8::Number::New(SkScalarToDouble(paint->getStrokeMiter()));
+    return args.GetReturnValue().Set(v8::Number::New(isolate, SkScalarToDouble(paint->getStrokeMiter())));
   }
 
-  static v8::Handle<v8::Value> setStrokeMiter(const v8::Arguments& args) {
+  static void setStrokeMiter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeMiter(SkDoubleToScalar(args[0]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> getFillPath(const v8::Arguments& args) {
+  static void getFillPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    if (!SkPathWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPathWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
-    if (!SkPathWrapper::HasInstance(args[1]))
-      return v8::Undefined();
+    if (!SkPathWrapper::HasInstance(isolate, args[1]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPath* src = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
     SkPath* dst = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[1]));
 
-    return v8::Boolean::New(paint->getFillPath(*src, dst));
+    return args.GetReturnValue().Set((bool)paint->getFillPath(*src, dst));
   }
 
   // We wrap it as 4 params instead of 1 to try to keep things as SMIs.
-  static v8::Handle<v8::Value> setColor(const v8::Arguments& args) {
+  static void setColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
@@ -4180,10 +4251,10 @@ class SkPaintWrapper {
     int a = Clamp(v8_utils::ToInt32WithDefault(args[3], 255), 0, 255);
 
     paint->setColor(SkColorSetARGB(a, r, g, b));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setColorHSV(const v8::Arguments& args) {
+  static void setColorHSV(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     // TODO(deanm): Clamp.
@@ -4193,40 +4264,40 @@ class SkPaintWrapper {
     int a = Clamp(v8_utils::ToInt32WithDefault(args[3], 255), 0, 255);
 
     paint->setColor(SkHSVToColor(a, hsv));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setTextSize(const v8::Arguments& args) {
+  static void setTextSize(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     paint->setTextSize(SkDoubleToScalar(args[0]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setXfermodeMode(const v8::Arguments& args) {
+  static void setXfermodeMode(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     // TODO(deanm): Memory management.
     paint->setXfermodeMode(
           static_cast<SkXfermode::Mode>(v8_utils::ToInt32(args[0])));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setFontFamily(const v8::Arguments& args) {
+  static void setFontFamily(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() < 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
     v8::String::Utf8Value family_name(args[0]);
     paint->setTypeface(SkTypeface::CreateFromName(
         *family_name, static_cast<SkTypeface::Style>(args[1]->Uint32Value())));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-   static v8::Handle<v8::Value> setFontFamilyPostScript(
-      const v8::Arguments& args) {
+   static void setFontFamilyPostScript(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() < 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
     v8::String::Utf8Value postscript_name(args[0]);
@@ -4234,24 +4305,24 @@ class SkPaintWrapper {
     CFStringRef cfFontName = CFStringCreateWithCString(
         NULL, *postscript_name, kCFStringEncodingUTF8);
     if (cfFontName == NULL)
-      return v8_utils::ThrowError("Unable to create font CFString.");
+      return v8_utils::ThrowError(isolate, "Unable to create font CFString.");
 
     CTFontRef ctNamed = CTFontCreateWithName(cfFontName, 1, NULL);
     CFRelease(cfFontName);
     if (ctNamed == NULL)
-      return v8_utils::ThrowError("Unable to create CTFont.");
+      return v8_utils::ThrowError(isolate, "Unable to create CTFont.");
 
     SkTypeface* typeface = SkCreateTypefaceFromCTFont(ctNamed);
     paint->setTypeface(typeface);
     typeface->unref();  // setTypeface will have held a ref.
     CFRelease(ctNamed);  // SkCreateTypefaceFromCTFont will have held a ref.
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setLinearGradientShader(
-      const v8::Arguments& args) {
+  static void setLinearGradientShader(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 5)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4289,13 +4360,13 @@ class SkPaintWrapper {
     delete[] colors;
     delete[] positions;
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> setRadialGradientShader(
-      const v8::Arguments& args) {
+  static void setRadialGradientShader(
+      const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 4)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4333,58 +4404,57 @@ class SkPaintWrapper {
     delete[] colors;
     delete[] positions;
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> clearShader(const v8::Arguments& args) {
+  static void clearShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setShader(NULL);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
 
-  static v8::Handle<v8::Value> setDashPathEffect(const v8::Arguments& args) {
+  static void setDashPathEffect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args[0]->IsArray())
-      return v8_utils::ThrowError("Sequence must be an Array.");
+      return v8_utils::ThrowError(isolate, "Sequence must be an Array.");
 
     v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[0]);
     uint32_t length = arr->Length();
 
     if (length & 1)
-      return v8_utils::ThrowError("Sequence must be even.");
+      return v8_utils::ThrowError(isolate, "Sequence must be even.");
 
     SkScalar* intervals = new SkScalar[length];
     if (!intervals)
-      return v8_utils::ThrowError("Unable to allocate intervals.");
+      return v8_utils::ThrowError(isolate, "Unable to allocate intervals.");
 
     for (uint32_t i = 0; i < length; ++i) {
       intervals[i] = SkDoubleToScalar(arr->Get(i)->NumberValue());
     }
 
     SkPaint* paint = ExtractPointer(args.Holder());
-    paint->setPathEffect(new SkDashPathEffect(
+    paint->setPathEffect(SkDashPathEffect::Create(
         intervals, length,
-        SkDoubleToScalar(args[1]->IsUndefined() ? 0.0 : args[1]->NumberValue()),
-        args[2]->BooleanValue()));
+        SkDoubleToScalar(args[1]->IsUndefined() ? 0.0 : args[1]->NumberValue())));
     delete[] intervals;
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> clearPathEffect(const v8::Arguments& args) {
+  static void clearPathEffect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setPathEffect(NULL);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> measureText(const v8::Arguments& args) {
+  static void measureText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     v8::String::Utf8Value utf8(args[0]);
     SkScalar width = paint->measureText(*utf8, utf8.length());
-    return v8::Number::New(width);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, width));
   }
 
-  static v8::Handle<v8::Value> measureTextBounds(const v8::Arguments& args) {
+  static void measureTextBounds(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     v8::String::Utf8Value utf8(args[0]);
@@ -4392,52 +4462,52 @@ class SkPaintWrapper {
     SkRect bounds = SkRect::MakeEmpty();
     paint->measureText(*utf8, utf8.length(), &bounds);
 
-    v8::Local<v8::Array> res = v8::Array::New(4);
-    res->Set(v8::Integer::New(0), v8::Number::New(bounds.fLeft));
-    res->Set(v8::Integer::New(1), v8::Number::New(bounds.fTop));
-    res->Set(v8::Integer::New(2), v8::Number::New(bounds.fRight));
-    res->Set(v8::Integer::New(3), v8::Number::New(bounds.fBottom));
+    v8::Local<v8::Array> res = v8::Array::New(isolate, 4);
+    res->Set(v8::Integer::New(isolate, 0), v8::Number::New(isolate, bounds.fLeft));
+    res->Set(v8::Integer::New(isolate, 1), v8::Number::New(isolate, bounds.fTop));
+    res->Set(v8::Integer::New(isolate, 2), v8::Number::New(isolate, bounds.fRight));
+    res->Set(v8::Integer::New(isolate, 3), v8::Number::New(isolate, bounds.fBottom));
 
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> getFontMetrics(const v8::Arguments& args) {
+  static void getFontMetrics(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
     SkPaint::FontMetrics metrics;
 
     paint->getFontMetrics(&metrics);
 
-    v8::Local<v8::Object> res = v8::Object::New();
+    v8::Local<v8::Object> res = v8::Object::New(isolate);
 
     //!< The greatest distance above the baseline for any glyph (will be <= 0)
-    res->Set(v8::String::New("top"), v8::Number::New(metrics.fTop));
+    res->Set(v8::String::NewFromUtf8(isolate, "top"), v8::Number::New(isolate, metrics.fTop));
     //!< The recommended distance above the baseline (will be <= 0)
-    res->Set(v8::String::New("ascent"), v8::Number::New(metrics.fAscent));
+    res->Set(v8::String::NewFromUtf8(isolate, "ascent"), v8::Number::New(isolate, metrics.fAscent));
     //!< The recommended distance below the baseline (will be >= 0)
-    res->Set(v8::String::New("descent"), v8::Number::New(metrics.fDescent));
+    res->Set(v8::String::NewFromUtf8(isolate, "descent"), v8::Number::New(isolate, metrics.fDescent));
     //!< The greatest distance below the baseline for any glyph (will be >= 0)
-    res->Set(v8::String::New("bottom"), v8::Number::New(metrics.fBottom));
+    res->Set(v8::String::NewFromUtf8(isolate, "bottom"), v8::Number::New(isolate, metrics.fBottom));
     //!< The recommended distance to add between lines of text (will be >= 0)
-    res->Set(v8::String::New("leading"), v8::Number::New(metrics.fLeading));
+    res->Set(v8::String::NewFromUtf8(isolate, "leading"), v8::Number::New(isolate, metrics.fLeading));
     //!< the average charactor width (>= 0)
-    res->Set(v8::String::New("avgcharwidth"),
-             v8::Number::New(metrics.fAvgCharWidth));
+    res->Set(v8::String::NewFromUtf8(isolate, "avgcharwidth"),
+             v8::Number::New(isolate, metrics.fAvgCharWidth));
     //!< The minimum bounding box x value for all glyphs
-    res->Set(v8::String::New("xmin"), v8::Number::New(metrics.fXMin));
+    res->Set(v8::String::NewFromUtf8(isolate, "xmin"), v8::Number::New(isolate, metrics.fXMin));
     //!< The maximum bounding box x value for all glyphs
-    res->Set(v8::String::New("xmax"), v8::Number::New(metrics.fXMax));
+    res->Set(v8::String::NewFromUtf8(isolate, "xmax"), v8::Number::New(isolate, metrics.fXMax));
     //!< the height of an 'x' in px, or 0 if no 'x' in face
-    res->Set(v8::String::New("xheight"), v8::Number::New(metrics.fXHeight));
+    res->Set(v8::String::NewFromUtf8(isolate, "xheight"), v8::Number::New(isolate, metrics.fXHeight));
 
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> getTextPath(const v8::Arguments& args) {
+  static void getTextPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
-    if (!SkPathWrapper::HasInstance(args[3]))
-      return v8_utils::ThrowTypeError("4th argument must be an SkPath.");
+    if (!SkPathWrapper::HasInstance(isolate, args[3]))
+      return v8_utils::ThrowTypeError(isolate, "4th argument must be an SkPath.");
 
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[3]));
@@ -4448,15 +4518,15 @@ class SkPaintWrapper {
     double y = SkDoubleToScalar(args[2]->NumberValue());
 
     paint->getTextPath(*utf8, utf8.length(), x, y, path);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     SkPaint* paint = NULL;
-    if (SkPaintWrapper::HasInstance(args[0])) {
+    if (SkPaintWrapper::HasInstance(isolate, args[0])) {
       paint = new SkPaint(*SkPaintWrapper::ExtractPointer(
           v8::Handle<v8::Object>::Cast(args[0])));
     } else {
@@ -4467,26 +4537,24 @@ class SkPaintWrapper {
       // hair-line implementation.  It is most familiar to default to 1.
       paint->setStrokeWidth(1);
     }
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(paint));
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, paint);
   }
 };
 
 
 class SkCanvasWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&SkCanvasWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &SkCanvasWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // SkCanvas pointers.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -4526,50 +4594,54 @@ class SkCanvasWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static SkCanvas* ExtractPointer(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<SkCanvas*>(obj->GetPointerFromInternalField(0));
+    return reinterpret_cast<SkCanvas*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static void WeakCallback(v8::Persistent<v8::Value> value, void* data) {
-    v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(value);
-    SkCanvas* canvas = ExtractPointer(obj);
+  static void WeakCallback(
+      const v8::WeakCallbackData<v8::Object, v8::Persistent<v8::Object> >& data) {
+    v8::Isolate* isolate = data.GetIsolate();
+    SkCanvas* canvas = ExtractPointer(data.GetValue());
 
-    int size_bytes = canvas->getDevice()->width() *
-                     canvas->getDevice()->height() * 4;
-    v8::V8::AdjustAmountOfExternalAllocatedMemory(-size_bytes);
+    SkImageInfo info = canvas->imageInfo();
+    int size_bytes = info.width() * info.height() * info.bytesPerPixel();
+    isolate->AdjustAmountOfExternalAllocatedMemory(-size_bytes);
 
-    value.ClearWeak();
-    value.Dispose();
+    v8::Persistent<v8::Object>* persistent = data.GetParameter();
+    persistent->ClearWeak();
+    persistent->Reset();
+    delete persistent;
 
     // Delete the backing SkCanvas object.  Skia reference counting should
     // handle cleaning up deeper resources (for example the backing pixels).
     delete canvas;
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     // We have a level of indirection (tbitmap vs bitmap) so that we don't need
     // to copy and create a new SkBitmap in the case it already exists (for
@@ -4579,7 +4651,7 @@ class SkCanvasWrapper {
     SkBitmap* bitmap = &tbitmap;
 
     SkCanvas* canvas;
-    if (args[0]->StrictEquals(v8::String::New("%PDF"))) {  // PDF constructor.
+    if (args[0]->StrictEquals(v8::String::NewFromUtf8(isolate, "%PDF"))) {  // PDF constructor.
       SkMatrix initial_matrix;
       initial_matrix.reset();
       SkISize page_size =
@@ -4590,9 +4662,10 @@ class SkCanvasWrapper {
           page_size, content_size, initial_matrix);
       canvas = new SkCanvas(pdf_device);
       // Bit of a hack to get the width and height properties set.
-      tbitmap.setConfig(
-          SkBitmap::kNo_Config, pdf_device->width(), pdf_device->height());
-    } else if (args[0]->StrictEquals(v8::String::New("^IMG"))) {
+      tbitmap.setInfo(SkImageInfo::Make(
+        pdf_device->width(), pdf_device->height(),
+        kUnknown_SkColorType, kIgnore_SkAlphaType));
+    } else if (args[0]->StrictEquals(v8::String::NewFromUtf8(isolate, "^IMG"))) {
       // Load an image, either a path to a file on disk, or a TypedArray or
       // other external array data backed JS object.
       // TODO(deanm): This is all super inefficent, we copy / flip / etc.
@@ -4609,16 +4682,16 @@ class SkCanvasWrapper {
           format = FreeImage_GetFIFFromFilename(*filename);
 
         if (format == FIF_UNKNOWN || !FreeImage_FIFSupportsReading(format))
-          return v8_utils::ThrowError("Couldn't detect image type.");
+          return v8_utils::ThrowError(isolate, "Couldn't detect image type.");
 
         fbitmap = FreeImage_Load(format, *filename, 0);
         if (!fbitmap)
-          return v8_utils::ThrowError("Couldn't load image.");
+          return v8_utils::ThrowError(isolate, "Couldn't load image.");
       } else if (args[1]->IsObject()) {
         v8::Local<v8::Object> data = v8::Local<v8::Object>::Cast(args[1]);
         if (!data->HasIndexedPropertiesInExternalArrayData())
-          return v8_utils::ThrowError("Data must be an ExternalArrayData.");
-        int element_size = v8_typed_array::SizeOfArrayElementForType(
+          return v8_utils::ThrowError(isolate, "Data must be an ExternalArrayData.");
+        int element_size = SizeOfArrayElementForType(
             data->GetIndexedPropertiesExternalArrayDataType());
         // FreeImage's annoying Windows types...
         DWORD size = data->GetIndexedPropertiesExternalArrayDataLength() *
@@ -4629,14 +4702,14 @@ class SkCanvasWrapper {
         FIMEMORY* mem = FreeImage_OpenMemory(datadata, size);
         FREE_IMAGE_FORMAT format = FreeImage_GetFileTypeFromMemory(mem, 0);
         if (format == FIF_UNKNOWN || !FreeImage_FIFSupportsReading(format))
-          return v8_utils::ThrowError("Couldn't detect image type.");
+          return v8_utils::ThrowError(isolate, "Couldn't detect image type.");
 
         fbitmap = FreeImage_LoadFromMemory(format, mem, 0);
         FreeImage_CloseMemory(mem);
         if (!fbitmap)
-          return v8_utils::ThrowError("Couldn't load image.");
+          return v8_utils::ThrowError(isolate, "Couldn't load image.");
       } else {
-        return v8_utils::ThrowError("SkCanvas image not path or data.");
+        return v8_utils::ThrowError(isolate, "SkCanvas image not path or data.");
       }
 
       if (FreeImage_GetBPP(fbitmap) != 32) {
@@ -4644,20 +4717,20 @@ class SkCanvasWrapper {
         fbitmap = FreeImage_ConvertTo32Bits(old_bitmap);
         FreeImage_Unload(old_bitmap);
         if (!fbitmap)
-          return v8_utils::ThrowError("Couldn't convert image to 32-bit.");
+          return v8_utils::ThrowError(isolate, "Couldn't convert image to 32-bit.");
       }
 
       // Skia works in premultplied alpha, so divide RGB by A.
       // TODO(deanm): Should cache whether it used to have alpha before
       // converting it to 32bpp which now has alpha.
       if (!FreeImage_PreMultiplyWithAlpha(fbitmap))
-        return v8_utils::ThrowError("Couldn't premultiply image.");
+        return v8_utils::ThrowError(isolate, "Couldn't premultiply image.");
 
-      tbitmap.setConfig(SkBitmap::kARGB_8888_Config,
-                       FreeImage_GetWidth(fbitmap),
-                       FreeImage_GetHeight(fbitmap),
-                       FreeImage_GetWidth(fbitmap) * 4);
-      tbitmap.allocPixels();
+      tbitmap.allocPixels(SkImageInfo::Make(
+          FreeImage_GetWidth(fbitmap),
+          FreeImage_GetHeight(fbitmap),
+          kBGRA_8888_SkColorType,
+          kPremul_SkAlphaType), FreeImage_GetWidth(fbitmap) * 4);
 
       // Despite taking red/blue/green masks, FreeImage_CovertToRawBits doesn't
       // actually use them and swizzle the color ordering.  We just require
@@ -4673,49 +4746,46 @@ class SkCanvasWrapper {
     } else if (args.Length() == 2) {  // width / height offscreen constructor.
       unsigned int width = args[0]->Uint32Value();
       unsigned int height = args[1]->Uint32Value();
-      tbitmap.setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
-      tbitmap.allocPixels();
+      tbitmap.allocPixels(SkImageInfo::Make(
+          width, height,
+          kBGRA_8888_SkColorType,
+          kPremul_SkAlphaType), width * 4);
       tbitmap.eraseARGB(0, 0, 0, 0);
       canvas = new SkCanvas(tbitmap);
-    } else if (args.Length() == 1 && NSWindowWrapper::HasInstance(args[0])) {
+    } else if (args.Length() == 1 && NSWindowWrapper::HasInstance(isolate, args[0])) {
       bitmap = NSWindowWrapper::ExtractSkBitmapPointer(
           v8::Handle<v8::Object>::Cast(args[0]));
       canvas = new SkCanvas(*bitmap);
-    } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(args[0])) {
+    } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(isolate, args[0])) {
       SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
-      const SkBitmap& pbitmap = pcanvas->getDevice()->accessBitmap(false);
-      tbitmap = pbitmap;
       // Allocate a new block of pixels with a copy from pbitmap.
-      pbitmap.copyTo(&tbitmap, pbitmap.config(), NULL);
-
+      if (!pcanvas->readPixels(&tbitmap, 0, 0)) abort();
       canvas = new SkCanvas(tbitmap);
     } else {
-      return v8_utils::ThrowError("Improper SkCanvas constructor arguments.");
+      return v8_utils::ThrowError(isolate, "Improper SkCanvas constructor arguments.");
     }
 
-    args.This()->SetPointerInInternalField(0, canvas);
+    args.This()->SetAlignedPointerInInternalField(0, canvas);
     // Direct pixel access via array[] indexing.
     args.This()->SetIndexedPropertiesToPixelData(
         reinterpret_cast<uint8_t*>(bitmap->getPixels()), bitmap->getSize());
-    args.This()->Set(v8::String::New("width"),
-                     v8::Integer::NewFromUnsigned(bitmap->width()));
-    args.This()->Set(v8::String::New("height"),
-                     v8::Integer::NewFromUnsigned(bitmap->height()));
+    args.This()->Set(v8::String::NewFromUtf8(isolate, "width"),
+                     v8::Integer::NewFromUnsigned(isolate, bitmap->width()));
+    args.This()->Set(v8::String::NewFromUtf8(isolate, "height"),
+                     v8::Integer::NewFromUnsigned(isolate, bitmap->height()));
 
     // Notify the GC that we have a possibly large amount of data allocated
     // behind this object.  This is sometimes a bit of a lie, for example for
     // a PDF surface or an NSWindow surface.  Anyway, it's just a heuristic.
     int size_bytes = bitmap->width() * bitmap->height() * 4;
-    v8::V8::AdjustAmountOfExternalAllocatedMemory(size_bytes);
+    isolate->AdjustAmountOfExternalAllocatedMemory(size_bytes);
 
-    v8::Persistent<v8::Object> persistent =
-        v8::Persistent<v8::Object>::New(args.This());
-    persistent.MakeWeak(NULL, &SkCanvasWrapper::WeakCallback);
-
-    return args.This();
+    v8::Persistent<v8::Object>* persistent = new v8::Persistent<v8::Object>;
+    persistent->Reset(isolate, args.This());
+    persistent->SetWeak(persistent, &SkCanvasWrapper::WeakCallback);
   }
 
-  static v8::Handle<v8::Value> concatMatrix(const v8::Arguments& args) {
+  static void concatMatrix(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     SkMatrix matrix;
     matrix.setAll(SkDoubleToScalar(args[0]->NumberValue()),
@@ -4727,10 +4797,11 @@ class SkCanvasWrapper {
                   SkDoubleToScalar(args[6]->NumberValue()),
                   SkDoubleToScalar(args[7]->NumberValue()),
                   SkDoubleToScalar(args[8]->NumberValue()));
-    return v8::Boolean::New(canvas->concat(matrix));
+    canvas->concat(matrix);
+    return args.GetReturnValue().Set(true);
   }
 
-  static v8::Handle<v8::Value> setMatrix(const v8::Arguments& args) {
+  static void setMatrix(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     SkMatrix matrix;
     matrix.setAll(SkDoubleToScalar(args[0]->NumberValue()),
@@ -4743,16 +4814,16 @@ class SkCanvasWrapper {
                   SkDoubleToScalar(args[7]->NumberValue()),
                   SkDoubleToScalar(args[8]->NumberValue()));
     canvas->setMatrix(matrix);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> resetMatrix(const v8::Arguments& args) {
+  static void resetMatrix(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->resetMatrix();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> clipRect(const v8::Arguments& args) {
+  static void clipRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
     SkRect rect = { SkDoubleToScalar(args[0]->NumberValue()),
@@ -4760,27 +4831,27 @@ class SkCanvasWrapper {
                     SkDoubleToScalar(args[2]->NumberValue()),
                     SkDoubleToScalar(args[3]->NumberValue()) };
     canvas->clipRect(rect);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> clipPath(const v8::Arguments& args) {
+  static void clipPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
-    if (!SkPathWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPathWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
 
     canvas->clipPath(*path);  // TODO(deanm): Handle the optional argument.
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawCircle(const v8::Arguments& args) {
+  static void drawCircle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4789,14 +4860,14 @@ class SkCanvasWrapper {
                        SkDoubleToScalar(args[2]->NumberValue()),
                        SkDoubleToScalar(args[3]->NumberValue()),
                        *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawLine(const v8::Arguments& args) {
+  static void drawLine(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4806,39 +4877,39 @@ class SkCanvasWrapper {
                      SkDoubleToScalar(args[3]->NumberValue()),
                      SkDoubleToScalar(args[4]->NumberValue()),
                      *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawPaint(const v8::Arguments& args) {
+  static void drawPaint(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
 
     canvas->drawPaint(*paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawCanvas(const v8::Arguments& args) {
+  static void drawCanvas(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() < 6)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    if (!SkCanvasWrapper::HasInstance(args[1]))
-      return v8_utils::ThrowError("Bad arguments.");
+    if (!SkCanvasWrapper::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowError(isolate, "Bad arguments.");
 
     SkCanvas* canvas = ExtractPointer(args.Holder());
     SkPaint* paint = NULL;
-    if (SkPaintWrapper::HasInstance(args[0])) {
+    if (SkPaintWrapper::HasInstance(isolate, args[0])) {
       paint = SkPaintWrapper::ExtractPointer(
           v8::Handle<v8::Object>::Cast(args[0]));
     }
 
     SkCanvas* src_canvas = SkCanvasWrapper::ExtractPointer(
           v8::Handle<v8::Object>::Cast(args[1]));
-    SkDevice* src_device = src_canvas->getDevice();
+    SkBaseDevice* src_device = src_canvas->getDevice();
 
     SkRect dst_rect = { SkDoubleToScalar(args[2]->NumberValue()),
                         SkDoubleToScalar(args[3]->NumberValue()),
@@ -4855,10 +4926,10 @@ class SkCanvasWrapper {
 
     canvas->drawBitmapRect(src_device->accessBitmap(false),
                            &src_rect, dst_rect, paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawColor(const v8::Arguments& args) {
+  static void drawColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
@@ -4868,10 +4939,10 @@ class SkCanvasWrapper {
     int m = v8_utils::ToInt32WithDefault(args[4], SkXfermode::kSrcOver_Mode);
 
     canvas->drawARGB(a, r, g, b, static_cast<SkXfermode::Mode>(m));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> eraseColor(const v8::Arguments& args) {
+  static void eraseColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
@@ -4881,17 +4952,17 @@ class SkCanvasWrapper {
 
     canvas->getDevice()->accessBitmap(true).eraseColor(
         SkColorSetARGB(a, r, g, b));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawPath(const v8::Arguments& args) {
+  static void drawPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
-    if (!SkPathWrapper::HasInstance(args[1]))
-      return v8::Undefined();
+    if (!SkPathWrapper::HasInstance(isolate, args[1]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4900,17 +4971,17 @@ class SkCanvasWrapper {
         v8::Handle<v8::Object>::Cast(args[1]));
 
     canvas->drawPath(*path, *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawPoints(const v8::Arguments& args) {
+  static void drawPoints(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     if (!args[2]->IsArray())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4922,8 +4993,8 @@ class SkCanvasWrapper {
     SkPoint* points = new SkPoint[points_len];
 
     for (uint32_t i = 0; i < points_len; ++i) {
-      double x = data->Get(v8::Integer::New(i * 2))->NumberValue();
-      double y = data->Get(v8::Integer::New(i * 2 + 1))->NumberValue();
+      double x = data->Get(v8::Integer::New(isolate, i * 2))->NumberValue();
+      double y = data->Get(v8::Integer::New(isolate, i * 2 + 1))->NumberValue();
       points[i].set(SkDoubleToScalar(x), SkDoubleToScalar(y));
     }
 
@@ -4933,14 +5004,14 @@ class SkCanvasWrapper {
 
     delete[] points;
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawRect(const v8::Arguments& args) {
+  static void drawRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4950,14 +5021,14 @@ class SkCanvasWrapper {
                     SkDoubleToScalar(args[3]->NumberValue()),
                     SkDoubleToScalar(args[4]->NumberValue()) };
     canvas->drawRect(rect, *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawRoundRect(const v8::Arguments& args) {
+  static void drawRoundRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4970,14 +5041,14 @@ class SkCanvasWrapper {
                           SkDoubleToScalar(args[5]->NumberValue()),
                           SkDoubleToScalar(args[6]->NumberValue()),
                           *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawText(const v8::Arguments& args) {
+  static void drawText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -4987,17 +5058,17 @@ class SkCanvasWrapper {
                      SkDoubleToScalar(args[2]->NumberValue()),
                      SkDoubleToScalar(args[3]->NumberValue()),
                      *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> drawTextOnPathHV(const v8::Arguments& args) {
+  static void drawTextOnPathHV(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(args[0]))
-      return v8::Undefined();
+    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetUndefined();
 
-    if (!SkPathWrapper::HasInstance(args[1]))
-      return v8::Undefined();
+    if (!SkPathWrapper::HasInstance(isolate, args[1]))
+      return args.GetReturnValue().SetUndefined();
 
     SkPaint* paint = SkPaintWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
@@ -5010,62 +5081,62 @@ class SkCanvasWrapper {
                              SkDoubleToScalar(args[3]->NumberValue()),
                              SkDoubleToScalar(args[4]->NumberValue()),
                              *paint);
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> translate(const v8::Arguments& args) {
+  static void translate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->translate(SkDoubleToScalar(args[0]->NumberValue()),
                       SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> scale(const v8::Arguments& args) {
+  static void scale(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->scale(SkDoubleToScalar(args[0]->NumberValue()),
                   SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> rotate(const v8::Arguments& args) {
+  static void rotate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->rotate(SkDoubleToScalar(args[0]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> skew(const v8::Arguments& args) {
+  static void skew(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->skew(SkDoubleToScalar(args[0]->NumberValue()),
                  SkDoubleToScalar(args[1]->NumberValue()));
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> save(const v8::Arguments& args) {
+  static void save(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->save();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> restore(const v8::Arguments& args) {
+  static void restore(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->restore();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> writeImage(const v8::Arguments& args) {
+  static void writeImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
     const uint32_t rmask = SK_R32_MASK << SK_R32_SHIFT;
     const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
     const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
 
     if (args.Length() < 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     SkCanvas* canvas = ExtractPointer(args.Holder());
     const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
 
     v8::String::Utf8Value type(args[0]);
     if (strcmp(*type, "png") != 0)
-      return v8_utils::ThrowError("writeImage can only write PNG types.");
+      return v8_utils::ThrowError(isolate, "writeImage can only write PNG types.");
 
     v8::String::Utf8Value filename(args[1]);
 
@@ -5075,7 +5146,7 @@ class SkCanvasWrapper {
         rmask, gmask, bmask, TRUE);
 
     if (!fb)
-      return v8_utils::ThrowError("Couldn't allocate output FreeImage bitmap.");
+      return v8_utils::ThrowError(isolate, "Couldn't allocate output FreeImage bitmap.");
 
     // Let's hope that ConvertFromRawBits made a copy.
     for (int y = 0; y < bitmap.height(); ++y) {
@@ -5088,13 +5159,13 @@ class SkCanvasWrapper {
 
     if (args.Length() >= 3 && args[2]->IsObject()) {
       v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
-      if (opts->Has(v8::String::New("dotsPerMeterX"))) {
+      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))) {
         FreeImage_SetDotsPerMeterX(fb,
-            opts->Get(v8::String::New("dotsPerMeterX"))->Uint32Value());
+            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))->Uint32Value());
       }
-      if (opts->Has(v8::String::New("dotsPerMeterY"))) {
+      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))) {
         FreeImage_SetDotsPerMeterY(fb,
-            opts->Get(v8::String::New("dotsPerMeterY"))->Uint32Value());
+            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))->Uint32Value());
       }
     }
 
@@ -5102,16 +5173,16 @@ class SkCanvasWrapper {
     FreeImage_Unload(fb);
 
     if (!saved)
-      return v8_utils::ThrowError("Failed to save png.");
+      return v8_utils::ThrowError(isolate, "Failed to save png.");
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> writePDF(const v8::Arguments& args) {
+  static void writePDF(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value filename(args[0]);
 
@@ -5121,26 +5192,25 @@ class SkCanvasWrapper {
     document.appendPage(reinterpret_cast<SkPDFDevice*>(canvas->getDevice()));
 
     if (!document.emitPDF(&stream))
-      return v8_utils::ThrowError("Error writing PDF.");
+      return v8_utils::ThrowError(isolate, "Error writing PDF.");
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 };
 
 class NSSoundWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&NSSoundWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &NSSoundWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -5163,126 +5233,126 @@ class NSSoundWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      ft_cache->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static NSSound* ExtractNSSoundPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<NSSound>(obj->GetInternalField(0));
+    return reinterpret_cast<NSSound*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value filename(args[0]);
     NSSound* sound = [[NSSound alloc] initWithContentsOfFile:
         [NSString stringWithUTF8String:*filename] byReference:YES];
 
-    args.This()->SetInternalField(0, v8_utils::WrapCPointer(sound));
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, sound);
   }
 
-  static v8::Handle<v8::Value> isPlaying(const v8::Arguments& args) {
+  static void isPlaying(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Boolean::New([sound isPlaying]);
+    return args.GetReturnValue().Set((bool)[sound isPlaying]);
   }
 
-  static v8::Handle<v8::Value> pause(const v8::Arguments& args) {
+  static void pause(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Boolean::New([sound pause]);
+    return args.GetReturnValue().Set((bool)[sound pause]);
   }
 
-  static v8::Handle<v8::Value> play(const v8::Arguments& args) {
+  static void play(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Boolean::New([sound play]);
+    return args.GetReturnValue().Set((bool)[sound play]);
   }
 
-  static v8::Handle<v8::Value> resume(const v8::Arguments& args) {
+  static void resume(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Boolean::New([sound resume]);
+    return args.GetReturnValue().Set((bool)[sound resume]);
   }
 
-  static v8::Handle<v8::Value> stop(const v8::Arguments& args) {
+  static void stop(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Boolean::New([sound stop]);
+    return args.GetReturnValue().Set((bool)[sound stop]);
   }
 
-  static v8::Handle<v8::Value> volume(const v8::Arguments& args) {
+  static void volume(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Number::New([sound volume]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [sound volume]));
   }
 
-  static v8::Handle<v8::Value> setVolume(const v8::Arguments& args) {
+  static void setVolume(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setVolume:args[0]->NumberValue()];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> currentTime(const v8::Arguments& args) {
+  static void currentTime(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Number::New([sound currentTime]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [sound currentTime]));
   }
 
-  static v8::Handle<v8::Value> setCurrentTime(const v8::Arguments& args) {
+  static void setCurrentTime(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setCurrentTime:args[0]->NumberValue()];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> loops(const v8::Arguments& args) {
+  static void loops(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Boolean::New([sound loops]);
+    return args.GetReturnValue().Set((bool)[sound loops]);
   }
 
-  static v8::Handle<v8::Value> setLoops(const v8::Arguments& args) {
+  static void setLoops(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
     [sound setLoops:args[0]->BooleanValue()];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> duration(const v8::Arguments& args) {
+  static void duration(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSSound* sound = ExtractNSSoundPointer(args.Holder());
-    return v8::Number::New([sound duration]);
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [sound duration]));
   }
 };
 
-v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvasB(
-    const v8::Arguments& args) {
+void NSOpenGLContextWrapper::texImage2DSkCanvasB(
+    const v8::FunctionCallbackInfo<v8::Value>& args) {
   if (args.Length() != 3)
-    return v8_utils::ThrowError("Wrong number of arguments.");
+    return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-  if (!args[2]->IsObject() && !SkCanvasWrapper::HasInstance(args[2]))
-    return v8_utils::ThrowError("Expected image to be an SkCanvas instance.");
+  if (!args[2]->IsObject() && !SkCanvasWrapper::HasInstance(isolate, args[2]))
+    return v8_utils::ThrowError(isolate, "Expected image to be an SkCanvas instance.");
 
   SkCanvas* canvas = SkCanvasWrapper::ExtractPointer(
       v8::Handle<v8::Object>::Cast(args[2]));
@@ -5296,16 +5366,16 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::texImage2DSkCanvasB(
                GL_BGRA,  // We have to swizzle, so this technically isn't ES.
                GL_UNSIGNED_INT_8_8_8_8_REV,
                bitmap.getPixels());
-  return v8::Undefined();
+  return args.GetReturnValue().SetUndefined();
 }
 
-v8::Handle<v8::Value> NSOpenGLContextWrapper::drawSkCanvas(
-    const v8::Arguments& args) {
+void NSOpenGLContextWrapper::drawSkCanvas(
+    const v8::FunctionCallbackInfo<v8::Value>& args) {
   if (args.Length() != 1)
-    return v8_utils::ThrowError("Wrong number of arguments.");
+    return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-  if (!args[0]->IsObject() && !SkCanvasWrapper::HasInstance(args[0]))
-    return v8_utils::ThrowError("Expected image to be an SkCanvas instance.");
+  if (!args[0]->IsObject() && !SkCanvasWrapper::HasInstance(isolate, args[0]))
+    return v8_utils::ThrowError(isolate, "Expected image to be an SkCanvas instance.");
 
   SkCanvas* canvas = SkCanvasWrapper::ExtractPointer(
       v8::Handle<v8::Object>::Cast(args[0]));
@@ -5326,7 +5396,7 @@ v8::Handle<v8::Value> NSOpenGLContextWrapper::drawSkCanvas(
   // simple since it goes through the transforms.  This should hopefully put us
   // back to the default (0, 0, 0, 1) at least.
   glRasterPos2i(-1, -1);
-  return v8::Undefined();
+  return args.GetReturnValue().SetUndefined();
 }
 
 // MIDI notes (pun pun):
@@ -5475,18 +5545,17 @@ static CFStringRef ConnectedEndpointName( MIDIEndpointRef endpoint )
 
 class CAMIDISourceWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&CAMIDISourceWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &CAMIDISourceWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(2);  // MIDIEndpointRef and MIDIPortRef.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -5501,31 +5570,32 @@ class CAMIDISourceWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static MIDIEndpointRef ExtractEndpoint(v8::Handle<v8::Object> obj) {
     // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    return (MIDIEndpointRef)(intptr_t)obj->GetPointerFromInternalField(0);
+    return (MIDIEndpointRef)(intptr_t)obj->GetAlignedPointerFromInternalField(0);
   }
 
   static MIDIPortRef ExtractPort(v8::Handle<v8::Object> obj) {
-    return (MIDIPortRef)(intptr_t)obj->GetPointerFromInternalField(1);
+    return (MIDIPortRef)(intptr_t)obj->GetAlignedPointerFromInternalField(1);
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
@@ -5543,14 +5613,14 @@ class CAMIDISourceWrapper {
     delete[] reinterpret_cast<char*>(pl);
   }
 
-  static v8::Handle<v8::Value> sendData(const v8::Arguments& args) {
+  static void sendData(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args[0]->IsArray())
-      return v8::Undefined();
+      return args.GetReturnValue().SetUndefined();
 
     MIDIEndpointRef endpoint = ExtractEndpoint(args.Holder());
 
     if (!endpoint) {
-      return v8_utils::ThrowError("Can't send on midi without an endpoint.");
+      return v8_utils::ThrowError(isolate, "Can't send on midi without an endpoint.");
     }
 
     MIDIPortRef port = ExtractPort(args.Holder());
@@ -5566,7 +5636,7 @@ class CAMIDISourceWrapper {
 
     for (uint32_t i = 0; i < data_len; ++i) {
       // Convert to an integer and truncate to 8 bits.
-      data_buf[i] = data->Get(v8::Integer::New(i))->Uint32Value();
+      data_buf[i] = data->Get(v8::Integer::New(isolate, i))->Uint32Value();
     }
 
     cur_packet = MIDIPacketListAdd(pl, pl_count, cur_packet,
@@ -5578,33 +5648,32 @@ class CAMIDISourceWrapper {
     FreeMIDIPacketList(pl);
 
     if (result != noErr) {
-      return v8_utils::ThrowError("Couldn't send midi data.");
+      return v8_utils::ThrowError(isolate, "Couldn't send midi data.");
     }
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     OSStatus result;
 
     if (!g_midi_client) {
       result = MIDIClientCreate(CFSTR("Plask"), NULL, NULL, &g_midi_client);
       if (result != noErr) {
-        return v8_utils::ThrowError("Couldn't create midi client object.");
+        return v8_utils::ThrowError(isolate, "Couldn't create midi client object.");
       }
     }
 
-    args.This()->SetPointerInInternalField(0, NULL);
-    args.This()->SetPointerInInternalField(1, NULL);
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, NULL);
+    args.This()->SetAlignedPointerInInternalField(1, NULL);
   }
 
-  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {
+  static void createVirtual(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     OSStatus result;
 
@@ -5616,25 +5685,25 @@ class CAMIDISourceWrapper {
     result = MIDISourceCreate(g_midi_client, name, &endpoint);
     CFRelease(name);
     if (result != noErr) {
-      return v8_utils::ThrowError("Couldn't create midi source object.");
+      return v8_utils::ThrowError(isolate, "Couldn't create midi source object.");
     }
 
     // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    args.This()->SetPointerInInternalField(0, (void*)(intptr_t)endpoint);
-    args.This()->SetPointerInInternalField(1, NULL);
-    return v8::Undefined();
+    args.This()->SetAlignedPointerInInternalField(0, (void*)(intptr_t)endpoint);
+    args.This()->SetAlignedPointerInInternalField(1, NULL);
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> openDestination(const v8::Arguments& args) {
+  static void openDestination(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     OSStatus result;
 
     ItemCount num_destinations = MIDIGetNumberOfDestinations();
     ItemCount index = args[0]->Uint32Value();
     if (index >= num_destinations)
-      return v8_utils::ThrowError("Invalid MIDI destination index.");
+      return v8_utils::ThrowError(isolate, "Invalid MIDI destination index.");
 
     MIDIEndpointRef destination = MIDIGetDestination(index);
 
@@ -5642,26 +5711,26 @@ class CAMIDISourceWrapper {
     result = MIDIOutputPortCreate(
         g_midi_client, CFSTR("Plask"), &port);
     if (result != noErr)
-      return v8_utils::ThrowError("Couldn't create midi output port.");
+      return v8_utils::ThrowError(isolate, "Couldn't create midi output port.");
 
-    args.This()->SetPointerInInternalField(0, (void*)(intptr_t)destination);
-    args.This()->SetPointerInInternalField(1, (void*)(intptr_t)port);
+    args.This()->SetAlignedPointerInInternalField(0, (void*)(intptr_t)destination);
+    args.This()->SetAlignedPointerInInternalField(1, (void*)(intptr_t)port);
 
-    return v8::Undefined();
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // NOTE(deanm): See API notes about sources(), same comments apply here.
-  static v8::Handle<v8::Value> destinations(const v8::Arguments& args) {
+  static void destinations(const v8::FunctionCallbackInfo<v8::Value>& args) {
     ItemCount num_destinations = MIDIGetNumberOfDestinations();
-    v8::Local<v8::Array> arr = v8::Array::New(num_destinations);
+    v8::Local<v8::Array> arr = v8::Array::New(isolate, num_destinations);
     for (ItemCount i = 0; i < num_destinations; ++i) {
       MIDIEndpointRef point = MIDIGetDestination(i);
       CFStringRef name = ConnectedEndpointName(point);
-      arr->Set(i, v8::String::New([(NSString*)name UTF8String]));
+      arr->Set(i, v8::String::NewFromUtf8(isolate, [(NSString*)name UTF8String]));
       CFRelease(name);
     }
-    return arr;
+    return args.GetReturnValue().Set(arr);
   }
 
 };
@@ -5675,18 +5744,17 @@ class CAMIDIDestinationWrapper {
   };
 
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&CAMIDIDestinationWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &CAMIDIDestinationWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // MIDIEndpointRef.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -5702,27 +5770,27 @@ class CAMIDIDestinationWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
-  // Can't use v8_utils::UnrwapCPointer because of LSB clear expectations.
   static State* ExtractPointer(v8::Handle<v8::Object> obj) {
-    return v8_utils::UnwrapCPointer<State>(obj->GetInternalField(0));
+    return reinterpret_cast<State*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
@@ -5757,26 +5825,26 @@ class CAMIDIDestinationWrapper {
     }
   }
 
-  static v8::Handle<v8::Value> syncClocks(const v8::Arguments& args) {
+  static void syncClocks(const v8::FunctionCallbackInfo<v8::Value>& args) {
     State* state = ExtractPointer(args.Holder());
-    return v8::Integer::New(state->clocks);
+    return args.GetReturnValue().Set(v8::Integer::New(isolate, state->clocks));
   }
 
-  static v8::Handle<v8::Value> getPipeDescriptor(const v8::Arguments& args) {
+  static void getPipeDescriptor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     State* state = ExtractPointer(args.Holder());
-    return v8::Integer::NewFromUnsigned(state->pipe_fds[0]);
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, state->pipe_fds[0]));
   }
 
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     OSStatus result;
 
     if (!g_midi_client) {
       result = MIDIClientCreate(CFSTR("Plask"), NULL, NULL, &g_midi_client);
       if (result != noErr) {
-        return v8_utils::ThrowError("Couldn't create midi client object.");
+        return v8_utils::ThrowError(isolate, "Couldn't create midi client object.");
       }
     }
 
@@ -5785,15 +5853,14 @@ class CAMIDIDestinationWrapper {
     state->clocks = 0;
     int res = pipe(state->pipe_fds);
     if (res != 0)
-      return v8_utils::ThrowError("Couldn't create internal MIDI pipe.");
-    args.This()->SetInternalField(0, v8::External::Wrap(state));
-    return args.This();
+      return v8_utils::ThrowError(isolate, "Couldn't create internal MIDI pipe.");
+    args.This()->SetAlignedPointerInInternalField(0, state);
   }
 
 
-  static v8::Handle<v8::Value> createVirtual(const v8::Arguments& args) {
+  static void createVirtual(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     OSStatus result;
     v8::String::Utf8Value name_val(args[0]);
@@ -5807,31 +5874,31 @@ class CAMIDIDestinationWrapper {
         g_midi_client, name, &ReadCallback, state, &endpoint);
     CFRelease(name);
     if (result != noErr)
-      return v8_utils::ThrowError("Couldn't create midi source object.");
+      return v8_utils::ThrowError(isolate, "Couldn't create midi source object.");
 
     state->endpoint = endpoint;
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
   // NOTE(deanm): Could make sense for the API to be numSources() and then
   // you query for sourceName(index), but really, do you ever want the index
   // without the name?  This could be a little extra work if you don't, but
   // really it seems to make sense in most of the use cases.
-  static v8::Handle<v8::Value> sources(const v8::Arguments& args) {
+  static void sources(const v8::FunctionCallbackInfo<v8::Value>& args) {
     ItemCount num_sources = MIDIGetNumberOfSources();
-    v8::Local<v8::Array> arr = v8::Array::New(num_sources);
+    v8::Local<v8::Array> arr = v8::Array::New(isolate, num_sources);
     for (ItemCount i = 0; i < num_sources; ++i) {
       MIDIEndpointRef point = MIDIGetSource(i);
       CFStringRef name = ConnectedEndpointName(point);
-      arr->Set(i, v8::String::New([(NSString*)name UTF8String]));
+      arr->Set(i, v8::String::NewFromUtf8(isolate, [(NSString*)name UTF8String]));
       CFRelease(name);
     }
-    return arr;
+    return args.GetReturnValue().Set(arr);
   }
 
-  static v8::Handle<v8::Value> openSource(const v8::Arguments& args) {
+  static void openSource(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     OSStatus result;
     State* state = ExtractPointer(args.Holder());
@@ -5839,7 +5906,7 @@ class CAMIDIDestinationWrapper {
     ItemCount num_sources = MIDIGetNumberOfSources();
     ItemCount index = args[0]->Uint32Value();
     if (index >= num_sources)
-      return v8_utils::ThrowError("Invalid MIDI source index.");
+      return v8_utils::ThrowError(isolate, "Invalid MIDI source index.");
 
     MIDIEndpointRef source = MIDIGetSource(index);
 
@@ -5847,33 +5914,32 @@ class CAMIDIDestinationWrapper {
     result = MIDIInputPortCreate(
         g_midi_client, CFSTR("Plask"), &ReadCallback, state, &port);
     if (result != noErr)
-      return v8_utils::ThrowError("Couldn't create midi source object.");
+      return v8_utils::ThrowError(isolate, "Couldn't create midi source object.");
 
     result = MIDIPortConnectSource(port, source, NULL);
     if (result != noErr)
-      return v8_utils::ThrowError("Couldn't create midi source object.");
+      return v8_utils::ThrowError(isolate, "Couldn't create midi source object.");
 
     state->endpoint = source;
 
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 };
 
 
 class SBApplicationWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&SBApplicationWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &SBApplicationWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // id.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -5887,35 +5953,36 @@ class SBApplicationWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static id ExtractID(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<id>(obj->GetPointerFromInternalField(0));
+    return reinterpret_cast<id>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value bundleid(args[0]);
     id obj = [SBApplication applicationWithBundleIdentifier:
@@ -5923,78 +5990,75 @@ class SBApplicationWrapper {
     [obj retain];
 
     if (obj == nil)
-      return v8_utils::ThrowError("Unable to create SBApplication.");
+      return v8_utils::ThrowError(isolate, "Unable to create SBApplication.");
 
-    args.This()->SetPointerInInternalField(0, obj);
-
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, obj);
   }
 
-  static v8::Handle<v8::Value> objcMethods(const v8::Arguments& args) {
+  static void objcMethods(const v8::FunctionCallbackInfo<v8::Value>& args) {
     id obj = ExtractID(args.Holder());
     unsigned int num_methods;
     Method* methods = class_copyMethodList(object_getClass(obj), &num_methods);
-    v8::Local<v8::Array> res = v8::Array::New(num_methods);
+    v8::Local<v8::Array> res = v8::Array::New(isolate, num_methods);
 
     for (unsigned int i = 0; i < num_methods; ++i) {
       unsigned num_args = method_getNumberOfArguments(methods[i]);
-      v8::Local<v8::Array> sig = v8::Array::New(num_args + 1);
+      v8::Local<v8::Array> sig = v8::Array::New(isolate, num_args + 1);
       char rettype[256];
       method_getReturnType(methods[i], rettype, sizeof(rettype));
-      sig->Set(v8::Integer::NewFromUnsigned(0),
-               v8::String::New(sel_getName(method_getName(methods[i]))));
-      sig->Set(v8::Integer::NewFromUnsigned(1),
-               v8::String::New(rettype));
+      sig->Set(v8::Integer::NewFromUnsigned(isolate, 0),
+               v8::String::NewFromUtf8(isolate, sel_getName(method_getName(methods[i]))));
+      sig->Set(v8::Integer::NewFromUnsigned(isolate, 1),
+               v8::String::NewFromUtf8(isolate, rettype));
       for (unsigned j = 0; j < num_args; ++j) {
         char argtype[256];
         method_getArgumentType(methods[i], j, argtype, sizeof(argtype));
-        sig->Set(v8::Integer::NewFromUnsigned(j + 2),
-                 v8::String::New(argtype));
+        sig->Set(v8::Integer::NewFromUnsigned(isolate, j + 2),
+                 v8::String::NewFromUtf8(isolate, argtype));
       }
-      res->Set(v8::Integer::NewFromUnsigned(i), sig);
+      res->Set(v8::Integer::NewFromUnsigned(isolate, i), sig);
     }
 
-    return res;
+    return args.GetReturnValue().Set(res);
   }
 
-  static v8::Handle<v8::Value> invokeVoid0(const v8::Arguments& args) {
+  static void invokeVoid0(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     id obj = ExtractID(args.Holder());
     v8::String::Utf8Value method_name(args[0]);
     [obj performSelector:sel_getUid(*method_name)];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 
-  static v8::Handle<v8::Value> invokeVoid1s(const v8::Arguments& args) {
+  static void invokeVoid1s(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() != 2)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     id obj = ExtractID(args.Holder());
     v8::String::Utf8Value method_name(args[0]);
     v8::String::Utf8Value arg(args[1]);
     [obj performSelector:sel_getUid(*method_name) withObject:
         [NSString stringWithUTF8String:*arg]];
-    return v8::Undefined();
+    return args.GetReturnValue().SetUndefined();
   }
 };
 
 
 class NSAppleScriptWrapper {
  public:
-  static v8::Persistent<v8::FunctionTemplate> GetTemplate() {
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
     static v8::Persistent<v8::FunctionTemplate> ft_cache;
     if (!ft_cache.IsEmpty())
       return ft_cache;
 
-    v8::HandleScope scope;
-    ft_cache = v8::Persistent<v8::FunctionTemplate>::New(
-        v8::FunctionTemplate::New(&NSAppleScriptWrapper::V8New));
-    v8::Local<v8::ObjectTemplate> instance = ft_cache->InstanceTemplate();
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &NSAppleScriptWrapper::V8New);
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // NSAppleScript*.
 
-    v8::Local<v8::Signature> default_signature = v8::Signature::New(ft_cache);
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -6006,54 +6070,53 @@ class NSAppleScriptWrapper {
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
-      instance->Set(v8::String::New(constants[i].name),
-                    v8::Uint32::New(constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
     }
 
     for (size_t i = 0; i < arraysize(methods); ++i) {
-      instance->Set(v8::String::New(methods[i].name),
-                    v8::FunctionTemplate::New(methods[i].func,
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
                                               v8::Handle<v8::Value>(),
                                               default_signature));
     }
 
+    ft_cache.Reset(isolate, ft);
     return ft_cache;
   }
 
   static NSAppleScript* ExtractNSAppleScript(v8::Handle<v8::Object> obj) {
     return reinterpret_cast<NSAppleScript*>(
-        obj->GetPointerFromInternalField(0));
+        obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static bool HasInstance(v8::Handle<v8::Value> value) {
-    return GetTemplate()->HasInstance(value);
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
 
  private:
-  static v8::Handle<v8::Value> V8New(const v8::Arguments& args) {
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
-      return v8_utils::ThrowTypeError(kMsgNonConstructCall);
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
     if (args.Length() != 1)
-      return v8_utils::ThrowError("Wrong number of arguments.");
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     v8::String::Utf8Value src(args[0]);
     NSAppleScript* ascript = [[NSAppleScript alloc] initWithSource:
         [NSString stringWithUTF8String:*src]];
 
     if (ascript == nil)
-      return v8_utils::ThrowError("Unable to create NSAppleScript.");
+      return v8_utils::ThrowError(isolate, "Unable to create NSAppleScript.");
 
-    args.This()->SetPointerInInternalField(0, ascript);
-
-    return args.This();
+    args.This()->SetAlignedPointerInInternalField(0, ascript);
   }
 
-  static v8::Handle<v8::Value> execute(const v8::Arguments& args) {
+  static void execute(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSAppleScript* ascript = ExtractNSAppleScript(args.Holder());
     if ([ascript executeAndReturnError:nil] == nil)
-      return v8_utils::ThrowError("Error executing AppleScript.");
-    return v8::Undefined();
+      return v8_utils::ThrowError(isolate, "Error executing AppleScript.");
+    return args.GetReturnValue().SetUndefined();
   }
 };
 
@@ -6062,19 +6125,20 @@ class NSAppleScriptWrapper {
 @implementation WrappedNSWindow
 
 -(void)setEventCallbackWithHandle:(v8::Handle<v8::Function>)func {
-  event_callback_ = v8::Persistent<v8::Function>::New(func);
+  event_callback_.Reset(isolate, func);
 }
 
 -(void)processEvent:(NSEvent *)event {
-  if (*event_callback_) {
-    v8::HandleScope scope;
+  if (!event_callback_.IsEmpty()) {
     [event retain];  // Released by NSEventWrapper.
-    v8::Local<v8::Object> res =
-        NSEventWrapper::GetTemplate()->InstanceTemplate()->NewInstance();
-    res->SetInternalField(0, v8_utils::WrapCPointer(event));
-    v8::Local<v8::Value> argv[] = { v8::Number::New(0), res };
+    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
+        isolate, NSEventWrapper::GetTemplate(isolate));
+    v8::Local<v8::Object> res = ft->InstanceTemplate()->NewInstance();
+    res->SetAlignedPointerInInternalField(0, event);
+    v8::Local<v8::Value> argv[] = { v8::Number::New(isolate, 0), res };
     v8::TryCatch try_catch;
-    event_callback_->Call(v8::Context::GetCurrent()->Global(), 2, argv);
+    PersistentToLocal(isolate, event_callback_)->Call(
+        isolate->GetCurrentContext()->Global(), 2, argv);
     // Hopefully plask.js will have caught any exceptions already.
     if (try_catch.HasCaught()) {
       printf("Exception in event callback, TODO(deanm): print something.\n");
@@ -6110,22 +6174,23 @@ class NSAppleScriptWrapper {
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender {
   NSPasteboard* board = [sender draggingPasteboard];
   NSArray* paths = [board propertyListForType:NSFilenamesPboardType];
-  v8::Local<v8::Array> jspaths = v8::Array::New([paths count]);
+  v8::Local<v8::Array> jspaths = v8::Array::New(isolate, [paths count]);
   for (int i = 0; i < [paths count]; ++i) {
-    jspaths->Set(v8::Integer::New(i), v8::String::New(
+    jspaths->Set(v8::Integer::New(isolate, i), v8::String::NewFromUtf8(isolate,
         [[paths objectAtIndex:i] UTF8String]));
   }
 
   NSPoint location = [sender draggingLocation];
 
-  v8::Local<v8::Object> res = v8::Object::New();
-  res->Set(v8::String::New("paths"), jspaths);
-  res->Set(v8::String::New("x"), v8::Number::New(location.x));
-  res->Set(v8::String::New("y"), v8::Number::New(location.y));
+  v8::Local<v8::Object> res = v8::Object::New(isolate);
+  res->Set(v8::String::NewFromUtf8(isolate, "paths"), jspaths);
+  res->Set(v8::String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, location.x));
+  res->Set(v8::String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, location.y));
 
-  v8::Handle<v8::Value> argv[] = { v8::Number::New(1), res };
+  v8::Handle<v8::Value> argv[] = { v8::Number::New(isolate, 1), res };
   v8::TryCatch try_catch;
-  event_callback_->Call(v8::Context::GetCurrent()->Global(), 2, argv);
+  PersistentToLocal(isolate, event_callback_)->Call(
+      isolate->GetCurrentContext()->Global(), 2, argv);
   // Hopefully plask.js will have caught any exceptions already.
   if (try_catch.HasCaught()) {
     printf("Exception in event callback, TODO(deanm): print something.\n");
@@ -6186,20 +6251,40 @@ class NSAppleScriptWrapper {
 
 @end
 
-void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj) {
-  obj->Set(v8::String::New("NSWindow"), NSWindowWrapper::GetTemplate());
-  obj->Set(v8::String::New("NSEvent"), NSEventWrapper::GetTemplate());
-  obj->Set(v8::String::New("SkPath"), SkPathWrapper::GetTemplate());
-  obj->Set(v8::String::New("SkPaint"), SkPaintWrapper::GetTemplate());
-  obj->Set(v8::String::New("SkCanvas"), SkCanvasWrapper::GetTemplate());
-  obj->Set(v8::String::New("NSOpenGLContext"),
-           NSOpenGLContextWrapper::GetTemplate());
-  obj->Set(v8::String::New("NSSound"), NSSoundWrapper::GetTemplate());
-  obj->Set(v8::String::New("CAMIDISource"), CAMIDISourceWrapper::GetTemplate());
-  obj->Set(v8::String::New("CAMIDIDestination"),
-           CAMIDIDestinationWrapper::GetTemplate());
-  obj->Set(v8::String::New("SBApplication"),
-           SBApplicationWrapper::GetTemplate());
-  obj->Set(v8::String::New("NSAppleScript"),
-           NSAppleScriptWrapper::GetTemplate());
+void plask_setup_bindings(v8::Isolate* isolate,
+                          v8::Handle<v8::ObjectTemplate> obj) {
+  v8::HandleScope handle_scope(isolate);
+  SetInternalIsolate(isolate);
+  obj->Set(v8::String::NewFromUtf8(isolate, "NSWindow"),
+           PersistentToLocal(isolate, NSWindowWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "NSEvent"),
+           PersistentToLocal(isolate, NSEventWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "SkPath"),
+           PersistentToLocal(isolate, SkPathWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "SkPaint"),
+           PersistentToLocal(isolate, SkPaintWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "SkCanvas"),
+           PersistentToLocal(isolate, SkCanvasWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "NSOpenGLContext"),
+           PersistentToLocal(isolate, NSOpenGLContextWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "NSSound"),
+           PersistentToLocal(isolate, NSSoundWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "CAMIDISource"),
+           PersistentToLocal(isolate, CAMIDISourceWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "CAMIDIDestination"),
+           PersistentToLocal(isolate, CAMIDIDestinationWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "SBApplication"),
+           PersistentToLocal(isolate, SBApplicationWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "NSAppleScript"),
+           PersistentToLocal(isolate, NSAppleScriptWrapper::GetTemplate(isolate)));
+}
+
+void plask_teardown_bindings() {
+  WebGLFramebuffer::ClearMap();
+  WebGLTexture::ClearMap();
+  WebGLRenderbuffer::ClearMap();
+  WebGLBuffer::ClearMap();
+  WebGLProgram::ClearMap();
+  WebGLShader::ClearMap();
+  WebGLVertexArrayObject::ClearMap();
 }

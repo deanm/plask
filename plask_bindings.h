@@ -22,4 +22,6 @@
 #include "v8.h"
 
 // Create and install bindings on |obj|.
-void plask_setup_bindings(v8::Handle<v8::ObjectTemplate> obj);
+void plask_setup_bindings(v8::Isolate* isolate,
+                          v8::Handle<v8::ObjectTemplate> obj);
+void plask_teardown_bindings();
