@@ -870,6 +870,10 @@ class NSOpenGLContextWrapper {
     return ft_cache;
   }
 
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
+  }
+
   static NSOpenGLContext* ExtractContextPointer(v8::Handle<v8::Object> obj) {
     return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(0));
   }
