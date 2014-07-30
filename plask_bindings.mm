@@ -1966,6 +1966,34 @@ class NSOpenGLContextWrapper {
   //                                       GLenum pname)
   static v8::Handle<v8::Value> getFramebufferAttachmentParameter(
       const v8::Arguments& args) {
+    if (args.Length() != 3)
+      return v8_utils::ThrowError("Wrong number of arguments.");
+
+    GLenum target     = args[0]->Uint32Value();
+    GLenum attachment = args[1]->Uint32Value();
+    GLenum pname      = args[2]->Uint32Value();
+
+    GLint value;
+    glGetFramebufferAttachmentParameteriv(target, attachment, pname, &value);
+
+    switch (pname) {
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:  // Renderbuffer/texture
+      {
+        GLint type;
+        glGetFramebufferAttachmentParameteriv(
+            target, attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+        switch (type) {
+          case GL_RENDERBUFFER: return WebGLRenderbuffer::LookupFromName(value);
+          case GL_TEXTURE: return WebGLTexture::LookupFromName(value);
+        }
+        return v8::Null();
+      }
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:  // GLenum
+        return v8::Integer::NewFromUnsigned(static_cast<GLenum>(value));
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:          // GLint
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE:  // GLint
+        return v8::Integer::New(value);
+    }
     return v8_utils::ThrowError("Unimplemented.");
   }
 
