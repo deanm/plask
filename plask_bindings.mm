@@ -1853,8 +1853,36 @@ class NSOpenGLContextWrapper {
 
   // any getFramebufferAttachmentParameter(GLenum target, GLenum attachment,
   //                                       GLenum pname)
-  static void getFramebufferAttachmentParameter(
-      const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(getFramebufferAttachmentParameter, 3)
+    GLenum target     = args[0]->Uint32Value();
+    GLenum attachment = args[1]->Uint32Value();
+    GLenum pname      = args[2]->Uint32Value();
+
+    GLint value;
+    glGetFramebufferAttachmentParameteriv(target, attachment, pname, &value);
+
+    switch (pname) {
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:  // Renderbuffer/texture
+      {
+        GLint type;
+        glGetFramebufferAttachmentParameteriv(
+            target, attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+        switch (type) {
+          case GL_RENDERBUFFER:
+              return args.GetReturnValue().Set(WebGLRenderbuffer::LookupFromName(isolate, value));
+          case GL_TEXTURE:
+              return args.GetReturnValue().Set(WebGLTexture::LookupFromName(isolate, value));
+        }
+        return args.GetReturnValue().SetNull();
+      }
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:  // GLenum
+        return args.GetReturnValue().Set(
+            v8::Integer::NewFromUnsigned(isolate, static_cast<GLenum>(value)));
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:          // GLint
+      case WEBGL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE:  // GLint
+        return args.GetReturnValue().Set(v8::Integer::New(isolate, value));
+    }
+
     return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 
