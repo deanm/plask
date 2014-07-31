@@ -1995,8 +1995,16 @@ class NSOpenGLContextWrapper {
   }
 
   // any getTexParameter(GLenum target, GLenum pname)
-  static void getTexParameter(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  DEFINE_METHOD(getTexParameter, 2)
+    // Too complicated to check GL error but specs says we should return null,
+    // so just try to catch it a little bit.
+    GLint value = GL_INVALID_ENUM;
+    glGetTexParameteriv(args[0]->Uint32Value(),
+                        args[1]->Uint32Value(),
+                        &value);
+    if (value == GL_INVALID_ENUM)
+      return args.GetReturnValue().SetNull();
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, value));
   }
 
   // any getUniform(WebGLProgram program, WebGLUniformLocation location)
