@@ -422,6 +422,7 @@
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
+					deps/,
 					deps/skia/include/config,
 					deps/skia/include/core,
 					deps/v8/include,
@@ -451,6 +452,7 @@
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
+					deps/,
 					deps/skia/include/config,
 					deps/skia/include/core,
 					deps/v8/include,
