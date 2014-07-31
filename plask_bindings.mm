@@ -94,14 +94,6 @@ T Clamp(T v, T a, T b) {
 
 @end
 
-@interface BlitImageView : NSView {
-  SkBitmap* bitmap_;
-}
-
--(id)initWithSkBitmap:(SkBitmap*)bitmap;
-
-@end
-
 namespace {
 
 // hack...
@@ -2852,7 +2844,7 @@ class NSWindowWrapper {
     v8::Local<v8::FunctionTemplate> ft =
         v8::FunctionTemplate::New(isolate, &NSWindowWrapper::V8New);
     v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
-    instance->SetInternalFieldCount(3);  // NSWindow, bitmap, and context.
+    instance->SetInternalFieldCount(2);  // NSWindow, and gl context.
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
@@ -2902,12 +2894,8 @@ class NSWindowWrapper {
     return reinterpret_cast<WrappedNSWindow*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static SkBitmap* ExtractSkBitmapPointer(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<SkBitmap*>(obj->GetAlignedPointerFromInternalField(1));
-  }
-
   static NSOpenGLContext* ExtractContextPointer(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(2));
+    return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(1));
   }
 
   static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
@@ -2928,6 +2916,9 @@ class NSWindowWrapper {
     bool fullscreen = args[6]->BooleanValue();
     uint32_t dpi_factor = args[7]->Uint32Value();
 
+    if (type != 1)
+      return v8_utils::ThrowError(isolate, "2d windows no longer supported.");
+
     NSScreen* screen = [NSScreen mainScreen];
     NSArray* screens = [NSScreen screens];
 
@@ -2947,8 +2938,6 @@ class NSWindowWrapper {
         NSLog(@"Warning, OSX version doesn't support highdpi (<10.7?).");
       } else if ([screen backingScaleFactor] != dpi_factor) {
         NSLog(@"Warning, screen didn't support highdpi.");
-      } else if (type != 1) {
-        NSLog(@"Warning, highdpi only supported for 3d windows.");
       } else {
         use_highdpi = true;
         width = bwidth >> 1;
@@ -2982,78 +2971,63 @@ class NSWindowWrapper {
     // CGColorSpaceRelease(rgb_space)
     //
     // kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little;
-    SkBitmap* bitmap = NULL;
     NSOpenGLContext* context = NULL;
 
-    if (type == 0) {  // 2d window.
-      SkImageInfo info = SkImageInfo::Make(
-          width, height, kBGRA_8888_SkColorType, kPremul_SkAlphaType);
-      bitmap = new SkBitmap;
-      //bitmap->setConfig(SkBitmap::kARGB_8888_Config, width, height, width * 4);
-      //bitmap->allocPixels();
-      bitmap->allocPixels(info, width * 4);
-      bitmap->eraseARGB(0, 0, 0, 0);
+    NSOpenGLPixelFormatAttribute attrs[] = {
+        NSOpenGLPFAColorSize, 24,
+        NSOpenGLPFADepthSize, 16,
+        NSOpenGLPFADoubleBuffer,
+        NSOpenGLPFAAccelerated,
+        NSOpenGLPFAStencilSize, 8,
+        // Truncate here for non-multisampling
+        NSOpenGLPFAMultisample,
+        NSOpenGLPFASampleBuffers, 1,
+        NSOpenGLPFASamples, 4,
+        NSOpenGLPFANoRecovery,
+        0
+    };
 
-      BlitImageView* view = [[BlitImageView alloc] initWithSkBitmap:bitmap];
-      [window setContentView:view];
-      [view release];
-    } else if (type == 1) {  // 3d window.
-      NSOpenGLPixelFormatAttribute attrs[] = {
-          NSOpenGLPFAColorSize, 24,
-          NSOpenGLPFADepthSize, 16,
-          NSOpenGLPFADoubleBuffer,
-          NSOpenGLPFAAccelerated,
-          NSOpenGLPFAStencilSize, 8,
-          // Truncate here for non-multisampling
-          NSOpenGLPFAMultisample,
-          NSOpenGLPFASampleBuffers, 1,
-          NSOpenGLPFASamples, 4,
-          NSOpenGLPFANoRecovery,
-          0
-      };
+    if (!multisample)
+      attrs[6] = 0;
 
-      if (!multisample)
-        attrs[6] = 0;
+    NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc]
+                                      initWithAttributes:attrs];
+    NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0.0, 0.0,
+                                                            width, height)];
+    if (use_highdpi)
+      [view setWantsBestResolutionOpenGLSurface:YES];
+    context = [[NSOpenGLContext alloc] initWithFormat:format
+                                       shareContext:nil];
+    [format release];
+    [window setContentView:view];
+    [context setView:view];
+    [view release];
 
-      NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc]
-                                        initWithAttributes:attrs];
-      NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0.0, 0.0,
-                                                              width, height)];
-      if (use_highdpi)
-        [view setWantsBestResolutionOpenGLSurface:YES];
-      context = [[NSOpenGLContext alloc] initWithFormat:format
-                                         shareContext:nil];
-      [format release];
-      [window setContentView:view];
-      [context setView:view];
-      [view release];
+    // Make sure both sides of the buffer are cleared.
+    [context makeCurrentContext];
+    for (int i = 0; i < 2; ++i) {
+      glClearColor(0, 0, 0, 0);
+      glClear(GL_COLOR_BUFFER_BIT |
+              GL_DEPTH_BUFFER_BIT |
+              GL_STENCIL_BUFFER_BIT);
+      [context flushBuffer];
+    }
 
-      // Make sure both sides of the buffer are cleared.
-      [context makeCurrentContext];
-      for (int i = 0; i < 2; ++i) {
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT |
-                GL_DEPTH_BUFFER_BIT |
-                GL_STENCIL_BUFFER_BIT);
-        [context flushBuffer];
-      }
+    if (multisample) {
+      glEnable(GL_MULTISAMPLE_ARB);
+      glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
+    }
 
-      if (multisample) {
-        glEnable(GL_MULTISAMPLE_ARB);
-        glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
-      }
-
-      // Point sprite support.
-      glEnable(GL_POINT_SPRITE);
-      glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+    // Point sprite support.
+    glEnable(GL_POINT_SPRITE);
+    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
     v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
         isolate, NSOpenGLContextWrapper::GetTemplate(isolate));
-      v8::Local<v8::Object> context_wrapper = ft->
-          InstanceTemplate()->NewInstance();
-      context_wrapper->SetAlignedPointerInInternalField(0, context);
-      args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
-    }
+    v8::Local<v8::Object> context_wrapper = ft->
+        InstanceTemplate()->NewInstance();
+    context_wrapper->SetAlignedPointerInInternalField(0, context);
+    args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
 
     if (fullscreen)
       [window setLevel:NSMainMenuWindowLevel+1];
@@ -3067,20 +3041,14 @@ class NSWindowWrapper {
     [window makeKeyAndOrderFront:nil];
 
     args.This()->SetAlignedPointerInInternalField(0, window);
-    args.This()->SetAlignedPointerInInternalField(1, bitmap);
-    args.This()->SetAlignedPointerInInternalField(2, context);
+    args.This()->SetAlignedPointerInInternalField(1, context);
 
 
   }
 
   static void blit(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-    if (context) {  // 3d, swap the buffers.
-      [context flushBuffer];
-    } else {  // 2d, redisplay the view.
-      [[window contentView] display];
-    }
+    [context flushBuffer];
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -4431,10 +4399,6 @@ class SkCanvasWrapper {
           kPremul_SkAlphaType), width * 4);
       tbitmap.eraseARGB(0, 0, 0, 0);
       canvas = new SkCanvas(tbitmap);
-    } else if (args.Length() == 1 && NSWindowWrapper::HasInstance(isolate, args[0])) {
-      bitmap = NSWindowWrapper::ExtractSkBitmapPointer(
-          v8::Handle<v8::Object>::Cast(args[0]));
-      canvas = new SkCanvas(*bitmap);
     } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(isolate, args[0])) {
       SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
       // Allocate a new block of pixels with a copy from pbitmap.
@@ -5845,48 +5809,6 @@ class NSAppleScriptWrapper {
 @implementation WindowDelegate
 
 -(void)windowDidMove:(NSNotification *)notification {
-}
-
-@end
-
-@implementation BlitImageView
-
--(id)initWithSkBitmap:(SkBitmap*)bitmap {
-  bitmap_ = bitmap;
-  [self initWithFrame:NSMakeRect(0.0, 0.0,
-                                 bitmap->width(), bitmap->height())];
-  return self;
-}
-
-// TODO(deanm): There is too much copying going on here.  Can a CGImage back
-// directly to my pixels without going through a decoder?
--(void)drawRect:(NSRect)dirty {
-  int width = bitmap_->width(), height = bitmap_->height();
-  void* pixels = bitmap_->getPixels();
-
-  CFDataRef cfdata = CFDataCreateWithBytesNoCopy(
-      NULL, (UInt8*)pixels, width * height * 4, kCFAllocatorNull);
-  CGDataProviderRef cgdata_provider = CGDataProviderCreateWithCFData(cfdata);
-  //CGDataProviderRef cgdata_provider =
-  //    CGDataProviderCreateWithFilename("/tmp/maxmsp.png");
-  CGColorSpaceRef colorspace = CGColorSpaceCreateDeviceRGB();
-  CGImageRef cgimage = CGImageCreate(
-      width, height, 8, 32, width * 4, colorspace,
-      kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst,
-      cgdata_provider, NULL, false, kCGRenderingIntentDefault);
-  //CGImageRef cgimage = CGImageCreateWithPNGDataProvider(
-  //  cgdata_provider, NULL, false, kCGRenderingIntentDefault);
-  CGColorSpaceRelease(colorspace);
-
-  CGRect image_rect = CGRectMake(0.0, 0.0, width, height);
-  CGContextRef context =
-      (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
-  // TODO(deanm): Deal with subimages when dirty rect isn't full frame.
-  CGContextDrawImage(context, image_rect, cgimage);
-
-  CGImageRelease(cgimage);
-  CGDataProviderRelease(cgdata_provider);
-  CFRelease(cfdata);
 }
 
 @end

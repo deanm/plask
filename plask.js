@@ -45,10 +45,6 @@ exports.SkCanvas.create = function(width, height) {
   return new exports.SkCanvas(width, height);
 };
 
-exports.SkCanvas.createNSWindowBacked = function(nswindow) {
-  return new exports.SkCanvas(nswindow);
-};
-
 // Sizes are in points, at 72 points per inch, letter would be 612x792.
 // That makes A4 about 595x842.
 // TODO(deanm): The sizes are integer, check the right size to use for A4.
@@ -540,10 +536,6 @@ exports.Window = function(width, height, opts) {
     return res;
   };
 
-  this.makeWindowBackedCanvas = function() {
-    return exports.SkCanvas.createNSWindowBacked(nswindow_);
-  };
-
   this.blit = function() {
     nswindow_.blit();
   };
@@ -554,18 +546,11 @@ exports.simpleWindow = function(obj) {
   // NOTE(deanm): Moving to a settings object to reduce the pollution of the
   // main simpleWindow object.  For now fall back for compat.
   var settings = obj.settings;
-  if (settings === undefined) {
-    settings = obj;
-    if (obj.width !== undefined)
-      console.log('Warning, using legacy settings, use the settings object.');
-  }
+  if (settings === undefined) settings = { };
 
-  var wintype = (settings.type === '2d') ? '2d' : '3d';
+  var wintype = '3d';
   var width = settings.width === undefined ? 400 : settings.width;
   var height = settings.height === undefined ? 300 : settings.height;
-
-  if (wintype === '2d')
-    console.log('Warning: 2d windows can undergo colorspace transformations.');
 
   var syphon_server = null;
 
@@ -612,24 +597,18 @@ exports.simpleWindow = function(obj) {
 
   var canvas = null;  // Protected from getting clobbered on obj.
 
-  if (wintype === '3d') {
-    // Default 3d2d windows to vsync also.
-    if (settings.type !== '3d' || settings.vsync === true)
-      gl_.setSwapInterval(1);
-    if (settings.type === '3d') {  // Don't expose gl for 3d2d windows.
-      obj.gl = gl_;
-    } else {  // Create a canvas and paint for 3d2d windows.
-      obj.paint = new exports.SkPaint;
-      canvas = exports.SkCanvas.create(width, height);  // Offscreen.
-      obj.canvas = canvas;
-    }
-    if (settings.syphon_server !== undefined) {
-      syphon_server = gl_.createSyphonServer(settings.syphon_server);
-    }
-  } else {
+  // Default 3d2d windows to vsync also.
+  if (settings.type !== '3d' || settings.vsync === true)
+    gl_.setSwapInterval(1);
+  if (settings.type === '3d') {  // Don't expose gl for 3d2d windows.
+    obj.gl = gl_;
+  } else {  // Create a canvas and paint for 3d2d windows.
     obj.paint = new exports.SkPaint;
-    canvas = window_.makeWindowBackedCanvas();
+    canvas = exports.SkCanvas.create(width, height);  // Offscreen.
     obj.canvas = canvas;
+  }
+  if (settings.syphon_server !== undefined) {
+    syphon_server = gl_.createSyphonServer(settings.syphon_server);
   }
 
   var framerate_handle = null;
