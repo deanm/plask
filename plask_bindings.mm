@@ -790,6 +790,7 @@ class NSOpenGLContextWrapper {
       { "polygonOffset", &NSOpenGLContextWrapper::polygonOffset },
       { "readPixels", &NSOpenGLContextWrapper::readPixels },
       { "renderbufferStorage", &NSOpenGLContextWrapper::renderbufferStorage },
+      { "renderbufferStorageMultisample", &NSOpenGLContextWrapper::renderbufferStorage },
       { "sampleCoverage", &NSOpenGLContextWrapper::sampleCoverage },
       { "scissor", &NSOpenGLContextWrapper::scissor },
       { "shaderSource", &NSOpenGLContextWrapper::shaderSource },
@@ -2204,6 +2205,18 @@ class NSOpenGLContextWrapper {
                           args[1]->Uint32Value(),
                           args[2]->Int32Value(),
                           args[3]->Int32Value());
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void renderbufferStorageMultisample(GLenum target, GLsizei samples,
+  //                                     GLenum internalformat,
+  //                                     GLsizei width, GLsizei height)
+  DEFINE_METHOD(renderbufferStorageMultisample, 5)
+    glRenderbufferStorageMultisample(args[0]->Uint32Value(),
+                                     args[1]->Int32Value(),
+                                     args[2]->Uint32Value(),
+                                     args[3]->Int32Value(),
+                                     args[4]->Int32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
