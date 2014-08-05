@@ -790,7 +790,7 @@ class NSOpenGLContextWrapper {
       { "polygonOffset", &NSOpenGLContextWrapper::polygonOffset },
       { "readPixels", &NSOpenGLContextWrapper::readPixels },
       { "renderbufferStorage", &NSOpenGLContextWrapper::renderbufferStorage },
-      { "renderbufferStorageMultisample", &NSOpenGLContextWrapper::renderbufferStorage },
+      { "renderbufferStorageMultisample", &NSOpenGLContextWrapper::renderbufferStorageMultisample },
       { "sampleCoverage", &NSOpenGLContextWrapper::sampleCoverage },
       { "scissor", &NSOpenGLContextWrapper::scissor },
       { "shaderSource", &NSOpenGLContextWrapper::shaderSource },
