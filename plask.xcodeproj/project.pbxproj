@@ -13,7 +13,10 @@
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		C51CAD0E133AACE900FF807C /* Syphon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
 		C51CAD17133AACF300FF807C /* Syphon.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
+		C52D4CFD1993EB0500AB37F3 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */; };
+		C542EFDC1987F06600E9013B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C542EFDB1987F06600E9013B /* AVFoundation.framework */; };
 		C54480A9133CDB760074124E /* Plask.icns in Resources */ = {isa = PBXBuildFile; fileRef = C54480A8133CDB760074124E /* Plask.icns */; };
+		C5573ED21987F50700981CEB /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5573ED11987F50700981CEB /* CoreVideo.framework */; };
 		C5703517124FFED40082AA14 /* plask_bindings.mm in Sources */ = {isa = PBXBuildFile; fileRef = C5703516124FFED40082AA14 /* plask_bindings.mm */; };
 		C570353B125003630082AA14 /* v8_utils.cc in Sources */ = {isa = PBXBuildFile; fileRef = C5703539125003630082AA14 /* v8_utils.cc */; };
 		C570361A1250EB5E0082AA14 /* libfreeimage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C57036191250EB5E0082AA14 /* libfreeimage.framework */; };
@@ -73,7 +76,10 @@
 		8D1107310486CEB800E47090 /* plask-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "plask-Info.plist"; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* Plask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Plask.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C51CAD0D133AACE900FF807C /* Syphon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Syphon.framework; path = deps/Syphon.framework; sourceTree = "<group>"; };
+		C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = ../../../../System/Library/Frameworks/CoreMedia.framework; sourceTree = "<group>"; };
+		C542EFDB1987F06600E9013B /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = /System/Library/Frameworks/AVFoundation.framework; sourceTree = "<absolute>"; };
 		C54480A8133CDB760074124E /* Plask.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Plask.icns; sourceTree = "<group>"; };
+		C5573ED11987F50700981CEB /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		C5703515124FFED40082AA14 /* plask_bindings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = plask_bindings.h; sourceTree = "<group>"; };
 		C5703516124FFED40082AA14 /* plask_bindings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = plask_bindings.mm; sourceTree = "<group>"; };
 		C5703539125003630082AA14 /* v8_utils.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = v8_utils.cc; sourceTree = "<group>"; };
@@ -141,6 +147,9 @@
 				C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */,
 				C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */,
 				C5BADEE8196C7B73007328B8 /* libSkKTX.a in Frameworks */,
+				C542EFDC1987F06600E9013B /* AVFoundation.framework in Frameworks */,
+				C5573ED21987F50700981CEB /* CoreVideo.framework in Frameworks */,
+				C52D4CFD1993EB0500AB37F3 /* CoreMedia.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -188,6 +197,9 @@
 				C5C83E11140A9D78006E6DAE /* ScriptingBridge.framework */,
 				C58108C812FC55920053FB3A /* CoreMIDI.framework */,
 				C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */,
+				C542EFDB1987F06600E9013B /* AVFoundation.framework */,
+				C5573ED11987F50700981CEB /* CoreVideo.framework */,
+				C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */,
 			);
 			name = "Linked Frameworks";
 			sourceTree = "<group>";

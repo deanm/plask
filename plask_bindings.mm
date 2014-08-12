@@ -40,6 +40,10 @@
 #include <CoreMIDI/CoreMIDI.h>
 #include <ScriptingBridge/SBApplication.h>
 #include <Foundation/NSObjCRuntime.h>
+#include <AVFoundation/AVPlayer.h>
+#include <AVFoundation/AVPlayerItem.h>
+#include <AVFoundation/AVPlayerItemOutput.h>
+#include <CoreMedia/CoreMedia.h>
 #include <objc/runtime.h>
 
 #define SK_SUPPORT_LEGACY_GETDEVICE 1
@@ -80,6 +84,133 @@ T Clamp(T v, T a, T b) {
   if (v > b) return b;
   return v;
 }
+
+@interface TextureAVPlayer: AVQueuePlayer
+{
+  CVOpenGLTextureCacheRef cache_;
+  AVPlayerItemVideoOutput* output_;
+  NSMutableArray* playerItems_;
+  BOOL loops_;
+}
+
+@end
+
+@implementation TextureAVPlayer
+-(TextureAVPlayer*) init {
+  self = [super init];
+  if (self) {
+    cache_ = NULL;
+    output_ = nil;
+    loops_ = NO;
+    playerItems_ = [[NSMutableArray alloc] init];
+
+    self.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(playerItemDidReachEnd:)
+                                                 name:AVPlayerItemDidPlayToEndTimeNotification
+                                               object:nil];
+  }
+  return self;
+}
+
+-(void) dealloc {
+  CVOpenGLTextureCacheRelease(cache_);  // NULL safe.
+  [output_ release];  // nil safe.
+  [playerItems_ release];
+  [super dealloc];  // Last thing, deallocs our underlying memory.
+}
+
+-(TextureAVPlayer*) initWithNSOpenGLContext:(NSOpenGLContext*)context {
+  self = [self init];  // Objective-c constructor patterns, have no idea...
+  if (self) {
+    NSDictionary* attrs = @{ (NSString*)kCVPixelBufferPixelFormatTypeKey:
+                             @( kCVPixelFormatType_32BGRA ) };
+                             //@( kCVPixelFormatType_24BGR ) };  // Doesn't work
+                             //@( kCVPixelFormatType_24RGB ) };  // Expensive CPU in glgConvertTo_32 RGB8 ARGB8
+
+    CGLContextObj cglcontext = (CGLContextObj)[context CGLContextObj];
+    CVReturn res = CVOpenGLTextureCacheCreate(
+        NULL, NULL, cglcontext, CGLGetPixelFormat(cglcontext), NULL, &cache_);
+    if (res)
+      return nil;  // TODO best way to propagate errors?
+
+    output_ = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:attrs];
+  }
+
+  return self;
+}
+
+// Caller owns the CVOpenGLTextureRef object.
+// The texture itself is owned by the cache and recycled next time around.
+-(CVOpenGLTextureRef) textureForItemTime:(CMTime)itemTime {
+  if (!output_)
+    return NULL;
+
+  CVImageBufferRef buffer =
+      [output_ copyPixelBufferForItemTime:itemTime
+                       itemTimeForDisplay:nil];
+  if (buffer == nil)
+    return NULL;
+
+  CVPixelBufferLockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly);
+  // Apparently on IOS the cache is flushed implicitly (at least according
+  // to the documentation), but it seems on Mac you must do it explicitly.
+  CVOpenGLTextureCacheFlush(cache_, 0);
+
+  CVOpenGLTextureRef texture;
+  CVReturn res = CVOpenGLTextureCacheCreateTextureFromImage(
+      NULL, cache_, buffer, NULL, &texture);
+  CVPixelBufferUnlockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly);
+  CVPixelBufferRelease(buffer);
+
+  if (res)
+    return NULL;
+
+  return texture;
+}
+
+
+-(void) setLoops:(BOOL)loops {
+  loops_ = loops;
+}
+
+-(void) appendURL:(NSURL*)url {
+  AVPlayerItem* item = [[AVPlayerItem alloc] initWithURL:url];
+  [playerItems_ addObject:item];
+  if (output_) [item addOutput:output_];
+  [self insertItem:item afterItem:nil];
+  [item release];
+}
+
+-(void) playAtIndex:(NSInteger)index {
+  [self removeAllItems];
+  for (int i = index; i <playerItems_.count; i ++) {
+    AVPlayerItem* item = [playerItems_ objectAtIndex:i];
+    if ([self canInsertItem:item afterItem:nil]) {
+      [item seekToTime:kCMTimeZero];
+      if (output_) [item addOutput:output_];
+      [self insertItem:item afterItem:nil];
+    }
+  }
+}
+
+-(void) playerItemDidReachEnd:(NSNotification *)notification {
+  AVPlayerItem* p = [notification object];
+  AVPlayerItem* last = [self.items lastObject];
+  if (!loops_ || ![p isEqual:last]) {
+    [self advanceToNextItem];
+    return;
+  }
+
+  // Looping...
+  [self removeAllItems];
+  for (int i = 0; i < playerItems_.count; i++) {
+    [self playAtIndex:0];
+  }
+  [self play];
+}
+
+@end
 
 @interface WrappedNSWindow: NSWindow {
   v8::Persistent<v8::Function> event_callback_;
@@ -214,6 +345,8 @@ CGDataProviderDirectCallbacks PointerProviderCallbacks = {
   static void name(const v8::FunctionCallbackInfo<v8::Value>& args) { \
     if (args.Length() != arity) \
       return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
+
+#define METHOD_ENTRY(name) { #name, &name }
 
 struct BatchedConstants {
   const char* name;
@@ -5737,6 +5870,240 @@ class NSAppleScriptWrapper {
   }
 };
 
+class AVPlayerWrapper {
+ public:
+  static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
+    static v8::Persistent<v8::FunctionTemplate> ft_cache;
+    if (!ft_cache.IsEmpty())
+      return ft_cache;
+
+    v8::Local<v8::FunctionTemplate> ft =
+        v8::FunctionTemplate::New(isolate, &V8New);
+
+    ft->SetClassName(v8::String::NewFromUtf8(isolate, "AVPlayer"));
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // Player
+
+    v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
+
+    // Configure the template...
+    static BatchedConstants constants[] = {
+      { "kValue", 12 },
+    };
+
+    static BatchedMethods methods[] = {
+      METHOD_ENTRY( status ),
+      METHOD_ENTRY( error ),
+      METHOD_ENTRY( play ),
+      METHOD_ENTRY( currentTime ),
+      METHOD_ENTRY( seekToTime ),
+      METHOD_ENTRY( currentFrameTexture ),
+      METHOD_ENTRY( rate ),
+      METHOD_ENTRY( setRate ),
+      METHOD_ENTRY( playNext ),
+      METHOD_ENTRY( appendURL ),
+      METHOD_ENTRY( appendFile ),
+      METHOD_ENTRY( removeAll ),
+      METHOD_ENTRY( setLoops ),
+      METHOD_ENTRY( volume ),
+      METHOD_ENTRY( setVolume ),
+    };
+
+    for (size_t i = 0; i < arraysize(constants); ++i) {
+      ft->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+              v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+      instance->Set(v8::String::NewFromUtf8(isolate, constants[i].name),
+                    v8::Uint32::New(isolate, constants[i].val), v8::ReadOnly);
+    }
+
+    for (size_t i = 0; i < arraysize(methods); ++i) {
+      instance->Set(v8::String::NewFromUtf8(isolate, methods[i].name),
+                    v8::FunctionTemplate::New(isolate, methods[i].func,
+                                              v8::Handle<v8::Value>(),
+                                              default_signature));
+    }
+
+    ft_cache.Reset(isolate, ft);
+    return ft_cache;
+  }
+
+  static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
+    return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
+  }
+
+  static TextureAVPlayer* ExtractPlayerPointer(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<TextureAVPlayer*>(obj->GetAlignedPointerFromInternalField(0));
+  }
+
+ private:
+  static void WeakCallback(
+      const v8::WeakCallbackData<v8::Object, v8::Persistent<v8::Object> >& data) {
+    TextureAVPlayer* player = ExtractPlayerPointer(data.GetValue());
+
+    v8::Persistent<v8::Object>* persistent = data.GetParameter();
+    persistent->ClearWeak();
+    persistent->Reset();
+    delete persistent;
+
+    [player release];
+  }
+
+  static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    if (!args.IsConstructCall())
+      return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
+
+    TextureAVPlayer* player = nil;
+
+    if (args.Length() == 0) {
+      player = [[TextureAVPlayer alloc] init];
+    } else if (args.Length() == 1) {
+      if (!NSOpenGLContextWrapper::HasInstance(isolate, args[0]))
+        return v8_utils::ThrowError(isolate, "Expected NSOpenGLContext.");
+      NSOpenGLContext* nscontext = NSOpenGLContextWrapper::ExtractContextPointer(
+          v8::Handle<v8::Object>::Cast(args[0]));
+      player = [[TextureAVPlayer alloc] initWithNSOpenGLContext:nscontext];
+    } else {
+      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
+    }
+
+    args.This()->SetAlignedPointerInInternalField(0, player);
+
+    v8::Persistent<v8::Object>* persistent = new v8::Persistent<v8::Object>();
+    persistent->Reset(isolate, args.This());
+    persistent->SetWeak(persistent, &WeakCallback);
+  }
+
+  DEFINE_METHOD(volume, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [player volume]));
+  }
+
+  DEFINE_METHOD(setVolume, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player setVolume:args[0]->NumberValue()];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(setLoops, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player setLoops:args[0]->BooleanValue()];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(appendURL, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    v8::String::Utf8Value url(args[0]);
+    NSURL* nsurl = [NSURL URLWithString:[NSString stringWithUTF8String:*url]];
+    [player appendURL:nsurl];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(appendFile, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    v8::String::Utf8Value filename(args[0]);
+    NSURL* nsurl = [NSURL fileURLWithPath:[NSString stringWithUTF8String:*filename]];
+    [player appendURL:nsurl];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(removeAll, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player removeAllItems];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(playNext, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player advanceToNextItem];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(rate, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [player rate]));
+  }
+
+  DEFINE_METHOD(setRate, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player setRate:args[0]->NumberValue()];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(status, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    AVPlayerStatus status = [player status];
+    const char* str = status == AVPlayerStatusUnknown ? "unknown" :
+                          status == AVPlayerStatusReadyToPlay ? "ready" : "failed";
+    return args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate, str));
+  }
+
+  DEFINE_METHOD(error, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    NSError* error = [player error];
+    return args.GetReturnValue().Set(static_cast<int32_t>([error code]));
+  }
+
+  DEFINE_METHOD(play, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player play];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(currentTime, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    CMTime time = [player currentTime];
+    if ((time.flags & kCMTimeFlags_Valid) == 0)
+      return args.GetReturnValue().SetNull();
+    return args.GetReturnValue().Set(time.value / (double)time.timescale);
+  }
+
+  DEFINE_METHOD(seekToTime, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    // TODO(deanm): What if currentItem is invalid? What about the timescale?
+    CMTime time = CMTimeMakeWithSeconds(args[0]->NumberValue(), [player currentTime].timescale);
+
+    // We probably want max precision to be default ?
+    [player seekToTime:time toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(currentFrameTexture, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+
+    CVOpenGLTextureRef texture = [player textureForItemTime:[[player currentItem] currentTime]];
+    if (texture == NULL)
+      return args.GetReturnValue().SetNull();
+
+    GLuint name = CVOpenGLTextureGetName(texture);
+
+    GLfloat coords[8];
+    CVOpenGLTextureGetCleanTexCoords(texture, coords, coords+2, coords+4, coords+6);
+
+    v8::Local<v8::Object> obj = v8::Object::New(isolate);
+    obj->Set(v8::String::NewFromUtf8(isolate, "target"),
+             v8::Integer::NewFromUnsigned(isolate, CVOpenGLTextureGetTarget(texture)));
+    obj->Set(v8::String::NewFromUtf8(isolate, "texture"), WebGLTexture::NewFromName(name));
+    obj->Set(v8::String::NewFromUtf8(isolate, "flipped"),
+             v8::Boolean::New(isolate, CVOpenGLTextureIsFlipped(texture)));
+    // Lower Left
+    obj->Set(v8::String::NewFromUtf8(isolate, "s0"), v8::Number::New(isolate, coords[0]));
+    obj->Set(v8::String::NewFromUtf8(isolate, "t0"), v8::Number::New(isolate, coords[1]));
+    // Lower Right
+    obj->Set(v8::String::NewFromUtf8(isolate, "s1"), v8::Number::New(isolate, coords[2]));
+    obj->Set(v8::String::NewFromUtf8(isolate, "t1"), v8::Number::New(isolate, coords[3]));
+    // Upper Right
+    obj->Set(v8::String::NewFromUtf8(isolate, "s2"), v8::Number::New(isolate, coords[4]));
+    obj->Set(v8::String::NewFromUtf8(isolate, "t2"), v8::Number::New(isolate, coords[5]));
+    // Upper Left
+    obj->Set(v8::String::NewFromUtf8(isolate, "s3"), v8::Number::New(isolate, coords[6]));
+    obj->Set(v8::String::NewFromUtf8(isolate, "t3"), v8::Number::New(isolate, coords[7]));
+
+    CFRelease(texture);
+    return args.GetReturnValue().Set(obj);
+  }
+};
+
+
 }  // namespace
 
 @implementation WrappedNSWindow
@@ -5852,6 +6219,9 @@ void plask_setup_bindings(v8::Isolate* isolate,
            PersistentToLocal(isolate, SBApplicationWrapper::GetTemplate(isolate)));
   obj->Set(v8::String::NewFromUtf8(isolate, "NSAppleScript"),
            PersistentToLocal(isolate, NSAppleScriptWrapper::GetTemplate(isolate)));
+  obj->Set(v8::String::NewFromUtf8(isolate, "AVPlayer"),
+           PersistentToLocal(isolate, AVPlayerWrapper::GetTemplate(isolate)));
+
 }
 
 void plask_teardown_bindings() {

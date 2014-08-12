@@ -30,6 +30,8 @@ exports.SkPath = PlaskRawMac.SkPath;
 exports.SkPaint = PlaskRawMac.SkPaint;
 exports.SkCanvas = PlaskRawMac.SkCanvas;
 
+exports.AVPlayer = PlaskRawMac.AVPlayer;
+
 // NOTE(deanm): The SkCanvas constructor has become too complicated in
 // supporting different types of canvases and ways to create them.  Use one of
 // the following factory functions instead of calling the constructor directly.
