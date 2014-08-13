@@ -6059,13 +6059,16 @@ class AVPlayerWrapper {
     CMTime time = [player currentTime];
     if ((time.flags & kCMTimeFlags_Valid) == 0)
       return args.GetReturnValue().SetNull();
-    return args.GetReturnValue().Set(time.value / (double)time.timescale);
+    return args.GetReturnValue().Set(CMTimeGetSeconds(time));
   }
 
   DEFINE_METHOD(seekToTime, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
-    // TODO(deanm): What if currentItem is invalid? What about the timescale?
-    CMTime time = CMTimeMakeWithSeconds(args[0]->NumberValue(), [player currentTime].timescale);
+
+    CMTime curtime = [player currentTime];
+    CMTime time = (curtime.flags & kCMTimeFlags_Valid) ?
+        CMTimeMakeWithSeconds(args[0]->NumberValue(), curtime.timescale) :
+        CMTimeMakeWithSeconds(args[0]->NumberValue(), 50000);  // FIXME
 
     // We probably want max precision to be default ?
     [player seekToTime:time toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
