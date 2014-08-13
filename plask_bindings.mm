@@ -196,6 +196,11 @@ T Clamp(T v, T a, T b) {
 
 -(void) playerItemDidReachEnd:(NSNotification *)notification {
   AVPlayerItem* p = [notification object];
+
+  // Our notification is registered globally, so a notification will be
+  // broadcast even from other AVPlayer instances...
+  if (![self.items containsObject:p]) return;
+
   AVPlayerItem* last = [self.items lastObject];
   if (!loops_ || ![p isEqual:last]) {
     [self advanceToNextItem];
