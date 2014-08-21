@@ -43,6 +43,7 @@
 #include <AVFoundation/AVPlayer.h>
 #include <AVFoundation/AVPlayerItem.h>
 #include <AVFoundation/AVPlayerItemOutput.h>
+#include <AVFoundation/AVTime.h>  // CMTimeRangeValue
 #include <CoreMedia/CoreMedia.h>
 #include <objc/runtime.h>
 
@@ -5912,6 +5913,8 @@ class AVPlayerWrapper {
       METHOD_ENTRY( setLoops ),
       METHOD_ENTRY( volume ),
       METHOD_ENTRY( setVolume ),
+      METHOD_ENTRY( prerollAtRate ),
+      METHOD_ENTRY( currentLoadedTimeRanges ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -6108,6 +6111,33 @@ class AVPlayerWrapper {
 
     CFRelease(texture);
     return args.GetReturnValue().Set(obj);
+  }
+
+  DEFINE_METHOD(prerollAtRate, 1)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    // 'AVPlayer cannot service a preroll request until its status is AVPlayerStatusReadyToPlay.'
+    if ([player status] != AVPlayerStatusReadyToPlay)
+      return args.GetReturnValue().Set(false);
+    [player prerollAtRate:args[0]->NumberValue() completionHandler:^(BOOL finished){ }];
+    return args.GetReturnValue().Set(true);
+  }
+
+  DEFINE_METHOD(currentLoadedTimeRanges, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    AVPlayerItem* item = [player currentItem];
+    if (item == nil)
+      return args.GetReturnValue().SetNull();
+
+    NSArray* ranges = item.loadedTimeRanges;
+    v8::Local<v8::Array> jsranges = v8::Array::New(isolate, [ranges count] * 2);
+    for (int i = 0; i < [ranges count]; ++i) {
+      CMTimeRange range = [[ranges objectAtIndex:i] CMTimeRangeValue];
+      jsranges->Set(v8::Integer::New(isolate, i*2),
+                    v8::Number::New(isolate, CMTimeGetSeconds(range.start)));
+      jsranges->Set(v8::Integer::New(isolate, i*2+1),
+                    v8::Number::New(isolate, CMTimeGetSeconds(range.duration)));
+    }
+    return args.GetReturnValue().Set(jsranges);
   }
 };
 
