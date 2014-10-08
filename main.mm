@@ -334,6 +334,18 @@ int main(int argc, char** argv) {
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
   [NSApp setDelegate:app_delegate];
 
+  // Mavericks introduced "App Nap" which implements timer coalescing and
+  // delaying in order to save power.  This results in nextEventMatchingMask
+  // being for example 10 seconds more over the specified timeout.  This should
+  // probably be somehow controllable from JavaScript, but until then just
+  // disable napping and keep our timers reliable.
+  NSProcessInfo* process_info = [NSProcessInfo processInfo];
+  if ([process_info respondsToSelector:@selector(beginActivityWithOptions:reason:)]) {
+    [process_info beginActivityWithOptions:(NSActivityUserInitiatedAllowingIdleSystemSleep |
+                                            NSActivityLatencyCritical)
+                                    reason:@"Plask"];
+  }
+
   char* bundled_argv[2];
   NSString* bundled_main_js =
       [[NSBundle mainBundle] pathForResource:@"main" ofType:@"js"];
