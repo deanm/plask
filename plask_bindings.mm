@@ -3451,7 +3451,6 @@ class NSEventWrapper {
 
     static BatchedMethods class_methods[] = {
       { "pressedMouseButtons", &NSEventWrapper::class_pressedMouseButtons },
-      { "dummy", NULL },
     };
 
     static BatchedMethods methods[] = {
@@ -3531,37 +3530,57 @@ class NSEventWrapper {
     args.GetReturnValue().Set(args.This());
   }
 
-#if PLASK_OSX
   static void class_pressedMouseButtons(
       const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [NSEvent pressedMouseButtons]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void type(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event type]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void buttonNumber(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event buttonNumber]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void characters(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     NSString* characters = [event characters];
     return args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate,
         [characters UTF8String],
         v8::String::kNormalString,
         [characters lengthOfBytesUsingEncoding:NSUTF8StringEncoding]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void keyCode(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event keyCode]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void locationInWindow(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     // If window is nil we'll instead get screen coordinates.
     if ([event window] == nil)
@@ -3571,38 +3590,64 @@ class NSEventWrapper {
     res->Set(v8::String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, pos.x));
     res->Set(v8::String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, pos.y));
     return args.GetReturnValue().Set(res);
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void deltaX(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Number::New(isolate, [event deltaX]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void deltaY(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Number::New(isolate, [event deltaY]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void deltaZ(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Number::New(isolate, [event deltaZ]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void pressure(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Number::New(isolate, [event pressure]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void isEnteringProximity(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set((bool)[event isEnteringProximity]);
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
 
   static void modifierFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event modifierFlags]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
   }
-#endif  // PLASK_OSX
 };
 
 class SkPathWrapper {
@@ -5224,6 +5269,7 @@ void NSOpenGLContextWrapper::texImage2DSkCanvasB(
   if (!args[2]->IsObject() && !SkCanvasWrapper::HasInstance(isolate, args[2]))
     return v8_utils::ThrowError(isolate, "Expected image to be an SkCanvas instance.");
 
+#if PLASK_OSX
   SkCanvas* canvas = SkCanvasWrapper::ExtractPointer(
       v8::Handle<v8::Object>::Cast(args[2]));
   const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
@@ -5237,6 +5283,9 @@ void NSOpenGLContextWrapper::texImage2DSkCanvasB(
                GL_UNSIGNED_INT_8_8_8_8_REV,
                bitmap.getPixels());
   return args.GetReturnValue().SetUndefined();
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
 }
 
 void NSOpenGLContextWrapper::drawSkCanvas(
