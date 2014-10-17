@@ -35,6 +35,7 @@
 #include <string>
 #include <map>
 
+#if PLASK_OSX
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreAudio/CoreAudio.h>
 #include <CoreMIDI/CoreMIDI.h>
@@ -46,6 +47,7 @@
 #include <AVFoundation/AVTime.h>  // CMTimeRangeValue
 #include <CoreMedia/CoreMedia.h>
 #include <objc/runtime.h>
+#endif
 
 #define SK_SUPPORT_LEGACY_GETDEVICE 1
 #include "SkBitmap.h"
@@ -61,9 +63,14 @@
 #include "skia/include/effects/SkDashPathEffect.h"
 #include "skia/include/pdf/SkPDFDevice.h"
 #include "skia/include/pdf/SkPDFDocument.h"
-#include "skia/include/ports/SkTypeface_mac.h"  // SkCreateTypefaceFromCTFont.
 
+#if PLASK_OSX
+#include "skia/include/ports/SkTypeface_mac.h"  // SkCreateTypefaceFromCTFont.
+#endif
+
+#if PLASK_SYPHON
 #import <Syphon/Syphon.h>
+#endif
 
 template <typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
@@ -85,6 +92,7 @@ T Clamp(T v, T a, T b) {
   return v;
 }
 
+#if PLASK_OSX
 @interface TextureAVPlayer: AVQueuePlayer
 {
   CVOpenGLTextureCacheRef cache_;
@@ -229,6 +237,8 @@ T Clamp(T v, T a, T b) {
 }
 
 @end
+
+#endif  // PLASK_OSX
 
 namespace {
 
@@ -568,6 +578,7 @@ class WebGLUniformLocation {
 // 5.12 WebGLShaderPrecisionFormat
 
 
+#if PLASK_SYPHON
 class SyphonServerWrapper {
  public:
   static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
@@ -773,6 +784,7 @@ class SyphonClientWrapper {
     return args.GetReturnValue().Set((bool)[client hasNewFrame]);
   }
 };
+#endif  // PLASK_SYPHON
 
 // We can't do a nested define so just declare the constants as a static var.
 #define WEBGL_CONSTANTS_EACH(name, val) \
@@ -980,9 +992,10 @@ class NSOpenGLContextWrapper {
       { "drawBuffers", &NSOpenGLContextWrapper::drawBuffers },
       { "blitFramebuffer", &NSOpenGLContextWrapper::blitFramebuffer },
       { "drawSkCanvas", &NSOpenGLContextWrapper::drawSkCanvas },
-      // Syphon.
+#if PLASK_SYPHON
       { "createSyphonServer", &NSOpenGLContextWrapper::createSyphonServer },
       { "createSyphonClient", &NSOpenGLContextWrapper::createSyphonClient },
+#endif
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -1021,10 +1034,13 @@ class NSOpenGLContextWrapper {
 
   static void makeCurrentContext(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
+#if PLASK_OSX
     [context makeCurrentContext];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
+#if PLASK_SYPHON
   DEFINE_METHOD(createSyphonServer, 1)
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     v8::String::Utf8Value name(args[0]);
@@ -1067,12 +1083,15 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().Set(SyphonClientWrapper::NewFromSyphonClient(
         client, reinterpret_cast<CGLContextObj>([context CGLContextObj])));
   }
+#endif
 
   // aka vsync.
   static void setSwapInterval(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     GLint interval = args[0]->Int32Value();
+#if PLASK_OSX
     [context setValues:&interval forParameter:NSOpenGLCPSwapInterval];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -1087,9 +1106,11 @@ class NSOpenGLContextWrapper {
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     // TODO(deanm): There should be a better way to get the width and height.
+#if PLASK_OSX
     NSRect frame = [[context view] convertRectToBacking:[[context view] frame]];
     int width = frame.size.width;
     int height = frame.size.height;
+#endif  // PLASK_OSX
 
     int buffer_type = args[3]->Int32Value();
 
@@ -3070,6 +3091,7 @@ class NSWindowWrapper {
     if (type != 1)
       return v8_utils::ThrowError(isolate, "2d windows no longer supported.");
 
+#if PLASK_OSX
     NSScreen* screen = [NSScreen mainScreen];
     NSArray* screens = [NSScreen screens];
 
@@ -3173,6 +3195,8 @@ class NSWindowWrapper {
     glEnable(GL_POINT_SPRITE);
     glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
+#endif  // PLASK_OSX
+
     v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
         isolate, NSOpenGLContextWrapper::GetTemplate(isolate));
     v8::Local<v8::Object> context_wrapper = ft->
@@ -3180,6 +3204,7 @@ class NSWindowWrapper {
     context_wrapper->SetAlignedPointerInInternalField(0, context);
     args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
 
+#if PLASK_OSX
     if (fullscreen)
       [window setLevel:NSMainMenuWindowLevel+1];
     // NOTE(deanm): We currently aren't even using the delegate for anything,
@@ -3193,42 +3218,49 @@ class NSWindowWrapper {
 
     args.This()->SetAlignedPointerInInternalField(0, window);
     args.This()->SetAlignedPointerInInternalField(1, context);
-
-
+#endif
   }
 
   static void blit(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
+#if PLASK_OSX
     [context flushBuffer];
+#endif
     return args.GetReturnValue().SetUndefined();
   }
 
   static void mouseLocationOutsideOfEventStream(
       const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
-    NSPoint pos = [window mouseLocationOutsideOfEventStream];
     v8::Local<v8::Object> res = v8::Object::New(isolate);
+#if PLASK_OSX
+    NSPoint pos = [window mouseLocationOutsideOfEventStream];
     res->Set(v8::String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, pos.x));
     res->Set(v8::String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, pos.y));
+#endif  // PLASK_OSX
     return args.GetReturnValue().Set(res);
   }
 
   static void setAcceptsMouseMovedEvents(
       const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     [window setAcceptsMouseMovedEvents:args[0]->BooleanValue()];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
   static void setAcceptsFileDrag(
       const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     if (args[0]->BooleanValue()) {
       [window registerForDraggedTypes:
           [NSArray arrayWithObject:NSFilenamesPboardType]];
     } else {
       [window unregisterDraggedTypes];
     }
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -3237,47 +3269,62 @@ class NSWindowWrapper {
     if (args.Length() != 1 || !args[0]->IsFunction())
       return v8_utils::ThrowError(isolate, "Incorrect invocation of setEventCallback.");
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     [window setEventCallbackWithHandle:v8::Handle<v8::Function>::Cast(args[0])];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
   static void setTitle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     v8::String::Utf8Value title(args[0]);
+#if PLASK_OSX
     [window setTitle:[NSString stringWithUTF8String:*title]];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
   DEFINE_METHOD(setFrameTopLeftPoint, 2)
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     [window setFrameTopLeftPoint:NSMakePoint(args[0]->NumberValue(),
                                              args[1]->NumberValue())];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
   static void center(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     [window center];
     return args.GetReturnValue().SetUndefined();
+#endif  // PLASK_OSX
   }
 
   static void hideCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     CGDisplayHideCursor(kCGDirectMainDisplay);
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
   static void showCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
+#if PLASK_OSX
     CGDisplayShowCursor(kCGDirectMainDisplay);
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
   static void hide(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     [window orderOut:nil];
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
   static void show(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+#if PLASK_OSX
     switch (args[0]->Uint32Value()) {
       case 0:  // Also when no argument was passed.
         [window makeKeyAndOrderFront:nil];
@@ -3292,16 +3339,19 @@ class NSWindowWrapper {
         return v8_utils::ThrowError(isolate, "Unknown argument to show().");
         break;
     }
+#endif  // PLASK_OSX
 
     return args.GetReturnValue().SetUndefined();
   }
 
   static void screenSize(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
-    NSRect frame = [[window screen] frame];
     v8::Local<v8::Object> res = v8::Object::New(isolate);
+#if PLASK_OSX
+    NSRect frame = [[window screen] frame];
     res->Set(v8::String::NewFromUtf8(isolate, "width"), v8::Number::New(isolate, frame.size.width));
     res->Set(v8::String::NewFromUtf8(isolate, "height"), v8::Number::New(isolate, frame.size.height));
+#endif  // PLASK_OSX
     return args.GetReturnValue().Set(res);
   }
 
@@ -3324,6 +3374,7 @@ class NSEventWrapper {
 
     // Configure the template...
     static BatchedConstants constants[] = {
+#if PLASK_OSX
       { "NSLeftMouseDown", NSLeftMouseDown },
       { "NSLeftMouseUp", NSLeftMouseUp },
       { "NSRightMouseDown", NSRightMouseDown },
@@ -3363,10 +3414,14 @@ class NSEventWrapper {
       { "NSFunctionKeyMask", NSFunctionKeyMask },
       { "NSDeviceIndependentModifierFlagsMask",
           NSDeviceIndependentModifierFlagsMask },
+#else
+      { "kDummy", 1 },
+#endif
     };
 
     static BatchedMethods class_methods[] = {
       { "pressedMouseButtons", &NSEventWrapper::class_pressedMouseButtons },
+      { "dummy", NULL },
     };
 
     static BatchedMethods methods[] = {
@@ -3425,7 +3480,9 @@ class NSEventWrapper {
     persistent->Reset();
     delete persistent;
 
+#if PLASK_OSX
     [event release];  // Okay even if event is nil.
+#endif  // PLASK_OSX
   }
 
   // This will be called when we create a new instance from the instance
@@ -3444,6 +3501,7 @@ class NSEventWrapper {
     args.GetReturnValue().Set(args.This());
   }
 
+#if PLASK_OSX
   static void class_pressedMouseButtons(
       const v8::FunctionCallbackInfo<v8::Value>& args) {
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [NSEvent pressedMouseButtons]));
@@ -3514,6 +3572,7 @@ class NSEventWrapper {
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event modifierFlags]));
   }
+#endif  // PLASK_OSX
 };
 
 class SkPathWrapper {
@@ -4108,6 +4167,7 @@ class SkPaintWrapper {
     SkPaint* paint = ExtractPointer(args.Holder());
     v8::String::Utf8Value postscript_name(args[0]);
 
+#if PLASK_OSX
     CFStringRef cfFontName = CFStringCreateWithCString(
         NULL, *postscript_name, kCFStringEncodingUTF8);
     if (cfFontName == NULL)
@@ -4122,6 +4182,7 @@ class SkPaintWrapper {
     paint->setTypeface(typeface);
     typeface->unref();  // setTypeface will have held a ref.
     CFRelease(ctNamed);  // SkCreateTypefaceFromCTFont will have held a ref.
+#endif  // PLASK_OSX
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -4987,6 +5048,7 @@ class SkCanvasWrapper {
   }
 };
 
+#if PLASK_OSX
 class NSSoundWrapper {
  public:
   static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
@@ -5122,6 +5184,7 @@ class NSSoundWrapper {
     return args.GetReturnValue().Set(v8::Number::New(isolate, [sound duration]));
   }
 };
+#endif  // PLASK_OSX
 
 void NSOpenGLContextWrapper::texImage2DSkCanvasB(
     const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -5158,6 +5221,7 @@ void NSOpenGLContextWrapper::drawSkCanvas(
       v8::Handle<v8::Object>::Cast(args[0]));
   const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
 
+#if PLASK_OSX
   GLfloat save_zoom_x, save_zoom_y;
   glGetFloatv(GL_ZOOM_X, &save_zoom_x);
   glGetFloatv(GL_ZOOM_Y, &save_zoom_y);
@@ -5173,9 +5237,12 @@ void NSOpenGLContextWrapper::drawSkCanvas(
   // simple since it goes through the transforms.  This should hopefully put us
   // back to the default (0, 0, 0, 1) at least.
   glRasterPos2i(-1, -1);
+#endif
+
   return args.GetReturnValue().SetUndefined();
 }
 
+#if PLASK_COREMIDI
 // MIDI notes (pun pun):
 // Like UTF-8, there is tagging to identify the begin of a message.
 // All first bytes are in the range of 0x80 - 0xff, the MSB is set.
@@ -5690,8 +5757,10 @@ class CAMIDIDestinationWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 };
+#endif  // PLASK_COREMIDI
 
 
+#if PLASK_OSX
 class SBApplicationWrapper {
  public:
   static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
@@ -6138,9 +6207,11 @@ class AVPlayerWrapper {
   }
 };
 
+#endif  // PLASK_OSX
 
 }  // namespace
 
+#if PLASK_OSX
 @implementation WrappedNSWindow
 
 -(void)setEventCallbackWithHandle:(v8::Handle<v8::Function>)func {
@@ -6227,6 +6298,7 @@ class AVPlayerWrapper {
 }
 
 @end
+#endif  // PLASK_OSX
 
 void plask_setup_bindings(v8::Isolate* isolate,
                           v8::Handle<v8::ObjectTemplate> obj) {
@@ -6244,18 +6316,24 @@ void plask_setup_bindings(v8::Isolate* isolate,
            PersistentToLocal(isolate, SkCanvasWrapper::GetTemplate(isolate)));
   obj->Set(v8::String::NewFromUtf8(isolate, "NSOpenGLContext"),
            PersistentToLocal(isolate, NSOpenGLContextWrapper::GetTemplate(isolate)));
+#if PLASK_OSX
   obj->Set(v8::String::NewFromUtf8(isolate, "NSSound"),
            PersistentToLocal(isolate, NSSoundWrapper::GetTemplate(isolate)));
+#endif
+#if PLASK_COREMIDI
   obj->Set(v8::String::NewFromUtf8(isolate, "CAMIDISource"),
            PersistentToLocal(isolate, CAMIDISourceWrapper::GetTemplate(isolate)));
   obj->Set(v8::String::NewFromUtf8(isolate, "CAMIDIDestination"),
            PersistentToLocal(isolate, CAMIDIDestinationWrapper::GetTemplate(isolate)));
+#endif
+#if PLASK_OSX
   obj->Set(v8::String::NewFromUtf8(isolate, "SBApplication"),
            PersistentToLocal(isolate, SBApplicationWrapper::GetTemplate(isolate)));
   obj->Set(v8::String::NewFromUtf8(isolate, "NSAppleScript"),
            PersistentToLocal(isolate, NSAppleScriptWrapper::GetTemplate(isolate)));
   obj->Set(v8::String::NewFromUtf8(isolate, "AVPlayer"),
            PersistentToLocal(isolate, AVPlayerWrapper::GetTemplate(isolate)));
+#endif
 
 }
 
