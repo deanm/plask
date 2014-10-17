@@ -431,6 +431,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "SK_RELEASE=1";
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
@@ -461,6 +462,7 @@
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "SK_RELEASE=1";
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,

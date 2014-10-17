@@ -48,7 +48,6 @@
 #include <objc/runtime.h>
 
 #define SK_SUPPORT_LEGACY_GETDEVICE 1
-#define SK_RELEASE 1  // Hmmmm, really? SkPreConfig is thinking we are debug.
 #include "SkBitmap.h"
 #include "SkCanvas.h"
 #include "SkColorPriv.h"  // For color ordering.
