@@ -4370,8 +4370,7 @@ class SkCanvasWrapper {
       { "drawPaint", &SkCanvasWrapper::drawPaint },
       { "drawCanvas", &SkCanvasWrapper::drawCanvas },
       { "drawColor", &SkCanvasWrapper::drawColor },
-      { "eraseColor", &SkCanvasWrapper::eraseColor },
-      { "clear", &SkCanvasWrapper::eraseColor },
+      { "clear", &SkCanvasWrapper::clear },
       { "drawPath", &SkCanvasWrapper::drawPath },
       { "drawPoints", &SkCanvasWrapper::drawPoints },
       { "drawRect", &SkCanvasWrapper::drawRect },
@@ -4736,7 +4735,7 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  static void eraseColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  static void clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
     int r = Clamp(v8_utils::ToInt32WithDefault(args[0], 0), 0, 255);
@@ -4744,8 +4743,7 @@ class SkCanvasWrapper {
     int b = Clamp(v8_utils::ToInt32WithDefault(args[2], 0), 0, 255);
     int a = Clamp(v8_utils::ToInt32WithDefault(args[3], 255), 0, 255);
 
-    canvas->getDevice()->accessBitmap(true).eraseColor(
-        SkColorSetARGB(a, r, g, b));
+    canvas->clear(SkColorSetARGB(a, r, g, b));
     return args.GetReturnValue().SetUndefined();
   }
 
