@@ -3215,7 +3215,7 @@ class NSWindowWrapper {
     };
 
     if (!multisample)
-      attrs[6] = 0;
+      attrs[8] = 0;
 
     NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc]
                                       initWithAttributes:attrs];
