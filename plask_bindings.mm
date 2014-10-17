@@ -436,14 +436,16 @@ class WebGLNameMappedObject {
         isolate, GetTemplate(isolate));
     v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
     obj->SetInternalField(0, v8::Integer::NewFromUnsigned(isolate, name));
-    map.emplace(std::make_pair(name, v8::UniquePersistent<v8::Value>(isolate, obj)));
+    map.emplace(std::piecewise_construct,
+      std::forward_as_tuple(name),
+      std::forward_as_tuple(isolate, obj));
     return obj;
   }
 
   static v8::Handle<v8::Value> LookupFromName(
       v8::Isolate* isolate, GLuint name) {
     if (name != 0 && map.count(name) == 1)
-      return PersistentToLocal(isolate, map[name]);
+      return PersistentToLocal(isolate, map.at(name));
     return v8::Null(isolate);
   }
 
@@ -452,7 +454,7 @@ class WebGLNameMappedObject {
     GLuint name = ExtractNameFromValue(value);
     if (name != 0) {
       if (map.count(name) == 1) {
-        map[name].Reset();
+        map.at(name).Reset();
         if (map.erase(name) != 1) {
           printf("Warning: Should have erased name map entry.\n");
         }
@@ -1854,11 +1856,9 @@ class NSOpenGLContextWrapper {
     int value;
     glGetIntegerv(pname, &value);
     GLuint name = static_cast<unsigned int>(value);
-    if (name != 0 && map.count(name) == 1) {
-      return args.GetReturnValue().Set(PersistentToLocal(isolate, map[name]));
-    } else {
-      return args.GetReturnValue().SetNull();
-    }
+    if (name != 0 && map.count(name) == 1)
+      return args.GetReturnValue().Set(PersistentToLocal(isolate, map.at(name)));
+    return args.GetReturnValue().SetNull();
   }
 
   // any getParameter(GLenum pname)
