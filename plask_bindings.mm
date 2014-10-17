@@ -848,7 +848,9 @@ class NSOpenGLContextWrapper {
       { "bindFramebuffer", &NSOpenGLContextWrapper::bindFramebuffer },
       { "bindRenderbuffer", &NSOpenGLContextWrapper::bindRenderbuffer },
       { "bindTexture", &NSOpenGLContextWrapper::bindTexture },
+#if PLASK_WEBGL2
       { "bindVertexArray", &NSOpenGLContextWrapper::bindVertexArray },
+#endif
       { "blendColor", &NSOpenGLContextWrapper::blendColor },
       { "blendEquation", &NSOpenGLContextWrapper::blendEquation },
       { "blendEquationSeparate",
@@ -873,7 +875,9 @@ class NSOpenGLContextWrapper {
       { "createRenderbuffer", &NSOpenGLContextWrapper::createRenderbuffer },
       { "createShader", &NSOpenGLContextWrapper::createShader },
       { "createTexture", &NSOpenGLContextWrapper::createTexture },
+#if PLASK_WEBGL2
       { "createVertexArray", &NSOpenGLContextWrapper::createVertexArray },
+#endif
       { "cullFace", &NSOpenGLContextWrapper::cullFace },
       { "deleteBuffer", &NSOpenGLContextWrapper::deleteBuffer },
       { "deleteFramebuffer", &NSOpenGLContextWrapper::deleteFramebuffer },
@@ -881,7 +885,9 @@ class NSOpenGLContextWrapper {
       { "deleteRenderbuffer", &NSOpenGLContextWrapper::deleteRenderbuffer },
       { "deleteShader", &NSOpenGLContextWrapper::deleteShader },
       { "deleteTexture", &NSOpenGLContextWrapper::deleteTexture },
+#if PLASK_WEBGL2
       { "deleteVertexArray", &NSOpenGLContextWrapper::deleteVertexArray },
+#endif
       { "depthFunc", &NSOpenGLContextWrapper::depthFunc },
       { "depthMask", &NSOpenGLContextWrapper::depthMask },
       { "depthRange", &NSOpenGLContextWrapper::depthRange },
@@ -891,10 +897,12 @@ class NSOpenGLContextWrapper {
           &NSOpenGLContextWrapper::disableVertexAttribArray },
       { "drawArrays", &NSOpenGLContextWrapper::drawArrays },
       { "drawElements", &NSOpenGLContextWrapper::drawElements },
+#if PLASK_WEBGL2
       { "vertexAttribDivisor", &NSOpenGLContextWrapper::vertexAttribDivisor },
       { "drawArraysInstanced", &NSOpenGLContextWrapper::drawArraysInstanced },
       { "drawElementsInstanced", &NSOpenGLContextWrapper::drawElementsInstanced },
       { "drawRangeElements", &NSOpenGLContextWrapper::drawRangeElements },
+#endif
       { "enable", &NSOpenGLContextWrapper::enable },
       { "enableVertexAttribArray",
           &NSOpenGLContextWrapper::enableVertexAttribArray },
@@ -935,14 +943,18 @@ class NSOpenGLContextWrapper {
       { "isRenderbuffer", &NSOpenGLContextWrapper::isRenderbuffer },
       { "isShader", &NSOpenGLContextWrapper::isShader },
       { "isTexture", &NSOpenGLContextWrapper::isTexture },
+#if PLASK_WEBGL2
       { "isVertexArray", &NSOpenGLContextWrapper::isVertexArray },
+#endif
       { "lineWidth", &NSOpenGLContextWrapper::lineWidth },
       { "linkProgram", &NSOpenGLContextWrapper::linkProgram },
       { "pixelStorei", &NSOpenGLContextWrapper::pixelStorei },
       { "polygonOffset", &NSOpenGLContextWrapper::polygonOffset },
       { "readPixels", &NSOpenGLContextWrapper::readPixels },
       { "renderbufferStorage", &NSOpenGLContextWrapper::renderbufferStorage },
+#if PLASK_WEBGL2
       { "renderbufferStorageMultisample", &NSOpenGLContextWrapper::renderbufferStorageMultisample },
+#endif
       { "sampleCoverage", &NSOpenGLContextWrapper::sampleCoverage },
       { "scissor", &NSOpenGLContextWrapper::scissor },
       { "shaderSource", &NSOpenGLContextWrapper::shaderSource },
@@ -989,8 +1001,10 @@ class NSOpenGLContextWrapper {
       { "vertexAttribPointer", &NSOpenGLContextWrapper::vertexAttribPointer },
       { "viewport", &NSOpenGLContextWrapper::viewport },
       // Plask-specific, not in WebGL.  From ARB_draw_buffers.
+#if PLASK_WEBGL2
       { "drawBuffers", &NSOpenGLContextWrapper::drawBuffers },
       { "blitFramebuffer", &NSOpenGLContextWrapper::blitFramebuffer },
+#endif
       { "drawSkCanvas", &NSOpenGLContextWrapper::drawSkCanvas },
 #if PLASK_SYPHON
       { "createSyphonServer", &NSOpenGLContextWrapper::createSyphonServer },
@@ -1267,6 +1281,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+#ifdef PLASK_WEBGL2
   // void bindVertexArray(WebGLVertexArrayObject? vertexArray)
   DEFINE_METHOD(bindVertexArray, 1)
     // NOTE: ExtractNameFromValue handles null.
@@ -1276,6 +1291,7 @@ class NSOpenGLContextWrapper {
     glBindVertexArrayAPPLE(WebGLVertexArrayObject::ExtractNameFromValue(args[0]));
     return args.GetReturnValue().SetUndefined();
   }
+#endif  // PLASK_WEBGL2
 
   // void blendColor(GLclampf red, GLclampf green,
   //                 GLclampf blue, GLclampf alpha)
@@ -1438,12 +1454,14 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().Set(WebGLTexture::NewFromName(texture));
   }
 
+#if PLASK_WEBGL2
   // WebGLVertexArrayObject? createVertexArray()
   static void createVertexArray(const v8::FunctionCallbackInfo<v8::Value>& args) {
     GLuint vao;
     glGenVertexArraysAPPLE(1, &vao);
     return args.GetReturnValue().Set(WebGLVertexArrayObject::NewFromName(vao));
   }
+#endif  // PLASK_WEBGL2
 
   // void cullFace(GLenum mode)
   DEFINE_METHOD(cullFace, 1)
@@ -1556,6 +1574,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+#if PLASK_WEBGL2
   // void deleteVertexArray(WebGLVertexArrayObject? vertexArray)
   DEFINE_METHOD(deleteVertexArray, 1)
     // Seems that Chrome does this...
@@ -1572,6 +1591,7 @@ class NSOpenGLContextWrapper {
     }
     return args.GetReturnValue().SetUndefined();
   }
+#endif  // PLASK_WEBGL2
 
   // void depthFunc(GLenum func)
   DEFINE_METHOD(depthFunc, 1)
@@ -1635,6 +1655,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+#if PLASK_WEBGL2
   // void vertexAttribDivisor(GLuint index, GLuint divisor)
   DEFINE_METHOD(vertexAttribDivisor, 2)
     glVertexAttribDivisorARB(args[0]->Uint32Value(),
@@ -1675,6 +1696,7 @@ class NSOpenGLContextWrapper {
                            reinterpret_cast<GLvoid*>(args[5]->Int32Value()));
     return args.GetReturnValue().SetUndefined();
   }
+#endif  // PLASK_WEBGL2
 
   // void enable(GLenum cap)
   DEFINE_METHOD(enable, 1)
@@ -2280,6 +2302,7 @@ class NSOpenGLContextWrapper {
         WebGLTexture::ExtractNameFromValue(args[0])));
   }
 
+#if PLASK_WEBGL2
   // GLboolean isVertexArray(WebGLVertexArrayObject? vertexArray)
   DEFINE_METHOD(isVertexArray, 1)
     // Seems that Chrome does this...
@@ -2292,6 +2315,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().Set((bool)glIsVertexArrayAPPLE(
         WebGLVertexArrayObject::ExtractNameFromValue(args[0])));
   }
+#endif  // PLASK_WEBGL2
 
   // void lineWidth(GLfloat width)
   DEFINE_METHOD(lineWidth, 1)
@@ -2367,6 +2391,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+#if PLASK_WEBGL2
   // void renderbufferStorageMultisample(GLenum target, GLsizei samples,
   //                                     GLenum internalformat,
   //                                     GLsizei width, GLsizei height)
@@ -2378,6 +2403,7 @@ class NSOpenGLContextWrapper {
                                      args[4]->Int32Value());
     return args.GetReturnValue().SetUndefined();
   }
+#endif  // PLASK_WEBGL2
 
   // void sampleCoverage(GLclampf value, GLboolean invert)
   DEFINE_METHOD(sampleCoverage, 2)
@@ -2962,6 +2988,7 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+#if PLASK_WEBGL2
   // void DrawBuffersARB(sizei n, const enum *bufs);
   DEFINE_METHOD(drawBuffers, 1)
     if (!args[0]->IsArray())
@@ -2979,7 +3006,9 @@ class NSOpenGLContextWrapper {
     delete[] attachments;
     return args.GetReturnValue().SetUndefined();
   }
+#endif  // PLASK_WEBGL2
 
+#if PLASK_WEBGL2
   // void glBlitFramebuffer(GLint srcX0,
   //                        GLint srcY0,
   //                        GLint srcX1,
@@ -3003,6 +3032,7 @@ class NSOpenGLContextWrapper {
                       args[9]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
+#endif  // PLASK_WEBGL2
 };
 
 
