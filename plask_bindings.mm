@@ -5054,30 +5054,25 @@ class SkCanvasWrapper {
     const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
     const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
 
-    SkCanvas* canvas = ExtractPointer(args.Holder());
-    const SkBitmap& bitmap = canvas->getDevice()->accessBitmap(false);
-
     v8::String::Utf8Value type(args[0]);
     if (strcmp(*type, "png") != 0)
-      return v8_utils::ThrowError(isolate, "writeImage can only write PNG types.");
+      return v8_utils::ThrowError(isolate, "writeImage: can only write PNG types.");
 
     v8::String::Utf8Value filename(args[1]);
 
-    FIBITMAP* fb = FreeImage_ConvertFromRawBits(
-        reinterpret_cast<BYTE*>(bitmap.getPixels()),
-        bitmap.width(), bitmap.height(), bitmap.rowBytes(), 32,
-        rmask, gmask, bmask, TRUE);
+    // NOTE(deanm): Would be nice if we could just peekPixels, but we need to unpremultiply.
 
-    if (!fb)
-      return v8_utils::ThrowError(isolate, "Couldn't allocate output FreeImage bitmap.");
+    SkCanvas* canvas = ExtractPointer(args.Holder());
+    SkImageInfo image_info =
+        canvas->imageInfo().makeColorType(kN32_SkColorType).makeAlphaType(kUnpremul_SkAlphaType);
 
-    // Let's hope that ConvertFromRawBits made a copy.
-    for (int y = 0; y < bitmap.height(); ++y) {
-      uint32_t* scanline =
-          reinterpret_cast<uint32_t*>(FreeImage_GetScanLine(fb, y));
-      for (int x = 0; x < bitmap.width(); ++x) {
-        scanline[x] = SkUnPreMultiply::PMColorToColor(scanline[x]);
-      }
+    FIBITMAP* fb = FreeImage_Allocate(
+        image_info.width(), image_info.height(), 32, rmask, gmask, bmask);
+    if (!fb) return v8_utils::ThrowError(isolate, "Couldn't allocate output FreeImage bitmap.");
+
+    if (!canvas->readPixels(image_info, FreeImage_GetBits(fb), 4 * image_info.width(), 0, 0)) {
+      FreeImage_Unload(fb);
+      return v8_utils::ThrowError(isolate, "writeImage: couldn't readPixels().");
     }
 
     if (args.Length() >= 3 && args[2]->IsObject()) {
