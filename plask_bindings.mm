@@ -4519,6 +4519,7 @@ class SkCanvasWrapper {
       { "restore", &SkCanvasWrapper::restore },
       { "writeImage", &SkCanvasWrapper::writeImage },
       { "writePDF", &SkCanvasWrapper::writePDF },
+      { "flush", &SkCanvasWrapper::flush },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -5109,6 +5110,12 @@ class SkCanvasWrapper {
     if (!document.emitPDF(&stream))
       return v8_utils::ThrowError(isolate, "Error writing PDF.");
 
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(flush, 0)
+    SkCanvas* canvas = ExtractPointer(args.Holder());
+    canvas->flush();
     return args.GetReturnValue().SetUndefined();
   }
 };
