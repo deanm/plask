@@ -537,10 +537,6 @@ exports.Window = function(width, height, opts) {
     }
     return res;
   };
-
-  this.blit = function() {
-    nswindow_.blit();
-  };
 };
 inherits(exports.Window, events.EventEmitter);
 
@@ -689,7 +685,7 @@ exports.simpleWindow = function(obj) {
       // Blit to the screen OpenGL context.
       gl_.drawSkCanvas(canvas);
     }
-    window_.blit();  // Update the screen automatically.
+    gl_.blit();  // Update the screen automatically.
   };
 
   obj.redraw();  // Draw the first frame.

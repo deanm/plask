@@ -1010,6 +1010,7 @@ class NSOpenGLContextWrapper {
       { "createSyphonServer", &NSOpenGLContextWrapper::createSyphonServer },
       { "createSyphonClient", &NSOpenGLContextWrapper::createSyphonClient },
 #endif
+      { "blit", &NSOpenGLContextWrapper::blit },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -1098,6 +1099,14 @@ class NSOpenGLContextWrapper {
         client, reinterpret_cast<CGLContextObj>([context CGLContextObj])));
   }
 #endif
+
+  static void blit(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
+#if PLASK_OSX
+    [context flushBuffer];
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
 
   // aka vsync.
   static void setSwapInterval(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -3046,7 +3055,7 @@ class NSWindowWrapper {
     v8::Local<v8::FunctionTemplate> ft =
         v8::FunctionTemplate::New(isolate, &NSWindowWrapper::V8New);
     v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
-    instance->SetInternalFieldCount(2);  // NSWindow, and gl context.
+    instance->SetInternalFieldCount(1);  // NSWindow
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
@@ -3056,7 +3065,6 @@ class NSWindowWrapper {
     };
 
     static BatchedMethods methods[] = {
-      { "blit", &NSWindowWrapper::blit },
       { "mouseLocationOutsideOfEventStream",
         &NSWindowWrapper::mouseLocationOutsideOfEventStream },
       { "setAcceptsMouseMovedEvents",
@@ -3094,10 +3102,6 @@ class NSWindowWrapper {
 
   static WrappedNSWindow* ExtractWindowPointer(v8::Handle<v8::Object> obj) {
     return reinterpret_cast<WrappedNSWindow*>(obj->GetAlignedPointerFromInternalField(0));
-  }
-
-  static NSOpenGLContext* ExtractContextPointer(v8::Handle<v8::Object> obj) {
-    return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(1));
   }
 
   static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
@@ -3247,16 +3251,7 @@ class NSWindowWrapper {
     [window makeKeyAndOrderFront:nil];
 
     args.This()->SetAlignedPointerInInternalField(0, window);
-    args.This()->SetAlignedPointerInInternalField(1, context);
 #endif
-  }
-
-  static void blit(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-#if PLASK_OSX
-    [context flushBuffer];
-#endif
-    return args.GetReturnValue().SetUndefined();
   }
 
   static void mouseLocationOutsideOfEventStream(
