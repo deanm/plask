@@ -42,6 +42,7 @@
 		C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */; };
 		C5EB3AB9196C6B4900F1165A /* libskia_ports.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAA196C6B4700F1165A /* libskia_ports.a */; };
 		C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */; };
+		C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */; };
 		C5EB3ABD196C6B4900F1165A /* libskia_utils.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAE196C6B4800F1165A /* libskia_utils.a */; };
 		C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3ACA196C6E8600F1165A /* libskflate.a */; };
 		C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AD7196C6EA300F1165A /* libetc1.a */; };
@@ -105,6 +106,7 @@
 		C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_pdf.a; path = deps/libskia_pdf.a; sourceTree = "<group>"; };
 		C5EB3AAA196C6B4700F1165A /* libskia_ports.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_ports.a; path = deps/libskia_ports.a; sourceTree = "<group>"; };
 		C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_sfnt.a; path = deps/libskia_sfnt.a; sourceTree = "<group>"; };
+		C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_skgpu.a; path = deps/libskia_skgpu.a; sourceTree = "<group>"; };
 		C5EB3AAE196C6B4800F1165A /* libskia_utils.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_utils.a; path = deps/libskia_utils.a; sourceTree = "<group>"; };
 		C5EB3ACA196C6E8600F1165A /* libskflate.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskflate.a; path = deps/libskflate.a; sourceTree = "<group>"; };
 		C5EB3AD7196C6EA300F1165A /* libetc1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libetc1.a; path = deps/libetc1.a; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */,
 				C5EB3AB9196C6B4900F1165A /* libskia_ports.a in Frameworks */,
 				C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */,
+				C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */,
 				C5EB3ABD196C6B4900F1165A /* libskia_utils.a in Frameworks */,
 				C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */,
 				C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */,
@@ -183,6 +186,7 @@
 				C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */,
 				C5EB3AAA196C6B4700F1165A /* libskia_ports.a */,
 				C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */,
+				C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */,
 				C5EB3AAE196C6B4800F1165A /* libskia_utils.a */,
 				C5EB3ACA196C6E8600F1165A /* libskflate.a */,
 				C5EB3AD7196C6EA300F1165A /* libetc1.a */,
@@ -427,13 +431,15 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "PLASK_OSX=1 PLASK_SYPHON=1 PLASK_COREMIDI=1 PLASK_WEBGL2=1 SK_RELEASE=1 SK_GAMMA_SRGB SK_SUPPORT_GPU=0 SK_BUILD_FOR_MAC SK_SAMPLES_FOR_X";
+				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "PLASK_OSX=1 PLASK_SYPHON=1 PLASK_COREMIDI=1 PLASK_WEBGL2=1 PLASK_GPUSKIA=1 SK_RELEASE=1 SK_GAMMA_SRGB SK_SUPPORT_GPU=1 SK_BUILD_FOR_MAC SK_SAMPLES_FOR_X";
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
 					deps/,
 					deps/skia/include/config,
 					deps/skia/include/core,
+					deps/skia/include/gpu,
+					deps/skia/include/utils,
 					deps/v8/include,
 					deps/uv,
 					deps/node,
@@ -458,13 +464,15 @@
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "PLASK_OSX=1 PLASK_SYPHON=1 PLASK_COREMIDI=1 PLASK_WEBGL2=1 SK_RELEASE=1 SK_GAMMA_SRGB SK_SUPPORT_GPU=0 SK_BUILD_FOR_MAC SK_SAMPLES_FOR_X";
+				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "PLASK_OSX=1 PLASK_SYPHON=1 PLASK_COREMIDI=1 PLASK_WEBGL2=1 PLASK_GPUSKIA=1 SK_RELEASE=1 SK_GAMMA_SRGB SK_SUPPORT_GPU=1 SK_BUILD_FOR_MAC SK_SAMPLES_FOR_X";
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
 					deps/,
 					deps/skia/include/config,
 					deps/skia/include/core,
+					deps/skia/include/gpu,
+					deps/skia/include/utils,
 					deps/v8/include,
 					deps/uv,
 					deps/node,

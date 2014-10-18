@@ -68,6 +68,12 @@
 #include "skia/include/ports/SkTypeface_mac.h"  // SkCreateTypefaceFromCTFont.
 #endif
 
+#if PLASK_GPUSKIA
+#include "skia/include/core/SkSurface.h"
+#include "skia/include/gpu/GrContext.h"
+#include "skia/include/gpu/gl/GrGLInterface.h"
+#endif
+
 #if PLASK_SYPHON
 #import <Syphon/Syphon.h>
 #endif
@@ -824,7 +830,11 @@ class NSOpenGLContextWrapper {
     v8::Local<v8::FunctionTemplate> ft =
         v8::FunctionTemplate::New(isolate, &NSOpenGLContextWrapper::V8New);
     v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
+#if PLASK_GPUSKIA
+    instance->SetInternalFieldCount(2);  // gl context and SkSurface.
+#else
     instance->SetInternalFieldCount(1);
+#endif
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
@@ -1038,6 +1048,12 @@ class NSOpenGLContextWrapper {
   static NSOpenGLContext* ExtractContextPointer(v8::Handle<v8::Object> obj) {
     return reinterpret_cast<NSOpenGLContext*>(obj->GetAlignedPointerFromInternalField(0));
   }
+
+#if PLASK_GPUSKIA
+  static SkSurface* ExtractSkSurface(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<SkSurface*>(obj->GetAlignedPointerFromInternalField(1));
+  }
+#endif
 
  private:
   static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -3113,7 +3129,7 @@ class NSWindowWrapper {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
-    uint32_t type = args[0]->Uint32Value();
+    uint32_t window_type = args[0]->Uint32Value();
     uint32_t bwidth = args[1]->Uint32Value();
     uint32_t bheight = args[2]->Uint32Value();
     bool multisample = args[3]->BooleanValue();
@@ -3122,8 +3138,12 @@ class NSWindowWrapper {
     bool fullscreen = args[6]->BooleanValue();
     uint32_t dpi_factor = args[7]->Uint32Value();
 
-    if (type != 1)
-      return v8_utils::ThrowError(isolate, "2d windows no longer supported.");
+#if PLASK_GPUSKIA
+    if (window_type != 1 && window_type != 2)
+#else
+    if (window_type != 1)
+#endif
+      return v8_utils::ThrowError(isolate, "Unsupported window type.");
 
 #if PLASK_OSX
     NSScreen* screen = [NSScreen mainScreen];
@@ -3237,6 +3257,32 @@ class NSWindowWrapper {
         InstanceTemplate()->NewInstance();
     context_wrapper->SetAlignedPointerInInternalField(0, context);
     args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
+
+#if PLASK_GPUSKIA
+    SkSurface* sk_surface = NULL;
+
+    if (window_type == 2) {  // OpenGL window with a Skia GPU canvas attached.
+      const GrGLInterface* gr_native_interface = GrGLCreateNativeInterface();
+      if (!gr_native_interface->validate())
+        return v8_utils::ThrowError(isolate, "Skia GL Native Interface didn't validate.");
+      GrGLInterface* gr_interface = GrGLInterface::NewClone(gr_native_interface);
+      if (!gr_interface->validate())
+        return v8_utils::ThrowError(isolate, "Skia GL Interface didn't validate.");
+      GrContext* gr_context = GrContext::Create(kOpenGL_GrBackend, (intptr_t)gr_interface);
+      GrBackendRenderTargetDesc rt_desc;
+      rt_desc.fWidth = bwidth; rt_desc.fHeight = bheight;
+      rt_desc.fConfig = kSkia8888_GrPixelConfig;
+      rt_desc.fRenderTargetHandle = 0;
+      rt_desc.fOrigin = kBottomLeft_GrSurfaceOrigin;
+      rt_desc.fSampleCnt = multisample ? 4 : 0;
+      rt_desc.fStencilBits = 8;
+
+      GrRenderTarget* gr_rt = gr_context->wrapBackendRenderTarget(rt_desc);
+      sk_surface = SkSurface::NewRenderTargetDirect(gr_rt);
+    }
+
+    context_wrapper->SetAlignedPointerInInternalField(1, sk_surface);
+#endif
 
 #if PLASK_OSX
     if (fullscreen)
@@ -4681,6 +4727,15 @@ class SkCanvasWrapper {
           kPremul_SkAlphaType), width * 4);
       tbitmap.eraseARGB(0, 0, 0, 0);
       canvas = new SkCanvas(tbitmap);
+#if PLASK_GPUSKIA
+    } else if (args.Length() == 1 && NSOpenGLContextWrapper::HasInstance(isolate, args[0])) {
+      SkSurface* sk_surface =
+          NSOpenGLContextWrapper::ExtractSkSurface(v8::Handle<v8::Object>::Cast(args[0]));
+      if (!sk_surface)
+        return v8_utils::ThrowError(isolate, "OpenGL does not have an attached Skia surface.");
+      // NOTE(deanm): We fix up the width/height properties in plask.js.
+      canvas = sk_surface->getCanvas();
+#endif
     } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(isolate, args[0])) {
       SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
       // Allocate a new block of pixels with a copy from pbitmap.

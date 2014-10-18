@@ -288,7 +288,7 @@ exports.AppleScript = PlaskRawMac.NSAppleScript;
 exports.Window = function(width, height, opts) {
   setInterval(function() { }, 999999999);  // Hack to prevent empty event loop.
   var nswindow_ = new PlaskRawMac.NSWindow(
-      opts.type === '3d' ? 1 : 0,
+      opts.type === '3d+skia' ? 2 : opts.type === '3d' ? 1 : 0,
       width, height,
       opts.multisample === true,
       opts.display === undefined ? -1 : opts.display,
@@ -546,7 +546,7 @@ exports.simpleWindow = function(obj) {
   var settings = obj.settings;
   if (settings === undefined) settings = { };
 
-  var wintype = '3d';
+  var wintype = settings.type === '2dx' ? '3d+skia' : '3d';
   var width = settings.width === undefined ? 400 : settings.width;
   var height = settings.height === undefined ? 300 : settings.height;
 
@@ -593,7 +593,9 @@ exports.simpleWindow = function(obj) {
     return window_.getRelativeMouseState();
   };
 
-  var canvas = null;  // Protected from getting clobbered on obj.
+  var bitmap_canvas = null;  // Protected from getting clobbered on obj.
+  var gpu_canvas = null;
+  var canvas = null;
 
   // Default 3d2d windows to vsync also.
   if (settings.type !== '3d' || settings.vsync === true)
@@ -602,7 +604,12 @@ exports.simpleWindow = function(obj) {
     obj.gl = gl_;
   } else {  // Create a canvas and paint for 3d2d windows.
     obj.paint = new exports.SkPaint;
-    canvas = exports.SkCanvas.create(width, height);  // Offscreen.
+    if (settings.type === '2dx') {  // GPU accelerated
+      canvas = gpu_canvas = new exports.SkCanvas(gl_);
+      canvas.width = width; canvas.height = height;
+    } else {
+      canvas = bitmap_canvas = exports.SkCanvas.create(width, height);  // Offscreen.
+    }
     obj.canvas = canvas;
   }
   if (settings.syphon_server !== undefined) {
@@ -672,7 +679,11 @@ exports.simpleWindow = function(obj) {
       }
       framenum++;
     }
-    if (gl_ !== undefined && canvas !== null) {  // 3d2d
+
+    // TODO(deanm): For bitmap_canvas too?
+    if (gpu_canvas !== null) gpu_canvas.flush();
+
+    if (bitmap_canvas !== null) {  // 3d2d
       // Blit to Syphon.
       if (syphon_server !== null && syphon_server.hasClients() === true) {
         if (syphon_server.bindToDrawFrameOfSize(width, height) === true) {
@@ -685,6 +696,7 @@ exports.simpleWindow = function(obj) {
       // Blit to the screen OpenGL context.
       gl_.drawSkCanvas(canvas);
     }
+
     gl_.blit();  // Update the screen automatically.
   };
 
