@@ -332,7 +332,7 @@ int main(int argc, char** argv) {
 
   InitMenuBar();
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
-  [NSApp setDelegate:app_delegate];
+  [[NSApplication sharedApplication] setDelegate:app_delegate];
 
   // Mavericks introduced "App Nap" which implements timer coalescing and
   // delaying in order to save power.  This results in nextEventMatchingMask
