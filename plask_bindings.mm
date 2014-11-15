@@ -3060,6 +3060,38 @@ class NSOpenGLContextWrapper {
 #endif  // PLASK_WEBGL2
 };
 
+class NSScreenWrapper {
+ public:
+  static void list(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    #if PLASK_OSX
+      NSArray* screens = [NSScreen screens];
+
+      v8::Local<v8::Array> screenInfoList = v8::Array::New(isolate, [screens count]);
+
+      for(int i=0; i<[screens count]; i++) {
+        NSScreen* screen = [screens objectAtIndex:i];
+        int width = [screen frame].size.width;
+        int height = [screen frame].size.height;
+        int highdpi = 1;
+        if ([screen respondsToSelector:@selector(backingScaleFactor)]) {
+          highdpi = [screen backingScaleFactor];
+        }
+
+        NSLog(@"Screen: %d %d %d %d", i, width, height, highdpi);
+        v8::Local<v8::Object> screenInfo = v8::Object::New(isolate);
+        screenInfo->Set(v8::String::NewFromUtf8(isolate, "id"), v8::Number::New(isolate, i));
+        screenInfo->Set(v8::String::NewFromUtf8(isolate, "width"), v8::Number::New(isolate, width));
+        screenInfo->Set(v8::String::NewFromUtf8(isolate, "height"), v8::Number::New(isolate, height));
+        screenInfo->Set(v8::String::NewFromUtf8(isolate, "highdpi"), v8::Number::New(isolate, highdpi));
+
+        screenInfoList->Set(v8::Integer::New(isolate, i), screenInfo);
+      }
+    #else // PLASK_OSX
+        v8::Local<v8::Array> screenInfoList = v8::Array::New(isolate, 0);
+    #endif
+      return args.GetReturnValue().Set(screenInfoList);
+  }
+};
 
 class NSWindowWrapper {
  public:
@@ -6435,6 +6467,12 @@ void plask_setup_bindings(v8::Isolate* isolate,
                           v8::Handle<v8::ObjectTemplate> obj) {
   v8::HandleScope handle_scope(isolate);
   SetInternalIsolate(isolate);
+
+  v8::Local<v8::Object> nsScreen = v8::Object::New(isolate);
+  nsScreen->Set(v8::String::NewFromUtf8(isolate, "list"),
+    v8::FunctionTemplate::New(isolate, &NSScreenWrapper::list)->GetFunction());
+  obj->Set(v8::String::NewFromUtf8(isolate, "NSScreen"), nsScreen);
+
   obj->Set(v8::String::NewFromUtf8(isolate, "NSWindow"),
            PersistentToLocal(isolate, NSWindowWrapper::GetTemplate(isolate)));
   obj->Set(v8::String::NewFromUtf8(isolate, "NSEvent"),

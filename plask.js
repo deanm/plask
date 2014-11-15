@@ -26,6 +26,8 @@ var events = require('events');
 var net = require('net');
 var inherits = sys.inherits;
 
+exports.Screen = PlaskRawMac.NSScreen;
+
 exports.SkPath = PlaskRawMac.SkPath;
 exports.SkPaint = PlaskRawMac.SkPaint;
 exports.SkCanvas = PlaskRawMac.SkCanvas;
