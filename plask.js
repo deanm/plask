@@ -539,6 +539,7 @@ exports.Window = function(width, height, opts) {
   };
 };
 inherits(exports.Window, events.EventEmitter);
+exports.Window.screensInfo = PlaskRawMac.NSWindow.screensInfo;
 
 exports.simpleWindow = function(obj) {
   // NOTE(deanm): Moving to a settings object to reduce the pollution of the

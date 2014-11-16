@@ -3070,10 +3070,14 @@ class NSWindowWrapper {
 
     v8::Local<v8::FunctionTemplate> ft =
         v8::FunctionTemplate::New(isolate, &NSWindowWrapper::V8New);
-    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
-    instance->SetInternalFieldCount(1);  // NSWindow
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
+
+    ft->Set(v8::String::NewFromUtf8(isolate, "screensInfo"),
+             v8::FunctionTemplate::New(isolate, screensInfo));
+
+    v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
+    instance->SetInternalFieldCount(1);  // NSWindow
 
     // Configure the template...
     static BatchedConstants constants[] = {
@@ -3298,6 +3302,31 @@ class NSWindowWrapper {
 
     args.This()->SetAlignedPointerInInternalField(0, window);
 #endif
+  }
+
+  DEFINE_METHOD(screensInfo, 0)  // static method on NSWindow.
+    v8::Local<v8::Array> res = v8::Array::New(isolate);
+#if PLASK_OSX
+    NSArray* screens = [NSScreen screens];
+    int num_screens = [screens count];
+    for (int i = 0; i < num_screens; ++i) {
+      NSScreen* screen = [screens objectAtIndex:i];
+      NSRect frame = [screen frame];
+      float highdpi = [screen respondsToSelector:@selector(backingScaleFactor)] ?
+          [screen backingScaleFactor] : 1;
+      v8::Local<v8::Object> info = v8::Object::New(isolate);
+      info->Set(v8::String::NewFromUtf8(isolate, "id"),
+                v8::Integer::New(isolate, i));
+      info->Set(v8::String::NewFromUtf8(isolate, "width"),
+                v8::Number::New(isolate, frame.size.width));
+      info->Set(v8::String::NewFromUtf8(isolate, "height"),
+                v8::Number::New(isolate, frame.size.height));
+      info->Set(v8::String::NewFromUtf8(isolate, "highdpi"),
+                v8::Number::New(isolate, highdpi));
+      res->Set(i, info);
+    }
+#endif  // PLASK_OSX
+    return args.GetReturnValue().Set(res);
   }
 
   static void mouseLocationOutsideOfEventStream(
