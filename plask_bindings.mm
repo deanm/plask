@@ -6127,6 +6127,7 @@ class AVPlayerWrapper {
       METHOD_ENTRY( status ),
       METHOD_ENTRY( error ),
       METHOD_ENTRY( play ),
+      METHOD_ENTRY( pause ),
       METHOD_ENTRY( currentTime ),
       METHOD_ENTRY( seekToTime ),
       METHOD_ENTRY( currentFrameTexture ),
@@ -6280,6 +6281,12 @@ class AVPlayerWrapper {
   DEFINE_METHOD(play, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player play];
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(pause, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    [player pause];
     return args.GetReturnValue().SetUndefined();
   }
 
