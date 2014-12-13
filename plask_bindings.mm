@@ -43,6 +43,7 @@
 #include <Foundation/NSObjCRuntime.h>
 #include <AVFoundation/AVPlayer.h>
 #include <AVFoundation/AVPlayerItem.h>
+#include <AVFoundation/AVAsset.h>
 #include <AVFoundation/AVPlayerItemOutput.h>
 #include <AVFoundation/AVTime.h>  // CMTimeRangeValue
 #include <CoreMedia/CoreMedia.h>
@@ -6128,6 +6129,7 @@ class AVPlayerWrapper {
       METHOD_ENTRY( error ),
       METHOD_ENTRY( play ),
       METHOD_ENTRY( currentTime ),
+      METHOD_ENTRY( duration ),
       METHOD_ENTRY( seekToTime ),
       METHOD_ENTRY( currentFrameTexture ),
       METHOD_ENTRY( rate ),
@@ -6289,6 +6291,12 @@ class AVPlayerWrapper {
     if ((time.flags & kCMTimeFlags_Valid) == 0)
       return args.GetReturnValue().SetNull();
     return args.GetReturnValue().Set(CMTimeGetSeconds(time));
+  }
+
+  DEFINE_METHOD(duration, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    CMTime duration = player.currentItem.asset.duration;
+    return args.GetReturnValue().Set(CMTimeGetSeconds(duration));
   }
 
   DEFINE_METHOD(seekToTime, 1)
