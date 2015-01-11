@@ -406,7 +406,8 @@ exports.Window = function(width, height, opts) {
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,
           option: (mods & e.NSAlternateKeyMask) !== 0,
-          cmd: (mods & e.NSCommandKeyMask) !== 0
+          cmd: (mods & e.NSCommandKeyMask) !== 0,
+          function: (mods & e.NSFunctionKeyMask) !== 0
         };
         // Filter out clicks on the title bar.
         if (te.y < 0) break;
@@ -438,7 +439,8 @@ exports.Window = function(width, height, opts) {
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,
           option: (mods & e.NSAlternateKeyMask) !== 0,
-          cmd: (mods & e.NSCommandKeyMask) !== 0
+          cmd: (mods & e.NSCommandKeyMask) !== 0,
+          function: (mods & e.NSFunctionKeyMask) !== 0
         };
         // TODO(deanm): This is wrong if the drag started in the content view.
         if (te.y < 0) break;
@@ -459,7 +461,8 @@ exports.Window = function(width, height, opts) {
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,
           option: (mods & e.NSAlternateKeyMask) !== 0,
-          cmd: (mods & e.NSCommandKeyMask) !== 0
+          cmd: (mods & e.NSCommandKeyMask) !== 0,
+          function: (mods & e.NSFunctionKeyMask) !== 0
         };
         this_.emit(te.type, te);
         break;
@@ -481,7 +484,8 @@ exports.Window = function(width, height, opts) {
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,
           option: (mods & e.NSAlternateKeyMask) !== 0,
-          cmd: (mods & e.NSCommandKeyMask) !== 0
+          cmd: (mods & e.NSCommandKeyMask) !== 0,
+          function: (mods & e.NSFunctionKeyMask) !== 0
         };
         this_.emit(te.type, te);
         break;
@@ -500,7 +504,8 @@ exports.Window = function(width, height, opts) {
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,
           option: (mods & e.NSAlternateKeyMask) !== 0,
-          cmd: (mods & e.NSCommandKeyMask) !== 0
+          cmd: (mods & e.NSCommandKeyMask) !== 0,
+          function: (mods & e.NSFunctionKeyMask) !== 0
         };
         this_.emit(te.type, te);
         break;
