@@ -3789,18 +3789,28 @@ class SkPathWrapper {
   }
 
  private:
+  // void reset()
+  //
+  // Reset the path to an empty path.
   static void reset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->reset();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void rewind()
+  //
+  // Reset the path to an empty path, but keeping the internal memory previously
+  // allocated for the point storage.
   static void rewind(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->rewind();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void moveTo(x, y)
+  //
+  // Move to (`x`, `y`).
   static void moveTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
@@ -3809,6 +3819,9 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void lineTo(x, y)
+  //
+  // Line to (`x`, `y`).
   static void lineTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
@@ -3817,6 +3830,9 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void rLineTo(rx, ry)
+  //
+  // Similar to lineTo(), except `rx` and `ry` are relative to the previous point.
   static void rLineTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
@@ -3825,6 +3841,10 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void quadTo(cx, cy, ex, ey)
+  //
+  // A quadratic bezier curve with control point (`cx`, `cy`) and endpoint (`ex`,
+  // `ey`).
   static void quadTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
@@ -3835,6 +3855,10 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void cubicTo(c0x, c0y, c1x, c1y, ex, ey)
+  //
+  // A cubic bezier curve with control points (`c0x`, `c0y`) and (`c1x`, `c1y`) and
+  // endpoint (`ex`, `ey`).
   static void cubicTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
@@ -3907,12 +3931,18 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void close()
+  //
+  // Close the path, connecting the path to the beginning.
   static void close(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->close();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void offset(x, y)
+  //
+  // Offset the path by (`x`, `y`).
   static void offset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     path->offset(SkDoubleToScalar(args[0]->NumberValue()),
@@ -3920,6 +3950,10 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void getBounds()
+  //
+  // Returns an array of [left, top, right, bottom], the bounding rectangle of the
+  // path.
   static void getBounds(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     SkRect bounds = path->getBounds();
@@ -4092,17 +4126,40 @@ class SkPaintWrapper {
   }
 
  private:
+  // void reset()
+  //
+  // Reset the paint to the default settings.
   static void reset(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->reset();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void getFlags()
+  //
+  // Return the paint flags.
   static void getFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getFlags()));
   }
 
+  // void setFlags(flags)
+  //
+  // Set the paint flags, such as whether to perform anti-aliasing.
+  //
+  //     // The follow flags are supported.  They should be OR'd together to set
+  //     // multiple settings.
+  //     //   kAntiAliasFlag
+  //     //   kFilterBitmapFlag
+  //     //   kDitherFlag
+  //     //   kUnderlineTextFlag
+  //     //   kStrikeThruTextFlag
+  //     //   kFakeBoldTextFlag
+  //     //   kLinearTextFlag
+  //     //   kSubpixelTextFlag
+  //     //   kDevKernTextFlag
+  //
+  //     paint.setFlags(paint.kAntiAliasFlag | paint.kFilterBitmapFlag);
   static void setFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFlags(v8_utils::ToInt32(args[0]));
@@ -4163,22 +4220,42 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void getStrokeWidth()
+  //
+  // Return the current stroke width.
   static void getStrokeWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Number::New(isolate, SkScalarToDouble(paint->getStrokeWidth())));
   }
 
+  // void setStrokeWidth(width)
+  //
+  // Set the current stroke width to the floating point value `width`.  A width of
+  // 0 causes Skia to draw in a special 'hairline' stroking mode.
   static void setStrokeWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeWidth(SkDoubleToScalar(args[0]->NumberValue()));
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void getStyle()
+  //
+  // Return the current style.
   static void getStyle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStyle()));
   }
 
+  // void setStyle(style)
+  //
+  // Set the paint style, for example whether to stroke, fill, or both.
+  //
+  //     // The follow styles are supported:
+  //     //   kFillStyle
+  //     //   kStrokeStyle
+  //     //   kStrokeAndFillStyle
+  //
+  //     paint.setStyle(paint.kStrokeStyle);
   static void setStyle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(static_cast<SkPaint::Style>(v8_utils::ToInt32(args[0])));
@@ -4205,11 +4282,25 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void getStrokeCap
+  //
+  // Return the current stroke cap.
   static void getStrokeCap(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStrokeCap()));
   }
 
+  // void setStrokeCap
+  //
+  // Set the stroke cap.
+  //
+  //     // The follow caps are supported:
+  //     //   kButtCap
+  //     //   kRoundCap
+  //     //   kSquareCap
+  //     //   kDefaultCap
+  //
+  //     paint.setStrokeCape(paint.kRoundCap);
   static void setStrokeCap(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeCap(static_cast<SkPaint::Cap>(v8_utils::ToInt32(args[0])));
@@ -4256,6 +4347,9 @@ class SkPaintWrapper {
   }
 
   // We wrap it as 4 params instead of 1 to try to keep things as SMIs.
+  // void setColor(r, g, b, a)
+  //
+  // Set the paint color, values are integers in the range of 0 to 255.
   static void setColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4268,6 +4362,11 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setColorHSV(h, s, v, a)
+  //
+  // Set the paint color from HSV values, the HSV values are floating point, hue
+  // from 0 to 360, and saturation and value from 0 to 1.  The alpha value is an
+  // integer in the range of 0 to 255.
   static void setColorHSV(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4281,6 +4380,9 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setTextSize(size)
+  //
+  // Set the text size.
   static void setTextSize(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4288,6 +4390,37 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setXfermodeMode(mode)
+  //
+  // Set the alpha blending (porter duff transfer) mode.
+  //
+  //     // The following blending modes are supported:
+  //     //   kClearMode
+  //     //   kSrcMode
+  //     //   kDstMode
+  //     //   kSrcOverMode
+  //     //   kDstOverMode
+  //     //   kSrcInMode
+  //     //   kDstInMode
+  //     //   kSrcOutMode
+  //     //   kDstOutMode
+  //     //   kSrcATopMode
+  //     //   kDstATopMode
+  //     //   kXorMode
+  //     //   kPlusMode
+  //     //   kMultiplyMode
+  //     //   kScreenMode
+  //     //   kOverlayMode
+  //     //   kDarkenMode
+  //     //   kLightenMode
+  //     //   kColorDodgeMode
+  //     //   kColorBurnMode
+  //     //   kHardLightMode
+  //     //   kSoftLightMode
+  //     //   kDifferenceMode
+  //     //   kExclusionMode
+  //
+  //     paint.setXfermodeMode(paint.kPlusMode);  // Additive blending.
   static void setXfermodeMode(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4297,6 +4430,9 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setFontFamily(family)
+  //
+  // Set the text font family.
   static void setFontFamily(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() < 1)
       return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
@@ -4331,6 +4467,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setLinearGradientShader
   DEFINE_METHOD(setLinearGradientShader, 5)
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4371,6 +4508,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setRadialGradientShader
   DEFINE_METHOD(setRadialGradientShader, 4)
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4411,6 +4549,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void clearShader
   static void clearShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setShader(NULL);
@@ -4826,12 +4965,23 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void resetMatrix()
+  //
+  // Reset the transform matrix to the identity.
   static void resetMatrix(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->resetMatrix();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void clipRect(left, top, right, bottom)
+  //
+  // Set the clipping path to the rectangle of the upper-left and bottom-right
+  // corners specified.  Setting the clipping path will prevent any pixels to be
+  // drawn outside of this path.
+  //
+  // The save() and restore() functions are the best way to manage or reset the
+  // clipping path.
   static void clipRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
@@ -4843,6 +4993,13 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void clipPath(path)
+  //
+  // Set the clipping path to the SkPath object `path`.  Setting the clipping path
+  // will prevent any pixels to be drawn outside of this path.
+  //
+  // The save() and restore() functions are the best way to manage or reset the
+  // clipping path.
   static void clipPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
@@ -4856,6 +5013,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawCircle(paint, x, y, radius)
+  //
+  // Draw a circle centered at (`x`, `y`) of radius `radius`.
   static void drawCircle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -4872,6 +5032,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawLine(paint, x0, y0, x1, y1)
+  //
+  // Draw a line between (`x0`, `y0`) and (`x1`, `y1`).
   static void drawLine(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -4889,6 +5052,10 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawPaint(paint)
+  //
+  // Fill the entire canvas with a solid color, specified by the paint's color and
+  // blending mode.
   static void drawPaint(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -4902,6 +5069,23 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawCanvas(paint, source, dst_left, dst_top, dst_right, dst_bottom, src_left, src_top, src_right, src_bottom)
+  //
+  // Draw one canvas on to another canvas.  The `paint` object controls settings
+  // involved in the drawing, such as anti-aliasing.  The `source` parameter is the
+  // source canvas to be drawn from.  The first four parameters define the rectangle
+  // within the destination canvas that the image will be drawn.  The last four
+  // parameters specify the rectangle within the source image.  This allows for
+  // drawing portions of the source image, scaling, etc.
+  //
+  // The last four parameters are optional, and will default to the entire source
+  // image (0, 0, source.width, source.height).
+  //
+  //     var img = plask.SkCanvas.createFromImage('tex.png');  // Size 100x150.
+  //     // Draw the texture image scaled 2x larger.
+  //     canvas.drawCanvas(paint, img,
+  //                       0, 0, 200, 300,  // Draw at (0, 0) size 200x300.
+  //                       0, 0, 100, 150)  // Draw the entire source image.
   static void drawCanvas(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() < 6)
       return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
@@ -4938,6 +5122,12 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawColor(r, g, b, a, blendmode)
+  //
+  // Fill the entire canvas with a solid color.  If `blendmode` is not specified,
+  // it defaults to SrcOver, which will blend with anything already on the canvas.
+  //
+  // Use eraseColor() when you do not need any alpha blending.
   static void drawColor(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
@@ -4963,6 +5153,10 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawPath(paint, path)
+  //
+  // Draw an SkPath.  The path will be stroked or filled depending on the paint's
+  // style (see SkPaint#setStyle).
   static void drawPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -4982,6 +5176,12 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawPoints(paint, mode, points)
+  //
+  // An optimized drawing path for many points, lines, or polygons with many points.
+  // The `mode` parameter is one of kPointsPointMode, kLinesPointMode, or
+  // kPolygonPointMode.  The `points` parameter is an array of points, in the form
+  // of [x0, y0, x1, y1, ...].
   static void drawPoints(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -5015,6 +5215,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawRect(paint, left, top, right, bottom)
+  //
+  // Draw a rectangle specified by the upper-left and bottom-right corners.
   static void drawRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -5032,6 +5235,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawRoundRect(paint, left, top, right, bottom, xradius, yradius)
+  //
+  // Draw a rectangle with rounded corners of radius `xradius` and `yradius`.
   static void drawRoundRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -5052,6 +5258,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawText(paint, str, x, y)
+  //
+  // Draw the string `str` with the bottom left corner starting at (`x`, `y`).
   static void drawText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -5069,6 +5278,10 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void drawTextOnPathHV(paint, path, str, hoffset, voffset)
+  //
+  // Draw the string `str` along the path `path`, starting along the path at
+  // `hoffset` and above or below the path by `voffset`.
   static void drawTextOnPathHV(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     // TODO(deanm): Should we use the Signature to enforce this instead?
@@ -5092,6 +5305,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void translate(x, y)
+  //
+  // Translate the canvas by `x` and `y`.
   static void translate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->translate(SkDoubleToScalar(args[0]->NumberValue()),
@@ -5099,6 +5315,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void scale(x, y)
+  //
+  // Scale the canvas by `x` and `y`.
   static void scale(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->scale(SkDoubleToScalar(args[0]->NumberValue()),
@@ -5106,12 +5325,18 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void rotate(degrees)
+  //
+  // Rotate the canvas by `degrees` degrees (not radians).
   static void rotate(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->rotate(SkDoubleToScalar(args[0]->NumberValue()));
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void skew(x, y)
+  //
+  // Skew the canvas by `x` and `y`.
   static void skew(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->skew(SkDoubleToScalar(args[0]->NumberValue()),
@@ -5119,18 +5344,29 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void save()
+  //
+  // Save the transform matrix to the matrix stack.
   static void save(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->save();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void restore()
+  //
+  // Restore the transform matrix from the matrix stack.
   static void restore(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->restore();
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void writeImage(typestr, filename)
+  //
+  // Write the current contents of the canvas as an image named `filename`.  The
+  // `typestr` parameter selects the image format.  Currently only 'png' is
+  // supported.
   static void writeImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (args.Length() < 2)
       return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
@@ -5181,6 +5417,10 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void writePDF(filename)
+  //
+  // Write the contents of a vector-mode SkCanvas (created with createForPDF) to the
+  // file named `filename`.
   DEFINE_METHOD(writePDF, 1)
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
