@@ -1124,7 +1124,10 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // aka vsync.
+  // void setSwapInterval(int interval)
+  //
+  // Sets the swap interval, aka vsync.  Ex: `1` for vsync and `0` for no sync.
+  // This will normally be handled for you by the simpleWindow `vsync` setting.
   static void setSwapInterval(const v8::FunctionCallbackInfo<v8::Value>& args) {
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     GLint interval = args[0]->Int32Value();
@@ -3958,6 +3961,9 @@ class SkPathWrapper {
     return args.GetReturnValue().Set(res);
   }
 
+  // string toSVGString()
+  //
+  // Returns the path as a SVG path data representation.
   static void toSVGString(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
     SkString str;
@@ -3966,6 +3972,9 @@ class SkPathWrapper {
         isolate, str.c_str(), v8::String::kNormalString, str.size()));
   }
 
+  // void SkPath(SkPath? path_to_copy)
+  //
+  // Construct a new path object, optionally based off of an existing path.
   static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
@@ -4159,54 +4168,63 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setAntiAlias(bool aa)
   static void setAntiAlias(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAntiAlias(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setDither(bool dither)
   static void setDither(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setDither(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setUnderlineText(bool underline)
   static void setUnderlineText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setUnderlineText(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setStrikeThruText(bool strike)
   static void setStrikeThruText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrikeThruText(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setFakeBoldText(bool fakebold)
   static void setFakeBoldText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFakeBoldText(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setSubpixelText(bool subpixel)
   static void setSubpixelText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setSubpixelText(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setDevKernText(bool devkern)
   static void setDevKernText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setDevKernText(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setLCDRenderText(bool lcd)
   static void setLCDRenderText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setLCDRenderText(args[0]->BooleanValue());
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setAutohinted(bool autohint)
   static void setAutohinted(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAutohinted(args[0]->BooleanValue());
@@ -4255,18 +4273,27 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setFill()
+  //
+  // Sets the current paint style to fill.
   static void setFill(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(SkPaint::kFill_Style);
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setStroke()
+  //
+  // Sets the current paint style to stroke.
   static void setStroke(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStyle(SkPaint::kStroke_Style);
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setFillAndStroke()
+  //
+  // Sets the current paint style to fill and stroke.
   static void setFillAndStroke(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     // We flip the name around because it makes more sense, generally you think
@@ -4275,7 +4302,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void getStrokeCap
+  // int getStrokeCap()
   //
   // Return the current stroke cap.
   static void getStrokeCap(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -4283,7 +4310,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStrokeCap()));
   }
 
-  // void setStrokeCap
+  // void setStrokeCap(int cap)
   //
   // Set the stroke cap.
   //
@@ -4300,22 +4327,30 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // int getStrokeJoin()
+  //
+  // Returns the current stroke join setting.
   static void getStrokeJoin(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getStrokeJoin()));
   }
 
+  // void setStrokeJoin(int join)
   static void setStrokeJoin(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeJoin(static_cast<SkPaint::Join>(v8_utils::ToInt32(args[0])));
     return args.GetReturnValue().SetUndefined();
   }
 
+  // float getStrokeMiter()
+  //
+  // Returns the current stroke miter setting.
   static void getStrokeMiter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Number::New(isolate, SkScalarToDouble(paint->getStrokeMiter())));
   }
 
+  // float setStrokeMiter(float miter)
   static void setStrokeMiter(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setStrokeMiter(SkDoubleToScalar(args[0]->NumberValue()));
@@ -4339,7 +4374,6 @@ class SkPaintWrapper {
     return args.GetReturnValue().Set((bool)paint->getFillPath(*src, dst));
   }
 
-  // We wrap it as 4 params instead of 1 to try to keep things as SMIs.
   // void setColor(r, g, b, a)
   //
   // Set the paint color, values are integers in the range of 0 to 255.
@@ -4576,12 +4610,19 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void clearPathEffect()
+  //
+  // Clear any path effect.
   static void clearPathEffect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setPathEffect(NULL);
     return args.GetReturnValue().SetUndefined();
   }
 
+  // float measureText(string text)
+  //
+  // Measure the x-advance for the string `text` using the current
+  // paint settings.
   static void measureText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4590,6 +4631,9 @@ class SkPaintWrapper {
     return args.GetReturnValue().Set(v8::Number::New(isolate, width));
   }
 
+  // array<float> measureTextBounds(string text)
+  //
+  // Returns an array of the bounds [left, top, right, bottom] for `text`.
   static void measureTextBounds(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4639,6 +4683,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().Set(res);
   }
 
+  // void getTextPath(text, x, y, path)
   static void getTextPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4926,6 +4971,9 @@ class SkCanvasWrapper {
     persistent->SetWeak(persistent, &SkCanvasWrapper::WeakCallback);
   }
 
+  // void concatMatrix(a, b, c, d, e, f, g, h, i)
+  //
+  // Preconcat the current matrix with the specified matrix.
   static void concatMatrix(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     SkMatrix matrix;
@@ -4942,6 +4990,13 @@ class SkCanvasWrapper {
     return args.GetReturnValue().Set(true);
   }
 
+  // void setMatrix(a, b, c, d, e, f, g, h, i)
+  //
+  // Sets the the 3x3 homogeneous transformation matrix:
+  //
+  //     |a b c|
+  //     |d e f|
+  //     |g h i|
   static void setMatrix(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     SkMatrix matrix;
@@ -5134,6 +5189,9 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void clear(r, g, b, a)
+  //
+  // Sets the entire canvas to a solid color.
   static void clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
@@ -5430,6 +5488,11 @@ class SkCanvasWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void flush()
+  //
+  // Flushes any pending operations to the underlying surface, for example
+  // when using a GPU backed canvas.  Normally this will be called for you at
+  // the appropriate place before drawing, so it is unlikely to call it directly.
   DEFINE_METHOD(flush, 0)
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->flush();
