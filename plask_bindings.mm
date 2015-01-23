@@ -3034,16 +3034,9 @@ class NSOpenGLContextWrapper {
 #endif  // PLASK_WEBGL2
 
 #if PLASK_WEBGL2
-  // void glBlitFramebuffer(GLint srcX0,
-  //                        GLint srcY0,
-  //                        GLint srcX1,
-  //                        GLint srcY1,
-  //                        GLint dstX0,
-  //                        GLint dstY0,
-  //                        GLint dstX1,
-  //                        GLint dstY1,
-  //                        GLbitfield mask,
-  //                        GLenum filter);
+  // void blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
+  //                      GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
+  //                      GLbitfield mask, GLenum filter)
   DEFINE_METHOD(blitFramebuffer, 10)
     glBlitFramebuffer(args[0]->Int32Value(),
                       args[1]->Int32Value(),
