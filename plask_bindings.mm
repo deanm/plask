@@ -6415,6 +6415,11 @@ class AVPlayerWrapper {
     [player release];
   }
 
+  // new AVPlayer(NSOpenGLContext? gl)
+  //
+  // Create a new instance of an AVPlayer.  For video playback a `gl` context
+  // must be specified for the creation of textures.  For audio only playback
+  // the context argument can be omitted.
   static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
@@ -6440,23 +6445,35 @@ class AVPlayerWrapper {
     persistent->SetWeak(persistent, &WeakCallback);
   }
 
+  // float volume()
+  //
+  // Return the current audio volume setting.
   DEFINE_METHOD(volume, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     return args.GetReturnValue().Set(v8::Number::New(isolate, [player volume]));
   }
 
+  // void setVolume(float vol)
+  //
+  // Set the audio volume.
   DEFINE_METHOD(setVolume, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player setVolume:args[0]->NumberValue()];
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setLoops(bool loops)
+  //
+  // Set whether or not the playlist loops.
   DEFINE_METHOD(setLoops, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player setLoops:args[0]->BooleanValue()];
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void appendURL(string url)
+  //
+  // Add a URL to the playlist.
   DEFINE_METHOD(appendURL, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     v8::String::Utf8Value url(args[0]);
@@ -6465,6 +6482,9 @@ class AVPlayerWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void appendFile(string path)
+  //
+  // Add a file to the playlist.
   DEFINE_METHOD(appendFile, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     v8::String::Utf8Value filename(args[0]);
@@ -6473,29 +6493,42 @@ class AVPlayerWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void removeAll()
+  //
+  // Remove all entries from the playlist.
   DEFINE_METHOD(removeAll, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player removeAllItems];
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void playNext()
+  //
+  // Play the next entry in the playlist.
   DEFINE_METHOD(playNext, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player advanceToNextItem];
     return args.GetReturnValue().SetUndefined();
   }
 
+  // float rate()
+  //
+  // Return the current playback rate.
   DEFINE_METHOD(rate, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     return args.GetReturnValue().Set(v8::Number::New(isolate, [player rate]));
   }
 
+  // void setRate(float rate)
+  //
+  // Set the current playback rate.
   DEFINE_METHOD(setRate, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player setRate:args[0]->NumberValue()];
     return args.GetReturnValue().SetUndefined();
   }
 
+  // string status()
   DEFINE_METHOD(status, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     AVPlayerStatus status = [player status];
@@ -6504,18 +6537,21 @@ class AVPlayerWrapper {
     return args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate, str));
   }
 
+  // int error()
   DEFINE_METHOD(error, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     NSError* error = [player error];
     return args.GetReturnValue().Set(static_cast<int32_t>([error code]));
   }
 
+  // void play()
   DEFINE_METHOD(play, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     [player play];
     return args.GetReturnValue().SetUndefined();
   }
 
+  // float currentTime()
   DEFINE_METHOD(currentTime, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     CMTime time = [player currentTime];
@@ -6524,6 +6560,7 @@ class AVPlayerWrapper {
     return args.GetReturnValue().Set(CMTimeGetSeconds(time));
   }
 
+  // void seekToTime(float secs)
   DEFINE_METHOD(seekToTime, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
 
@@ -6537,6 +6574,7 @@ class AVPlayerWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // object currentFrameTexture()
   DEFINE_METHOD(currentFrameTexture, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
 
@@ -6572,6 +6610,7 @@ class AVPlayerWrapper {
     return args.GetReturnValue().Set(obj);
   }
 
+  // bool prerollAtRate(float rate)
   DEFINE_METHOD(prerollAtRate, 1)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     // 'AVPlayer cannot service a preroll request until its status is AVPlayerStatusReadyToPlay.'
@@ -6581,6 +6620,7 @@ class AVPlayerWrapper {
     return args.GetReturnValue().Set(true);
   }
 
+  // array<float> currentLoadedTimeRanges()
   DEFINE_METHOD(currentLoadedTimeRanges, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     AVPlayerItem* item = [player currentItem];
