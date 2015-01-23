@@ -3583,6 +3583,15 @@ class NSEventWrapper {
   // This will be called when we create a new instance from the instance
   // template, wrapping a NSEvent*.  It can also be called directly from
   // JavaScript, which is a bit of a problem, but we'll survive.
+
+  // new NSEvent()
+  //
+  // An NSEvent wraps the raw events from Cocoa, and will be automatically
+  // constructed in response to Window and UI events from the windowing system.
+  //
+  // In typical usage you will not interact with this class directly, but
+  // simpleWindow will translate these events into the objects that are
+  // dispatched into the JavaScript event handlers.
   static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
@@ -3605,6 +3614,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // int type()
   static void type(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3614,6 +3624,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // int buttonNumber()
   static void buttonNumber(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3623,6 +3634,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // string characters()
   static void characters(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3636,6 +3648,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // int keyCode()
   static void keyCode(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3661,6 +3674,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // float deltaX()
   static void deltaX(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3670,6 +3684,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // float deltaY()
   static void deltaY(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3679,6 +3694,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // float deltaZ()
   static void deltaZ(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3688,6 +3704,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // float pressure()
   static void pressure(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3697,6 +3714,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // bool isEnteringProximity()
   static void isEnteringProximity(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
@@ -3706,6 +3724,7 @@ class NSEventWrapper {
 #endif
   }
 
+  // int modifierFlags()
   static void modifierFlags(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
