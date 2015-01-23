@@ -4631,7 +4631,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().Set(v8::Number::New(isolate, width));
   }
 
-  // array<float> measureTextBounds(string text)
+  // float[ ] measureTextBounds(string text)
   //
   // Returns an array of the bounds [left, top, right, bottom] for `text`.
   static void measureTextBounds(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -5191,7 +5191,7 @@ class SkCanvasWrapper {
 
   // void clear(r, g, b, a)
   //
-  // Sets the entire canvas to a solid color.
+  // Sets the entire canvas to a uniform color.
   static void clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
 
@@ -6683,7 +6683,7 @@ class AVPlayerWrapper {
     return args.GetReturnValue().Set(true);
   }
 
-  // array<float> currentLoadedTimeRanges()
+  // float[ ] currentLoadedTimeRanges()
   DEFINE_METHOD(currentLoadedTimeRanges, 0)
     TextureAVPlayer* player = ExtractPlayerPointer(args.This());
     AVPlayerItem* item = [player currentItem];
