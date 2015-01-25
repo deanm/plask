@@ -64,33 +64,43 @@ var kPI2 = 1.57079632679489661923132169163975144;
 var kPI4 = 0.785398163397448309615660845819875721;
 var k2PI = 6.28318530717958647692528676655900576;
 
+// float min(float a, float b)
 function min(a, b) {
   if (a < b) return a;
   return b;
 }
 
+// float max(float a, float b)
 function max(a, b) {
   if (a > b) return a;
   return b;
 }
 
-// Keep the value |v| in the range vmin .. vmax.  This matches GLSL clamp().
+// float clamp(float v, float vmin, float vmax)
+//
+// Keep the value `v` in the range `vmin` .. `vmax`.  This matches GLSL clamp().
 function clamp(v, vmin, vmax) {
   return min(vmax, max(vmin, v));
 }
 
-// Linear interpolation on the line along points (0, |a|) and (1, |b|).  The
-// position |t| is the x coordinate, where 0 is |a| and 1 is |b|.
+// float lerp(float a, float b, float t)
+//
+// Linear interpolation on the line along points (0, `a`) and (1, `b`).  The
+// position `t` is the x coordinate, where 0 is `a` and 1 is `b`.
 function lerp(a, b, t) {
   return a + (b-a)*t;
 }
 
+// float smoothstep(edge0, edge1, x)
+//
 // GLSL smoothstep().  NOTE: Undefined if edge0 == edge1.
 function smoothstep(edge0, edge1, x) {
   var t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - t - t);
 }
 
+// float smootherstep(edge0, edge1, x)
+//
 // Ken Perlin's "smoother" step function, with zero 1st and 2nd derivatives at
 // the endpoints (whereas smoothstep has a 2nd derivative of +/- 6).  This is
 // also for example used by Patel and Taylor in smooth simulation noise.
@@ -712,6 +722,8 @@ exports.simpleWindow = function(obj) {
 };
 
 
+// new Vec3(x, y, z)
+//
 // A class representing a 3 dimensional point and/or vector.  There isn't a
 // good reason to differentiate between the two, and you often want to change
 // how you think about the same set of values.  So there is only "vector".
@@ -720,25 +732,29 @@ exports.simpleWindow = function(obj) {
 // access the x, y, and z values directly on the object.
 //
 // Almost all of the core operations happen in place, writing to the current
-// object.  If you want a copy, you can call dup().  For convenience, many
+// object.  If you want a copy, you can call `dup`.  For convenience, many
 // operations have a passed-tense version that returns a new object.  Most
-// methods return this to support chaining.
+// methods return `this` to support chaining.
 function Vec3(x, y, z) {
   this.x = x; this.y = y; this.z = z;
 }
 
+// this set(x, y, z)
 Vec3.prototype.set = function(x, y, z) {
   this.x = x; this.y = y; this.z = z;
 
   return this;
 };
 
+// this setVec3(Vec3 v)
 Vec3.prototype.setVec3 = function(v) {
   this.x = v.x; this.y = v.y; this.z = v.z;
 
   return this;
 };
 
+// this cross2(Vec3 a, Vec3 b)
+//
 // Cross product, this = a x b.
 Vec3.prototype.cross2 = function(a, b) {
   var ax = a.x, ay = a.y, az = a.z,
@@ -751,16 +767,22 @@ Vec3.prototype.cross2 = function(a, b) {
   return this;
 };
 
+// this cross(Vec3 b)
+//
 // Cross product, this = this x b.
 Vec3.prototype.cross = function(b) {
   return this.cross2(this, b);
 };
 
+// float dot(Vec3 b)
+//
 // Returns the dot product, this . b.
 Vec3.prototype.dot = function(b) {
   return this.x * b.x + this.y * b.y + this.z * b.z;
 };
 
+// this add2(Vec3 a, Vec3 b)
+//
 // Add two Vec3s, this = a + b.
 Vec3.prototype.add2 = function(a, b) {
   this.x = a.x + b.x;
@@ -770,17 +792,22 @@ Vec3.prototype.add2 = function(a, b) {
   return this;
 };
 
+// this add(Vec3 b)
+//
 // Add a Vec3, this = this + b.
 Vec3.prototype.add = function(b) {
   return this.add2(this, b);
 };
 
+// Vec3 added(Vec3 b)
 Vec3.prototype.added = function(b) {
   return new Vec3(this.x + b.x,
                   this.y + b.y,
                   this.z + b.z);
 };
 
+// this sub2(Vec3 a, Vec3 b)
+//
 // Subtract two Vec3s, this = a - b.
 Vec3.prototype.sub2 = function(a, b) {
   this.x = a.x - b.x;
@@ -790,17 +817,22 @@ Vec3.prototype.sub2 = function(a, b) {
   return this;
 };
 
+// this sub(Vec3 b)
+//
 // Subtract another Vec3, this = this - b.
 Vec3.prototype.sub = function(b) {
   return this.sub2(this, b);
 };
 
+// Vec3 subbed(Vec3 b)
 Vec3.prototype.subbed = function(b) {
   return new Vec3(this.x - b.x,
                   this.y - b.y,
                   this.z - b.z);
 };
 
+// this mul2(Vec3 a, Vec3 b)
+//
 // Multiply two Vec3s, this = a * b.
 Vec3.prototype.mul2 = function(a, b) {
   this.x = a.x * b.x;
@@ -810,17 +842,22 @@ Vec3.prototype.mul2 = function(a, b) {
   return this;
 };
 
+// this mul(Vec3 b)
+//
 // Multiply by another Vec3, this = this * b.
 Vec3.prototype.mul = function(b) {
   return this.mul2(this, b);
 };
 
+// Vec3 mulled(Vec3 b)
 Vec3.prototype.mulled = function(b) {
   return new Vec3(this.x * b.x,
                   this.y * b.y,
                   this.z * b.z);
 };
 
+// this scale(float s)
+//
 // Multiply by a scalar.
 Vec3.prototype.scale = function(s) {
   this.x *= s; this.y *= s; this.z *= s;
@@ -828,11 +865,14 @@ Vec3.prototype.scale = function(s) {
   return this;
 };
 
+// Vec3 scaled(float s)
 Vec3.prototype.scaled = function(s) {
   return new Vec3(this.x * s, this.y * s, this.z * s);
 };
 
-// Interpolate between this and another Vec3 |b|, based on |t|.
+// this lerp(Vec3 b, float t)
+//
+// Interpolate between this and another Vec3 `b`, based on `t`.
 Vec3.prototype.lerp = function(b, t) {
   this.x = this.x + (b.x-this.x)*t;
   this.y = this.y + (b.y-this.y)*t;
@@ -841,25 +881,32 @@ Vec3.prototype.lerp = function(b, t) {
   return this;
 };
 
+// Vec3 lerped(Vec3 b, float t)
 Vec3.prototype.lerped = function(b, t) {
   return new Vec3(this.x + (b.x-this.x)*t,
                   this.y + (b.y-this.y)*t,
                   this.z + (b.z-this.z)*t);
 };
 
+// float length()
+//
 // Magnitude (length).
 Vec3.prototype.length = function() {
   var x = this.x, y = this.y, z = this.z;
   return Math.sqrt(x*x + y*y + z*z);
 };
 
+// float lengthSquared()
+//
 // Magnitude squared.
 Vec3.prototype.lengthSquared = function() {
   var x = this.x, y = this.y, z = this.z;
   return x*x + y*y + z*z;
 };
 
-// Distance to Vec3 |b|.
+// float dist(Vec3 b)
+//
+// Distance to Vec3 `b`.
 Vec3.prototype.dist = function(b) {
   var x = b.x - this.x;
   var y = b.y - this.y;
@@ -867,7 +914,9 @@ Vec3.prototype.dist = function(b) {
   return Math.sqrt(x*x + y*y + z*z);
 };
 
-// Squared Distance to Vec3 |b|.
+// float distSquared(Vec3 b)
+//
+// Squared Distance to Vec3 `b`.
 Vec3.prototype.distSquared = function(b) {
   var x = b.x - this.x;
   var y = b.y - this.y;
@@ -875,15 +924,21 @@ Vec3.prototype.distSquared = function(b) {
   return x*x + y*y + z*z;
 };
 
+// this normalize()
+//
 // Normalize, scaling so the magnitude is 1.  Invalid for a zero vector.
 Vec3.prototype.normalize = function() {
   return this.scale(1/this.length());
 };
 
+// Vec3 normalized()
 Vec3.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
+// Vec3 dup()
+//
+// Return a new copy of the vector.
 Vec3.prototype.dup = function() {
   return new Vec3(this.x, this.y, this.z);
 };
@@ -893,28 +948,36 @@ Vec3.prototype.debugString = function() {
 };
 
 
-// Like a z-less Vec3, Vec2.
+// new Vec2(x, y)
+//
+// Constructs a 2d vector (x, y).
 function Vec2(x, y) {
   this.x = x; this.y = y;
 }
 
+// this set(float x, float y)
 Vec2.prototype.set = function(x, y) {
   this.x = x; this.y = y
 
   return this;
 };
 
+// this setVec2(Vec2 v)
 Vec2.prototype.setVec2 = function(v) {
   this.x = v.x; this.y = v.y;
 
   return this;
 };
 
+// float dot(Vec2 b)
+//
 // Returns the dot product, this . b.
 Vec2.prototype.dot = function(b) {
   return this.x * b.x + this.y * b.y;
 };
 
+// this add2(Vec2 a, Vec2 b)
+//
 // Add two Vec2s, this = a + b.
 Vec2.prototype.add2 = function(a, b) {
   this.x = a.x + b.x;
@@ -923,16 +986,23 @@ Vec2.prototype.add2 = function(a, b) {
   return this;
 };
 
+// this add(Vec2 b)
+//
 // Add a Vec2, this = this + b.
 Vec2.prototype.add = function(b) {
   return this.add2(this, b);
 };
 
+// Vec2 added(Vec2 b)
+//
+// Add a Vec2, returning the result as a new Vec2.
 Vec2.prototype.added = function(b) {
   return new Vec2(this.x + b.x,
                   this.y + b.y);
 };
 
+// this sub2(Vec2 a, Vec2 b)
+//
 // Subtract two Vec2s, this = a - b.
 Vec2.prototype.sub2 = function(a, b) {
   this.x = a.x - b.x;
@@ -941,16 +1011,21 @@ Vec2.prototype.sub2 = function(a, b) {
   return this;
 };
 
+// this sub(Vec2 b)
+//
 // Subtract another Vec2, this = this - b.
 Vec2.prototype.sub = function(b) {
   return this.sub2(this, b);
 };
 
+// Vec2 subbed(Vec2 b)
 Vec2.prototype.subbed = function(b) {
   return new Vec2(this.x - b.x,
                   this.y - b.y);
 };
 
+// this mul2(Vec2 a, Vec2 b)
+//
 // Multiply two Vec2s, this = a * b.
 Vec2.prototype.mul2 = function(a, b) {
   this.x = a.x * b.x;
@@ -959,16 +1034,21 @@ Vec2.prototype.mul2 = function(a, b) {
   return this;
 };
 
+// this mul(Vec2 b)
+//
 // Multiply by another Vec2, this = this * b.
 Vec2.prototype.mul = function(b) {
   return this.mul2(this, b);
 };
 
+// Vec2 mulled(Vec2 b)
 Vec2.prototype.mulled = function(b) {
   return new Vec2(this.x * b.x,
                   this.y * b.y);
 };
 
+// this scale(float s)
+//
 // Multiply by a scalar.
 Vec2.prototype.scale = function(s) {
   this.x *= s; this.y *= s;
@@ -976,11 +1056,14 @@ Vec2.prototype.scale = function(s) {
   return this;
 };
 
+// Vec2 scaled(float s)
 Vec2.prototype.scaled = function(s) {
   return new Vec2(this.x * s, this.y * s);
 };
 
-// Interpolate between this and another Vec2 |b|, based on |t|.
+// this lerp(Vec2 b, float t)
+//
+// Interpolate between this and another Vec2 `b`, based on `t`.
 Vec2.prototype.lerp = function(b, t) {
   this.x = this.x + (b.x-this.x)*t;
   this.y = this.y + (b.y-this.y)*t;
@@ -988,46 +1071,60 @@ Vec2.prototype.lerp = function(b, t) {
   return this;
 };
 
+// Vec2 lerped(Vec2 b, float t)
 Vec2.prototype.lerped = function(b, t) {
   return new Vec2(this.x + (b.x-this.x)*t,
                   this.y + (b.y-this.y)*t);
 };
 
+// float length()
+//
 // Magnitude (length).
 Vec2.prototype.length = function() {
   var x = this.x, y = this.y;
   return Math.sqrt(x*x + y*y);
 };
 
+// float lengthSquared()
+//
 // Magnitude squared.
 Vec2.prototype.lengthSquared = function() {
   var x = this.x, y = this.y;
   return x*x + y*y;
 };
 
-// Distance to Vec2 |b|.
+// float dist(Vec2 b)
+//
+// Distance to Vec2 `b`.
 Vec2.prototype.dist = function(b) {
   var x = b.x - this.x;
   var y = b.y - this.y;
   return Math.sqrt(x*x + y*y);
 };
 
-// Squared Distance to Vec2 |b|.
+// float distSquared(Vec2 b)
+//
+// Squared Distance to Vec2 `b`.
 Vec2.prototype.distSquared = function(b) {
   var x = b.x - this.x;
   var y = b.y - this.y;
   return x*x + y*y;
 };
 
+// this normalize()
+//
 // Normalize, scaling so the magnitude is 1.  Invalid for a zero vector.
 Vec2.prototype.normalize = function() {
   return this.scale(1/this.length());
 };
 
+// Vec2 normalized()
 Vec2.prototype.normalized = function() {
   return this.dup().normalize();
 };
 
+// this rotate(float theta)
+//
 // Rotate around the origin by |theta| radians (counter-clockwise).
 Vec2.prototype.rotate = function(theta) {
   var st = Math.sin(theta);
@@ -1038,10 +1135,13 @@ Vec2.prototype.rotate = function(theta) {
   return this;
 };
 
+// Vec2 rotated(float theta)
 Vec2.prototype.rotated = function(theta) {
   return this.dup().rotate(theta);
 };
 
+// this reflect(Vec2 n)
+//
 // Reflect a vector about the normal |n|.  The vectors should both be unit.
 Vec2.prototype.reflect = function(n) {
   // r = u - 2(u.n)n
@@ -1055,12 +1155,16 @@ Vec2.prototype.reflect = function(n) {
   return this;
 };
 
+// Vec2 reflected(Vec2 n)
 Vec2.prototype.reflected = function(n) {
   var s = this.dot(n) * 2;
   return Vec2(this.x - n.x * s,
               this.y - n.y * s);
 };
 
+// Vec2 dup()
+//
+// Return a new copy of the vector.
 Vec2.prototype.dup = function() {
   return new Vec2(this.x, this.y);
 };
@@ -1072,22 +1176,28 @@ Vec2.prototype.debugString = function() {
 
 // TODO(deanm): Vec4 is currently a skeleton container, it should match the
 // features of Vec3.
+
+// new Vec4(x, y, z, w)
 function Vec4(x, y, z, w) {
   this.x = x; this.y = y; this.z = z; this.w = w;
 }
 
+// this set(x, y, z, w)
 Vec4.prototype.set = function(x, y, z, w) {
   this.x = x; this.y = y; this.z = z; this.w = w;
 
   return this;
 };
 
+// this setVec4(Vec4 v)
 Vec4.prototype.setVec4 = function(v) {
   this.x = v.x; this.y = v.y; this.z = v.z; this.w = v.w;
 
   return this;
 };
 
+// this scale(float s)
+//
 // Multiply by a scalar.
 Vec4.prototype.scale = function(s) {
   this.x *= s; this.y *= s; this.z *= s; this.w *= s;
@@ -1095,14 +1205,21 @@ Vec4.prototype.scale = function(s) {
   return this;
 };
 
+// Vec4 scaled(float s)
 Vec4.prototype.scaled = function(s) {
   return new Vec4(this.x * s, this.y * s, this.z * s, this.w * s);
 };
 
+// Vec4 dup()
+//
+// Return a new copy of the vector.
 Vec4.prototype.dup = function() {
   return new Vec4(this.x, this.y, this.z, this.w);
 };
 
+// Vec3 toVec3()
+//
+// Return a new vector of (x, y, z), dropping w.
 Vec4.prototype.toVec3 = function() {
   return new Vec3(this.x, this.y, this.z);
 };
@@ -1154,8 +1271,10 @@ Mat3.prototype.dup = function() {
 };
 
 
+// this set3x3r(a11, a12, a13, a21, a22, a23, a31, a32, a33)
+//
 // Set the full 9 elements of the 3x3 matrix, arguments in row major order.
-// The elements are specified in row major order.  TODO(deanm): set3x3c.
+// The elements are specified in row major order.
 Mat3.prototype.set3x3r = function(a11, a12, a13, a21, a22, a23, a31, a32, a33) {
   this.a11 = a11; this.a12 = a12; this.a13 = a13;
   this.a21 = a21; this.a22 = a22; this.a23 = a23;
@@ -1163,6 +1282,8 @@ Mat3.prototype.set3x3r = function(a11, a12, a13, a21, a22, a23, a31, a32, a33) {
 
   return this;
 };
+
+// TODO(deanm): set3x3c.
 
 // this mul2(Mat3 a, Mat3 b)
 //
@@ -1524,7 +1645,7 @@ Mat4.prototype.mul4x4r = function(b11, b12, b13, b14, b21, b22, b23, b24,
 // this rotate(theta, x, y, z)
 //
 // IN RADIANS, not in degrees like OpenGL.  Rotate about x, y, z.
-// The caller must supply a x, y, z as a unit vector.
+// The caller must supply x, y, z as a unit vector.
 Mat4.prototype.rotate = function(theta, x, y, z) {
   // http://www.cs.rutgers.edu/~decarlo/428/gl_man/rotate.html
   var s = Math.sin(theta);
