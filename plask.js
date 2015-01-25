@@ -109,7 +109,7 @@ function smootherstep(edge0, edge1, x) {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
-// Test if |num| is a floating point -0.
+// Test if `num` is a floating point -0.
 function isNegZero(num) {
   return 1/num === -Infinity;
 }
@@ -1125,7 +1125,7 @@ Vec2.prototype.normalized = function() {
 
 // this rotate(float theta)
 //
-// Rotate around the origin by |theta| radians (counter-clockwise).
+// Rotate around the origin by `theta` radians (counter-clockwise).
 Vec2.prototype.rotate = function(theta) {
   var st = Math.sin(theta);
   var ct = Math.cos(theta);
@@ -1142,7 +1142,7 @@ Vec2.prototype.rotated = function(theta) {
 
 // this reflect(Vec2 n)
 //
-// Reflect a vector about the normal |n|.  The vectors should both be unit.
+// Reflect a vector about the normal `n`.  The vectors should both be unit.
 Vec2.prototype.reflect = function(n) {
   // r = u - 2(u.n)n
   // This could could basically be:
@@ -1906,8 +1906,8 @@ var kFragmentShaderPrefix = "#ifdef GL_ES\n" +
                             "#endif\n" +
                             "#endif\n";
 
-// Given a string of GLSL source |source| of type |type|, create the shader
-// and compile |source| to the shader.  Throws on error.  Returns the newly
+// Given a string of GLSL source `source` of type `type`, create the shader
+// and compile `source` to the shader.  Throws on error.  Returns the newly
 // created WebGLShader.  Automatically compiles GL_ES default precision
 // qualifiers before a fragment source.
 function webGLcreateAndCompilerShader(gl, source, type) {
@@ -1921,8 +1921,8 @@ function webGLcreateAndCompilerShader(gl, source, type) {
   return shader;
 }
 
-// Given the source text of the vertex shader |vsource| and fragment shader
-// |fsource|, create a new program with the shaders together.  Throws on
+// Given the source text of the vertex shader `vsource` and fragment shader
+// `fsource`, create a new program with the shaders together.  Throws on
 // error.  Returns the newly created WebGLProgram.  Does not call useProgram.
 // Automatically compiles GL_ES default precision qualifiers before a
 // fragment source.
