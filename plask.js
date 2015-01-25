@@ -1108,18 +1108,22 @@ Vec4.prototype.toVec3 = function() {
 };
 
 
-// This represents an 3x3 matrix, using mathematical notation,
-// numbered (starting from 1) as aij, where i is the row and j is the column.
-//   a11 a12 a13
-//   a21 a22 a23
-//   a31 a32 a33
+// new Mat3()
 //
-// Almost all operations are multiplies to the current matrix, and happen
-// in place.  You can use dup() to return a copy.
+// Constructs an identity matrix.
 //
-// Most operations return this to support chaining.
+// Mat3 represents an 3x3 matrix.  The elements are, using mathematical notation
+// numbered starting from 1 as aij, where i is the row and j is the column:
 //
-// It's common to use toFloat32Array to get a Float32Array in OpenGL (column
+//     a11 a12 a13
+//     a21 a22 a23
+//     a31 a32 a33
+//
+// Almost all operations are multiplies to the current matrix, and happen in
+// place.  You can use `dup` to return a copy.  Most operations return this to
+// support chaining.
+//
+// It is common to use `toFloat32Array` to get a Float32Array in OpenGL (column
 // major) memory ordering.  NOTE: The code tries to be explicit about whether
 // things are row major or column major, but remember that GLSL works in
 // column major ordering, and this code generally uses row major ordering.
@@ -1127,6 +1131,8 @@ function Mat3() {
   this.reset();
 }
 
+// this reset()
+//
 // Reset to the identity matrix.
 Mat3.prototype.reset = function() {
   this.set3x3r(1, 0, 0,
@@ -1136,6 +1142,9 @@ Mat3.prototype.reset = function() {
   return this;
 };
 
+// Mat3 dup()
+//
+// Return a new copy of the matrix.
 Mat3.prototype.dup = function() {
   var m = new Mat3();  // TODO(deanm): This could be better.
   m.set3x3r(this.a11, this.a12, this.a13,
@@ -1155,6 +1164,8 @@ Mat3.prototype.set3x3r = function(a11, a12, a13, a21, a22, a23, a31, a32, a33) {
   return this;
 };
 
+// this mul2(Mat3 a, Mat3 b)
+//
 // Matrix multiply this = a * b
 Mat3.prototype.mul2 = function(a, b) {
   var a11 = a.a11, a12 = a.a12, a13 = a.a13,
@@ -1177,12 +1188,16 @@ Mat3.prototype.mul2 = function(a, b) {
   return this;
 };
 
+// this mul(Mat3 b)
+//
 // Matrix multiply this = this * b
 Mat3.prototype.mul = function(b) {
   return this.mul2(this, b);
 };
 
-// Multiply Vec2 |v| by the current matrix, returning a Vec2 of this * v.
+// Vec2 mulVec2(Vec2 v)
+//
+// Multiply Vec2 `v` by the current matrix, returning a Vec2 of `this * v`.
 // Ignores perspective (only applies scale and translation).
 Mat3.prototype.mulVec2 = function(v) {
   var x = v.x, y = v.y;
@@ -1190,8 +1205,10 @@ Mat3.prototype.mulVec2 = function(v) {
                   this.a21*x + this.a22*y + this.a23);
 };
 
-// Multiply Vec2 |v| by the current matrix and perform a perspective divide.
-// Implies that the missing z component of |v| would be 1.
+// Vec2 mulVec2p(Vec2 v)
+//
+// Multiply Vec2 `v` by the current matrix and perform a perspective divide.
+// Implies that the missing z component of `v` would be 1.
 Mat3.prototype.mulVec2p = function(v) {
   var x = v.x, y = v.y;
   var z = this.a31*x + this.a32*y + this.a33;
@@ -1199,7 +1216,9 @@ Mat3.prototype.mulVec2p = function(v) {
                   (this.a21*x + this.a22*y + this.a23) / z);
 }
 
-// Multiply Vec3 |v| by the current matrix, returning a Vec3 of this * v.
+// Vec3 mulVec3(Vec3 v)
+//
+// Multiply Vec3 `v` by the current matrix, returning a Vec3 of `this * v`.
 Mat3.prototype.mulVec3 = function(v) {
   var x = v.x, y = v.y, z = v.z;
   return new Vec3(this.a11*x + this.a12*y + this.a13*z,
@@ -1207,6 +1226,9 @@ Mat3.prototype.mulVec3 = function(v) {
                   this.a31*x + this.a32*y + this.a33*z);
 };
 
+// this adjoint()
+//
+// Reference: http://en.wikipedia.org/wiki/Adjugate_matrix
 Mat3.prototype.adjoint = function() {
   var a11 = this.a11, a12 = this.a12, a13 = this.a13,
       a21 = this.a21, a22 = this.a22, a23 = this.a23,
@@ -1226,6 +1248,9 @@ Mat3.prototype.adjoint = function() {
   return this;
 };
 
+// this invert()
+//
+// Invert the matrix.  The matrix must be invertible.
 Mat3.prototype.invert = function() {
   var a11 = this.a11, a12 = this.a12, a13 = this.a13,
       a21 = this.a21, a22 = this.a22, a23 = this.a23,
@@ -1247,6 +1272,8 @@ Mat3.prototype.invert = function() {
   return this;
 };
 
+// this transpose()
+//
 // Transpose the matrix, rows become columns and columns become rows.
 Mat3.prototype.transpose = function() {
   var a11 = this.a11, a12 = this.a12, a13 = this.a13,
@@ -1260,6 +1287,7 @@ Mat3.prototype.transpose = function() {
   return this;
 };
 
+// float determinant()
 Mat3.prototype.determinant = function() {
   var a11 = this.a11, a12 = this.a12, a13 = this.a13,
       a21 = this.a21, a22 = this.a22, a23 = this.a23,
@@ -1269,6 +1297,8 @@ Mat3.prototype.determinant = function() {
          a13*(a21*a32 - a22*a31);
 };
 
+// this pmapSquareQuad(x0, y0, x1, y1, x2, y2, x3, y3)
+//
 // Find mapping between (0, 0), (1, 0), (1, 1), (0, 1) to (x0,y0) .. (x3, y3).
 Mat3.prototype.pmapSquareQuad = function(x0, y0, x1, y1, x2, y2, x3, y3) {
   var px = x0-x1+x2-x3;
@@ -1291,6 +1321,7 @@ Mat3.prototype.pmapSquareQuad = function(x0, y0, x1, y1, x2, y2, x3, y3) {
   return this;
 };
 
+// this negate()
 Mat3.prototype.negate = function() {
   this.a11 = -this.a11; this.a12 = -this.a12; this.a13 = -this.a13;
   this.a21 = -this.a21; this.a22 = -this.a22; this.a23 = -this.a23;
@@ -1299,9 +1330,13 @@ Mat3.prototype.negate = function() {
   return this;
 };
 
-// Overwrite |this| with a matrix that maps from (x0,y0) .. (x3,y3) to
+// this pmapQuadQuad(x0, y0, x1, y1, x2, y2, x3, y3,
+//                   u0, v0, u1, v1, u2, v2, u3, v3)
+//
+// Overwrite `this` with a matrix that maps from (x0,y0) .. (x3,y3) to
 // (u0,v0) .. (u3,v3).  NOTE: This is sensitive to the coordinate ordering,
-// they should follow the pattern as pmapSquareQuad above.
+// they should follow the pattern as `pmapSquareQuad`.
+//
 // Reference: Paul Heckbert "Fundamentals of Texture Mapping and Image Warping"
 Mat3.prototype.pmapQuadQuad = function(x0, y0, x1, y1, x2, y2, x3, y3,
                                        u0, v0, u1, v1, u2, v2, u3, v3) {
@@ -1317,6 +1352,9 @@ Mat3.prototype.pmapQuadQuad = function(x0, y0, x1, y1, x2, y2, x3, y3,
   return this;
 };
 
+// Float32Array toFloat32Array()
+//
+// Return a Float32Array in suitable column major order for WebGL.
 Mat3.prototype.toFloat32Array = function() {
   return new Float32Array([this.a11, this.a21, this.a31,
                            this.a12, this.a22, this.a32,
@@ -1349,19 +1387,23 @@ Mat3.prototype.debugString = function() {
 };
 
 
-// This represents an 4x4 matrix, using mathematical notation,
-// numbered (starting from 1) as aij, where i is the row and j is the column.
-//   a11 a12 a13 a14
-//   a21 a22 a23 a24
-//   a31 a32 a33 a34
-//   a41 a42 a43 a44
+// new Mat4()
 //
-// Almost all operations are multiplies to the current matrix, and happen
-// in place.  You can use dup() to return a copy.
+// Constructs an identity matrix.
 //
-// Most operations return this to support chaining.
+// Mat4 represents an 4x4 matrix.  The elements are, using mathematical notation
+// numbered starting from 1 as aij, where i is the row and j is the column:
 //
-// It's common to use toFloat32Array to get a Float32Array in OpenGL (column
+//     a11 a12 a13 a14
+//     a21 a22 a23 a24
+//     a31 a32 a33 a34
+//     a41 a42 a43 a44
+//
+// Almost all operations are multiplies to the current matrix, and happen in
+// place.  You can use `dup` to return a copy.  Most operations return this to
+// support chaining.
+//
+// It is common to use `toFloat32Array` to get a Float32Array in OpenGL (column
 // major) memory ordering.  NOTE: The code tries to be explicit about whether
 // things are row major or column major, but remember that GLSL works in
 // column major ordering, and this code generally uses row major ordering.
@@ -1369,8 +1411,11 @@ function Mat4() {
   this.reset();
 }
 
+// this set4x4r(a11, a12, a13, a14, a21, a22, a23, a24,
+//              a31, a32, a33, a34, a41, a42, a43, a44)
+//
 // Set the full 16 elements of the 4x4 matrix, arguments in row major order.
-// The elements are specified in row major order.  TODO(deanm): set4x4c.
+// The elements are specified in row major order.
 Mat4.prototype.set4x4r = function(a11, a12, a13, a14, a21, a22, a23, a24,
                                   a31, a32, a33, a34, a41, a42, a43, a44) {
   this.a11 = a11; this.a12 = a12; this.a13 = a13; this.a14 = a14;
@@ -1381,6 +1426,10 @@ Mat4.prototype.set4x4r = function(a11, a12, a13, a14, a21, a22, a23, a24,
   return this;
 };
 
+// TODO(deanm): set4x4c.
+
+// this reset()
+//
 // Reset to the identity matrix.
 Mat4.prototype.reset = function() {
   this.set4x4r(1, 0, 0, 0,
@@ -1391,7 +1440,9 @@ Mat4.prototype.reset = function() {
   return this;
 };
 
-// Matrix multiply this = a * b
+// this mul2(a, b)
+//
+// Matrix multiply `this = a * b`
 Mat4.prototype.mul2 = function(a, b) {
   var a11 = a.a11, a12 = a.a12, a13 = a.a13, a14 = a.a14,
       a21 = a.a21, a22 = a.a22, a23 = a.a23, a24 = a.a24,
@@ -1422,14 +1473,19 @@ Mat4.prototype.mul2 = function(a, b) {
   return this;
 };
 
-// Matrix multiply this = this * b
+// this mul(b)
+//
+// Matrix multiply `this = this * b`
 Mat4.prototype.mul = function(b) {
   return this.mul2(this, b);
 };
 
+// this mul4x4r(b11, b12, b13, b14, b21, b22, b23, b24,
+//              b31, b32, b33, b34, b41, b42, b43, b44)
+//
 // Multiply the current matrix by 16 elements that would compose a Mat4
 // object, but saving on creating the object.  this = this * b.
-// The elements are specific in row major order.  TODO(deanm): mul4x4c.
+// The elements are specified in row major order.
 // TODO(deanm): It's a shame to duplicate the multiplication code.
 Mat4.prototype.mul4x4r = function(b11, b12, b13, b14, b21, b22, b23, b24,
                                   b31, b32, b33, b34, b41, b42, b43, b44) {
@@ -1458,11 +1514,15 @@ Mat4.prototype.mul4x4r = function(b11, b12, b13, b14, b21, b22, b23, b24,
   return this;
 };
 
+// TODO(deanm): mul4x4c.
+
 // TODO(deanm): Some sort of mat3x3.  There are two ways you could do it
 // though, just multiplying the 3x3 portions of the 4x4 matrix, or doing a
 // 4x4 multiply with the last row/column implied to be 0, 0, 0, 1.  This
 // keeps true to the original matrix even if it's last row is not 0, 0, 0, 1.
 
+// this rotate(theta, x, y, z)
+//
 // IN RADIANS, not in degrees like OpenGL.  Rotate about x, y, z.
 // The caller must supply a x, y, z as a unit vector.
 Mat4.prototype.rotate = function(theta, x, y, z) {
@@ -1478,6 +1538,8 @@ Mat4.prototype.rotate = function(theta, x, y, z) {
   return this;
 };
 
+// this translate(x, y, z)
+//
 // Multiply by a translation of x, y, and z.
 Mat4.prototype.translate = function(dx, dy, dz) {
   // TODO(deanm): Special case the multiply since most goes unchanged.
@@ -1489,6 +1551,8 @@ Mat4.prototype.translate = function(dx, dy, dz) {
   return this;
 };
 
+// this scale(x, y, z)
+//
 // Multiply by a scale of x, y, and z.
 Mat4.prototype.scale = function(sx, sy, sz) {
   // TODO(deanm): Special case the multiply since most goes unchanged.
@@ -1500,6 +1564,8 @@ Mat4.prototype.scale = function(sx, sy, sz) {
   return this;
 };
 
+// this lookAt(ex, ey, ez, cx, cy, cz, ux, uy, uz)
+//
 // Multiply by a look at matrix, computed from the eye, center, and up points.
 Mat4.prototype.lookAt = function(ex, ey, ez, cx, cy, cz, ux, uy, uz) {
   var z = (new Vec3(ex - cx, ey - cy, ez - cz)).normalize();
@@ -1516,6 +1582,8 @@ Mat4.prototype.lookAt = function(ex, ey, ez, cx, cy, cz, ux, uy, uz) {
   return this;
 };
 
+// this frustum(l, r, b, t, n, f)
+//
 // Multiply by a frustum matrix computed from left, right, bottom, top,
 // near, and far.
 Mat4.prototype.frustum = function(l, r, b, t, n, f) {
@@ -1528,6 +1596,8 @@ Mat4.prototype.frustum = function(l, r, b, t, n, f) {
   return this;
 };
 
+// this perspective(fovy, aspect, znear, zfar)
+//
 // Multiply by a perspective matrix, computed from the field of view, aspect
 // ratio, and the z near and far planes.
 Mat4.prototype.perspective = function(fovy, aspect, znear, zfar) {
@@ -1550,6 +1620,8 @@ Mat4.prototype.perspective = function(fovy, aspect, znear, zfar) {
   return this;
 };
 
+// this ortho(l, r, b, t, n, f)
+//
 // Multiply by a orthographic matrix, computed from the clipping planes.
 Mat4.prototype.ortho = function(l, r, b, t, n, f) {
   this.mul4x4r(2/(r-l),        0,        0,  (r+l)/(l-r),
@@ -1560,6 +1632,8 @@ Mat4.prototype.ortho = function(l, r, b, t, n, f) {
   return this;
 };
 
+// this invert()
+//
 // Invert the matrix.  The matrix must be invertible.
 Mat4.prototype.invert = function() {
   // Based on the math at:
@@ -1604,6 +1678,8 @@ Mat4.prototype.invert = function() {
   return this;
 };
 
+// this transpose()
+//
 // Transpose the matrix, rows become columns and columns become rows.
 Mat4.prototype.transpose = function() {
   var a11 = this.a11, a12 = this.a12, a13 = this.a13, a14 = this.a14,
@@ -1619,7 +1695,9 @@ Mat4.prototype.transpose = function() {
   return this;
 };
 
-// Multiply Vec3 |v| by the current matrix, returning a Vec3 of this * v.
+// Vec3 mulVec3(Vec3 v)
+//
+// Multiply Vec3 `v` by the current matrix, returning a Vec3 of this * v.
 Mat4.prototype.mulVec3 = function(v) {
   var x = v.x, y = v.y, z = v.z;
   return new Vec3(this.a14 + this.a11*x + this.a12*y + this.a13*z,
@@ -1627,7 +1705,10 @@ Mat4.prototype.mulVec3 = function(v) {
                   this.a34 + this.a31*x + this.a32*y + this.a33*z);
 };
 
-// Multiply Vec3 |v| by the current matrix, returning a Vec3 of this * v.
+// Vec3 mulVec3p(Vec3 v)
+//
+// Multiply Vec3 `v` by the current matrix, returning a Vec3 of this * v.
+// Performs the perspective divide by `w`.
 Mat4.prototype.mulVec3p = function(v) {
   var x = v.x, y = v.y, z = v.z;
   var w = this.a44 + this.a41*x + this.a42*y + this.a43*z;
@@ -1636,7 +1717,9 @@ Mat4.prototype.mulVec3p = function(v) {
                   (this.a34 + this.a31*x + this.a32*y + this.a33*z)/w);
 };
 
-// Multiply Vec4 |v| by the current matrix, returning a Vec4 of this * v.
+// Vec4 mulVec4(Vec4 v)
+//
+// Multiply Vec4 `v` by the current matrix, returning a Vec4 of this * v.
 Mat4.prototype.mulVec4 = function(v) {
   var x = v.x, y = v.y, z = v.z, w = v.w;
   return new Vec4(this.a14*w + this.a11*x + this.a12*y + this.a13*z,
@@ -1645,6 +1728,9 @@ Mat4.prototype.mulVec4 = function(v) {
                   this.a44*w + this.a41*x + this.a42*y + this.a43*z);
 };
 
+// Mat4 dup()
+//
+// Return a new copy of the matrix.
 Mat4.prototype.dup = function() {
   var m = new Mat4();  // TODO(deanm): This could be better.
   m.set4x4r(this.a11, this.a12, this.a13, this.a14,
@@ -1654,6 +1740,9 @@ Mat4.prototype.dup = function() {
   return m;
 };
 
+// Float32Array toFloat32Array()
+//
+// Return a Float32Array in suitable column major order for WebGL.
 Mat4.prototype.toFloat32Array = function() {
   return new Float32Array([this.a11, this.a21, this.a31, this.a41,
                            this.a12, this.a22, this.a32, this.a42,
