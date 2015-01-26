@@ -3300,6 +3300,10 @@ class NSWindowWrapper {
 #endif
   }
 
+  // object[ ] screensInfo()
+  //
+  // Returns an array of objects representing info about each screen.  The
+  // objects have {id: int, width: float, height: float, highdpi: float}.
   DEFINE_METHOD(screensInfo, 0)  // static method on NSWindow.
     v8::Local<v8::Array> res = v8::Array::New(isolate);
 #if PLASK_OSX
@@ -3371,6 +3375,9 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void setTitle(string title)
+  //
+  // Sets the title shown in the frame at the top of the window.
   static void setTitle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     v8::String::Utf8Value title(args[0]);
@@ -3388,6 +3395,9 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void center()
+  //
+  // Position the window in the center of the screen.
   static void center(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
 #if PLASK_OSX
@@ -3396,6 +3406,9 @@ class NSWindowWrapper {
 #endif  // PLASK_OSX
   }
 
+  // void hideCursor()
+  //
+  // Hide the cursor.
   static void hideCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     CGDisplayHideCursor(kCGDirectMainDisplay);
@@ -3403,6 +3416,9 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void showCursor()
+  //
+  // Un-hide the cursor.
   static void showCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
     CGDisplayShowCursor(kCGDirectMainDisplay);
@@ -3410,6 +3426,9 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void hide()
+  //
+  // Hide the window.
   static void hide(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
 #if PLASK_OSX
@@ -3418,6 +3437,9 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void show()
+  //
+  // Un-hide the window.
   static void show(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
 #if PLASK_OSX
@@ -3440,6 +3462,10 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // object screenSize()
+  //
+  // Returns an object {width: float, height: float} of the screen size of the
+  // main screen the window is currently on.
   static void screenSize(const v8::FunctionCallbackInfo<v8::Value>& args) {
     WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
     v8::Local<v8::Object> res = v8::Object::New(isolate);
