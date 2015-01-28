@@ -78,7 +78,7 @@ function max(a, b) {
 
 // float clamp(float v, float vmin, float vmax)
 //
-// Keep the value `v` in the range `vmin` .. `vmax`.  This matches GLSL clamp().
+// GLSL clamp.  Keep the value `v` in the range `vmin` .. `vmax`.
 function clamp(v, vmin, vmax) {
   return min(vmax, max(vmin, v));
 }
@@ -93,7 +93,7 @@ function lerp(a, b, t) {
 
 // float smoothstep(edge0, edge1, x)
 //
-// GLSL smoothstep().  NOTE: Undefined if edge0 == edge1.
+// GLSL smoothstep.  NOTE: Undefined if edge0 == edge1.
 function smoothstep(edge0, edge1, x) {
   var t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - t - t);
@@ -1939,13 +1939,13 @@ function webGLcreateProgramFromShaderSources(gl, vsource, fsource) {
 }
 
 
+// new MagicProgram(gl, program)
+//
+// Create a MagicProgram object, which is a wrapper around a GLSL program to
+// make it easier to access uniforms and attribs.
 function MagicProgram(gl, program) {
   this.gl = gl;
   this.program = program;
-
-  this.use = function() {
-    gl.useProgram(program);
-  };
 
   function makeSetter(type, loc) {
     switch (type) {
@@ -2010,16 +2010,37 @@ function MagicProgram(gl, program) {
   }
 }
 
+MagicProgram.prototype.use = function() {
+  this.gl.useProgram(this.program);
+};
+
+// static MagicProgram createFromStrings(gl, string vstr, string fstr)
+//
+// Create a new MagicProgram from the vertex shader source string `vstr` and
+// the fragment shader source string `fstr`.
 MagicProgram.createFromStrings = function(gl, vstr, fstr) {
   return new MagicProgram(gl, webGLcreateProgramFromShaderSources(
       gl, vstr, fstr));
 };
 
+// static MagicProgram createFromFiles(gl, vfilename, ffilename)
+//
+// Create a new MagicProgram from the vertex shader source in file `vfilename`
+// and the fragment shader source in file `ffilename`.
 MagicProgram.createFromFiles = function(gl, vfn, ffn) {
   return MagicProgram.createFromStrings(
       gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8'));
 };
 
+// static MagicProgram createFromBasename(gl, directory, base)
+//
+// Create a new MagicProgram from the vertex shader source in file
+// `base`.vshader and the fragment shader source in file `base`.fshader in the
+// directory `directory`.
+//
+//     // Creates a magic program from myshader.vshader and myshader.fshader in
+//     // the same directory as the running source JavaScript file.
+//     var mp = MagicProgram.createFromBasename(gl, __dirname, 'myshader');
 MagicProgram.createFromBasename = function(gl, directory, base) {
   return MagicProgram.createFromFiles(
       gl,
