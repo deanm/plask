@@ -4539,7 +4539,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void setLinearGradientShader
+  // void setLinearGradientShader(x0, y0, x1, y1, float[ ] colorpositions)
   DEFINE_METHOD(setLinearGradientShader, 5)
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4580,7 +4580,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void setRadialGradientShader
+  // void setRadialGradientShader(x, y, radius, float[ ] colorpositions)
   DEFINE_METHOD(setRadialGradientShader, 4)
     SkPaint* paint = ExtractPointer(args.Holder());
 
@@ -4621,7 +4621,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void clearShader
+  // void clearShader()
   static void clearShader(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setShader(NULL);
