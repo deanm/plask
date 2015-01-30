@@ -263,11 +263,12 @@ functions.sort(sorter);
 
 var last_cls = null;
 
-console.log(header);
-
 var kIncludeCls = ['AVPlayerWrapper', 'NSOpenGLContextWrapper', 'NSWindowWrapper',
                    'SkCanvasWrapper', 'SkPaintWrapper', 'SkPathWrapper',
                    'MagicProgram', 'Mat3', 'Mat4', 'Vec2', 'Vec3', 'Vec4', 'plask'];
+
+var tochtml = '';
+var bodyhtml = '';
 
 for (var i = 0, il = functions.length; i < il; ++i) {
   var f = functions[i];
@@ -277,12 +278,20 @@ for (var i = 0, il = functions.length; i < il; ++i) {
     continue;
   }
 
+  var clsdisp = f.cls.replace(/Wrapper/g, '');
+  var methdisp = f.meth.replace('V8New', clsdisp);
+  if (clsdisp === "MagicProgram") clsdisp = "gl." + clsdisp;
+  var aname = (clsdisp + ' ' + methdisp).replace(/[^a-zA-Z0-9]/g, '_');
+
   if (f.cls !== last_cls) {
-    var clsdisp = f.cls.replace(/Wrapper/g, '');
-    if (clsdisp === "MagicProgram") clsdisp = "gl." + clsdisp;
-    console.log('<h1>' + clsdisp + '</h1>');
+    if (tochtml.length) tochtml += '</div>'
+    tochtml += '<h3><a href="#' + clsdisp + '">' + clsdisp + '</a></h3><div class="toclist">';
+    bodyhtml += '<a name="' + clsdisp + '"></a>';
+    bodyhtml += '<h1>' + clsdisp + '</h1>';
     last_cls = f.cls;
   }
+
+  tochtml += '<div><a href="#' + aname + '">' + methdisp + '</a></div>';
 
   var html = f.html;
 
@@ -326,10 +335,14 @@ for (var i = 0, il = functions.length; i < il; ++i) {
     html = html.replace('</h3>', link + '</h3>');
   }
 
+  html = '<a name="' + aname + '"></a>' + html;
   html = html.replace('</h3><pre><code>', '</h3><pre class="proto"><code>');
   html = html.replace('</h3>', '</h3>\n<div class="fbody">') + '</div>';
 
-  console.log(html);
+  bodyhtml += html;
 }
 
+console.log(header);
+console.log('<div class="toc">' + tochtml + '</div></div>');
+console.log('<div class="docbody">' + bodyhtml + '</div>');
 console.log(footer);
