@@ -2,6 +2,7 @@
 // reference documentation from markdown in the code comments.
 var fs = require('fs');
 var markdown = require('./markdown.js');
+var prism = require('./prism.js');
 
 var header = fs.readFileSync(__dirname + '/header.html', 'utf8');
 var footer = fs.readFileSync(__dirname + '/footer.html', 'utf8');
@@ -164,10 +165,71 @@ function make_md(meth, cmt) {
 var lines_cpp = fs.readFileSync(__dirname + '/../plask_bindings.mm', 'utf8').split('\n');
 var lines_js  = fs.readFileSync(__dirname + '/../plask.js', 'utf8').split('\n');
 
+// Our proto declarations are in this sort of C style more or less like WebIDL.
+// We have something like "returntype functionname(type argname, ...)
+// Additionally you have [ ] for arrays, ? for "nullable types", etc.
+function redo_tokens_for_proto(tokens) {
+  var i = 0, il = tokens.length;
+  while (i < il) {
+    // split something like "BLAH " to keyword BLAH and ' ', for the case where
+    // BLAH didn't match the keyword regex.
+    if (typeof(tokens[i]) === "string") {
+      var typename = tokens[i];
+      if (typename[typename.length - 1] === " ") {
+        typename = typename.substr(0, typename.length - 1);
+        tokens.splice(i+1, 0, ' ');
+        ++il;
+      }
+      tokens[i] = new prism.Token('keyword', typename);
+    }
+
+    while (i < il) {
+      while (i < il && tokens[i] !== " ") ++i;
+      if (i === il) return;
+      ++i;
+      if (tokens[i].type === 'function' || tokens[i].type === "class-name") break;
+    }
+
+    tokens[i].type = 'function';
+    ++i;
+    if (tokens[i].content !== '(') throw JSON.stringify(tokens);
+    ++i;
+    break;
+  }
+}
+
+function gen_highlighted_html(htmltree, par1, sib1, sib2) {
+  var content = '';
+
+  var tag = htmltree[0];
+
+  if (tag === "code" && par1 === "pre") {
+    var js = htmltree[1];
+    var tokens = prism.tokenize(js, prism.languages.javascript);
+    if (sib2 === "h3")
+      redo_tokens_for_proto(tokens);
+		content = prism.Token.stringify(prism.util.encode(tokens));
+  } else {
+    for (var i = 1, il = htmltree.length; i < il; ++i) {
+        content += Array.isArray(htmltree[i]) ?
+            gen_highlighted_html(htmltree[i], tag, htmltree[i-1][0], sib1) :
+            htmltree[i];
+    }
+  }
+
+  return '<' + tag + '>' + content + '</' + tag + '>';
+}
+
+function make_md_to_html(meth, cmt) {
+  var md = markdown.parse(make_md(meth, cmt));
+  var htmltree = markdown.toHTMLTree(md);
+  var html = gen_highlighted_html(htmltree);
+  return html + "\n";
+}
+
 parse_source_cpp(lines_cpp, function() { },
   function(line, indent, cls, meth, arity, cmt) {
-    var md = markdown.parse(make_md(meth.replace('V8New', cls.replace(/Wrapper/g, '')), cmt));
-    var html = markdown.toHTML(md, {xhtml:true}) + "\n";
+    var html = make_md_to_html(meth.replace('V8New', cls.replace(/Wrapper/g, '')), cmt);
     functions.push({cls: cls, meth: meth, html: html});
   },
   function(line, cls, meth, arity) {
@@ -176,8 +238,7 @@ parse_source_cpp(lines_cpp, function() { },
 //functions = [ ];
 parse_source_js(lines_js, function() { },
   function(line, indent, cls, meth, arity, cmt) {
-    var md = markdown.parse(make_md(meth, cmt));
-    var html = markdown.toHTML(md, {xhtml:true}) + "\n";
+    var html = make_md_to_html(meth, cmt);
     functions.push({cls: cls, meth: meth, html: html});
   },
   function(line, cls, meth, arity) {
@@ -265,7 +326,7 @@ for (var i = 0, il = functions.length; i < il; ++i) {
     html = html.replace('</h3>', link + '</h3>');
   }
 
-  html = html.replace('</h3>\n\n<pre><code>', '</h3>\n\n<pre class="proto"><code>');
+  html = html.replace('</h3><pre><code>', '</h3><pre class="proto"><code>');
   html = html.replace('</h3>', '</h3>\n<div class="fbody">') + '</div>';
 
   console.log(html);
