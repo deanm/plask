@@ -5504,7 +5504,9 @@ class SkCanvasWrapper {
       }
     }
 
-    bool saved = FreeImage_Save(FIF_PNG, fb, *filename, 0);
+    bool saved = FreeImage_FlipVertical(fb);
+    if (saved)
+      saved = FreeImage_Save(FIF_PNG, fb, *filename, 0);
     FreeImage_Unload(fb);
 
     if (!saved)
