@@ -4062,6 +4062,11 @@ class SkPaintWrapper {
       { "kSubpixelTextFlag", SkPaint::kSubpixelText_Flag },
       { "kDevKernTextFlag", SkPaint::kDevKernText_Flag },
       { "kAllFlags", SkPaint::kAllFlags },
+      // FilterLevel.
+      { "kNoneFilterLevel", SkPaint::kNone_FilterLevel },
+      { "kLowFilterLevel", SkPaint::kLow_FilterLevel },
+      { "kMediumFilterLevel", SkPaint::kMedium_FilterLevel },
+      { "kHighFilterLevel", SkPaint::kHigh_FilterLevel },
       // Style.
       { "kFillStyle", SkPaint::kFill_Style },
       { "kStrokeStyle", SkPaint::kStroke_Style },
@@ -4143,7 +4148,9 @@ class SkPaintWrapper {
       { "measureText", &SkPaintWrapper::measureText },
       { "measureTextBounds", &SkPaintWrapper::measureTextBounds },
       { "getFontMetrics", &SkPaintWrapper::getFontMetrics },
-      { "getTextPath", &SkPaintWrapper::getTextPath }
+      { "getTextPath", &SkPaintWrapper::getTextPath },
+      METHOD_ENTRY( getFilterLevel ),
+      METHOD_ENTRY( setFilterLevel ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4211,6 +4218,28 @@ class SkPaintWrapper {
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setFlags(v8_utils::ToInt32(args[0]));
     return args.GetReturnValue().SetUndefined();
+  }
+
+  // void setFilterLevel(int level)
+  //
+  // Set the filtering level (quality vs performance) for scaled images.
+  //
+  //     // kNoneFilterLevel
+  //     // kLowFilterLevel
+  //     // kMediumFilterLevel
+  //     // kHighFilterLevel
+  DEFINE_METHOD(setFilterLevel, 1)
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setFilterLevel(static_cast<SkPaint::FilterLevel>(v8_utils::ToInt32(args[0])));
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // int getFilterLevel()
+  //
+  // Get the filtering level (quality vs performance) for scaled images.
+  DEFINE_METHOD(getFilterLevel, 0)
+    SkPaint* paint = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getFilterLevel()));
   }
 
   // void setAntiAlias(bool aa)
