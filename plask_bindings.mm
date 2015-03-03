@@ -3800,7 +3800,9 @@ class SkPathWrapper {
       { "close", &SkPathWrapper::close },
       { "offset", &SkPathWrapper::offset },
       { "getBounds", &SkPathWrapper::getBounds },
+      { "transform", &SkPathWrapper::transform },
       { "toSVGString", &SkPathWrapper::toSVGString },
+      { "fromSVGString", &SkPathWrapper::fromSVGString },
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4006,6 +4008,29 @@ class SkPathWrapper {
     return args.GetReturnValue().Set(res);
   }
 
+  // void transform(a, b, c, d, e, f, g, h, i)
+  //
+  // Transforms the path by the 3x3 homogeneous transformation matrix:
+  //
+  //     |a b c|
+  //     |d e f|
+  //     |g h i|
+  DEFINE_METHOD(transform, 9)
+    SkPath* path = ExtractPointer(args.Holder());
+    SkMatrix matrix;
+    matrix.setAll(SkDoubleToScalar(args[0]->NumberValue()),
+                  SkDoubleToScalar(args[1]->NumberValue()),
+                  SkDoubleToScalar(args[2]->NumberValue()),
+                  SkDoubleToScalar(args[3]->NumberValue()),
+                  SkDoubleToScalar(args[4]->NumberValue()),
+                  SkDoubleToScalar(args[5]->NumberValue()),
+                  SkDoubleToScalar(args[6]->NumberValue()),
+                  SkDoubleToScalar(args[7]->NumberValue()),
+                  SkDoubleToScalar(args[8]->NumberValue()));
+    path->transform(matrix);
+    return args.GetReturnValue().SetUndefined();
+  }
+
   // string toSVGString()
   //
   // Returns the path as a SVG path data representation.
@@ -4015,6 +4040,16 @@ class SkPathWrapper {
     SkParsePath::ToSVGString(*path, &str);
     return args.GetReturnValue().Set(v8::String::NewFromUtf8(
         isolate, str.c_str(), v8::String::kNormalString, str.size()));
+  }
+
+  // bool fromSVGString(string svgpath)
+  //
+  // Sets the path from an SVG path data representation.  Returns true on
+  // success.
+  static void fromSVGString(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    SkPath* path = ExtractPointer(args.Holder());
+    v8::String::Utf8Value utf8(args[0]);
+    return args.GetReturnValue().Set(SkParsePath::FromSVGString(*utf8, path));
   }
 
   // void SkPath(SkPath? path_to_copy)
