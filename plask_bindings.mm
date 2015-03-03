@@ -3993,7 +3993,7 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void getBounds()
+  // float[ ] getBounds()
   //
   // Returns an array of [left, top, right, bottom], the bounding rectangle of the
   // path.
