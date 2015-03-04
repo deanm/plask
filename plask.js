@@ -717,6 +717,21 @@ exports.simpleWindow = function(obj) {
     gl_.blit();  // Update the screen automatically.
   };
 
+  // Sort of a debouncing version of redraw, which is convenient for use in
+  // interaction event callbacks like mouse and keyboard.  If you have a big
+  // flood of mouse move events, you don't want to synchronously redraw for
+  // each one. This throttles it a bit by only doing the redraw the next time
+  // around on the event loop.
+  var redraw_soon_handle = null;
+  obj.redrawSoon = function() {
+    if (redraw_soon_handle === null) {
+      redraw_soon_handle = setTimeout(function() {
+        redraw_soon_handle = null;
+        obj.redraw();
+      }, 0);
+    }
+  };
+
   obj.redraw();  // Draw the first frame.
 
   return obj;
