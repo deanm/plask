@@ -3557,6 +3557,7 @@ class NSEventWrapper {
       { "pressure", &NSEventWrapper::pressure },
       { "isEnteringProximity", &NSEventWrapper::isEnteringProximity },
       { "modifierFlags", &NSEventWrapper::modifierFlags },
+      METHOD_ENTRY(isARepeat),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3755,6 +3756,18 @@ class NSEventWrapper {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event modifierFlags]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
+  // bool isARepeat()
+  //
+  // NOTE: Can only be called on key events or will throw an objc exception.
+  DEFINE_METHOD(isARepeat, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(!![event isARepeat]);
 #else
     return v8_utils::ThrowError(isolate, "Unimplemented.");
 #endif

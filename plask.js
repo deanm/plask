@@ -495,7 +495,8 @@ exports.Window = function(width, height, opts) {
           ctrl: (mods & e.NSControlKeyMask) !== 0,
           option: (mods & e.NSAlternateKeyMask) !== 0,
           cmd: (mods & e.NSCommandKeyMask) !== 0,
-          function: (mods & e.NSFunctionKeyMask) !== 0
+          function: (mods & e.NSFunctionKeyMask) !== 0,
+          repeat: e.isARepeat()
         };
         this_.emit(te.type, te);
         break;
