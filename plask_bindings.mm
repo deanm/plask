@@ -6906,9 +6906,30 @@ class AVPlayerWrapper {
     printf("Exception in event callback, TODO(deanm): print something.\n");
   }
 
+  // The drag doesn't count as an NSEvent, so the drag is dispatched from
+  // within NSApplication nextEventMatchingMask, but it doesn't return.  So we
+  // want to wake up the loop to reflect any possible event loop changes caused
+  // by the JavaScript code just executed.  See main.mm kqueue_checker_thread.
+  NSEvent* e = [NSEvent otherEventWithType:NSApplicationDefined
+                                      location:NSMakePoint(0, 0)
+                                 modifierFlags:0
+                                     timestamp:0
+                                  windowNumber:0
+                                       context:nil
+                                       subtype:8  // Arbitrary
+                                         data1:0
+                                         data2:0];
+  [NSApp postEvent:e atStart:YES];
+
   return YES;
 }
 
+/*
+- (void)concludeDragOperation:(id<NSDraggingInfo>)sender {
+  printf("Conclude drag\n");
+  NSLog(@"%@",[NSThread callStackSymbols]);
+}
+*/
 
 @end
 
