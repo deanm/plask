@@ -401,8 +401,8 @@ exports.Window = function(width, height, opts) {
     return null;
   }
 
-  this.showCursor = function() {
-    return nswindow_.showCursor();
+  this.unhideCursor = function() {
+    return nswindow_.unhideCursor();
   };
 
   this.setCursor = function(name) {
@@ -642,11 +642,11 @@ exports.simpleWindow = function(obj) {
 
   obj.setTitle = function(title) { window_.setTitle(title); };
 
-  obj.hideCursor = function() { window_.hideCursor(); }
-  obj.showCursor = function() { window_.showCursor(); }
-  obj.setCursor  = function(name) { window_.setCursor(name); }
-  obj.pushCursor = function(name) { window_.pushCursor(name); }
-  obj.popCursor  = function() { window_.popCursor(); }
+  obj.hideCursor = function() { window_.hideCursor(); };
+  obj.unhideCursor = function() { window_.unhideCursor(); };
+  obj.setCursor  = function(name) { window_.setCursor(name); };
+  obj.pushCursor = function(name) { window_.pushCursor(name); };
+  obj.popCursor  = function() { window_.popCursor(); };
 
   if (settings.cursor === false)
     window_.hideCursor();

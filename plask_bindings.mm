@@ -3092,7 +3092,7 @@ class NSWindowWrapper {
       { "setFrameTopLeftPoint", &NSWindowWrapper::setFrameTopLeftPoint },
       { "center", &NSWindowWrapper::center },
       { "hideCursor", &NSWindowWrapper::hideCursor },
-      { "showCursor", &NSWindowWrapper::showCursor },
+      { "unhideCursor", &NSWindowWrapper::unhideCursor },
       { "setCursor", &NSWindowWrapper::setCursor },
       { "pushCursor", &NSWindowWrapper::pushCursor },
       { "popCursor", &NSWindowWrapper::popCursor },
@@ -3421,12 +3421,12 @@ class NSWindowWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void showCursor()
+  // void unhideCursor()
   //
   // Un-hide the cursor.
-  DEFINE_METHOD(showCursor, 0)
+  DEFINE_METHOD(unhideCursor, 0)
 #if PLASK_OSX
-    [NSCursor show];
+    [NSCursor unhide];
 #endif
     return args.GetReturnValue().SetUndefined();
   }
