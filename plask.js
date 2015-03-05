@@ -419,6 +419,14 @@ exports.Window = function(width, height, opts) {
     return nswindow_.popCursor();
   };
 
+  this.setCursorPosition = function(x, y) {
+    return nswindow_.setCursorPosition(x, y);
+  };
+
+  this.warpCursorPosition = function(x, y) {
+    return nswindow_.warpCursorPosition(x, y);
+  };
+
   this.center = function() {
     nswindow_.center();
   };
@@ -642,11 +650,13 @@ exports.simpleWindow = function(obj) {
 
   obj.setTitle = function(title) { window_.setTitle(title); };
 
-  obj.hideCursor = function() { window_.hideCursor(); };
-  obj.unhideCursor = function() { window_.unhideCursor(); };
-  obj.setCursor  = function(name) { window_.setCursor(name); };
-  obj.pushCursor = function(name) { window_.pushCursor(name); };
-  obj.popCursor  = function() { window_.popCursor(); };
+  obj.hideCursor = function() { return window_.hideCursor(); };
+  obj.unhideCursor = function() { return window_.unhideCursor(); };
+  obj.setCursor  = function(name) { return window_.setCursor(name); };
+  obj.pushCursor = function(name) { return window_.pushCursor(name); };
+  obj.popCursor  = function() { return window_.popCursor(); };
+  obj.setCursorPosition = function(x, y) { return window_.setCursorPosition(x, y); };
+  obj.warpCursorPosition = function(x, y) { return window_.warpCursorPosition(x, y); };
 
   if (settings.cursor === false)
     window_.hideCursor();
