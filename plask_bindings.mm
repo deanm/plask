@@ -3093,6 +3093,11 @@ class NSWindowWrapper {
       { "center", &NSWindowWrapper::center },
       { "hideCursor", &NSWindowWrapper::hideCursor },
       { "showCursor", &NSWindowWrapper::showCursor },
+      { "setCursor", &NSWindowWrapper::setCursor },
+      { "pushCursor", &NSWindowWrapper::pushCursor },
+      { "popCursor", &NSWindowWrapper::popCursor },
+      { "setCursorPosition", &NSWindowWrapper::setCursorPosition },
+      { "warpCursorPosition", &NSWindowWrapper::warpCursorPosition },
       { "hide", &NSWindowWrapper::hide },
       { "show", &NSWindowWrapper::show },
       { "screenSize", &NSWindowWrapper::screenSize },
@@ -3409,20 +3414,80 @@ class NSWindowWrapper {
   // void hideCursor()
   //
   // Hide the cursor.
-  static void hideCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(hideCursor, 0)
 #if PLASK_OSX
-    CGDisplayHideCursor(kCGDirectMainDisplay);
-#endif  // PLASK_OSX
+    [NSCursor hide];
+#endif
     return args.GetReturnValue().SetUndefined();
   }
 
   // void showCursor()
   //
   // Un-hide the cursor.
-  static void showCursor(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  DEFINE_METHOD(showCursor, 0)
 #if PLASK_OSX
-    CGDisplayShowCursor(kCGDirectMainDisplay);
-#endif  // PLASK_OSX
+    [NSCursor show];
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void setCursor(string name)
+  //
+  // Sets the cursor to `name`.
+  DEFINE_METHOD(setCursor, 1)
+#if PLASK_OSX
+    SEL cursor_selector = NSSelectorFromString([NSString stringWithUTF8String:
+        *(v8::String::Utf8Value(args[0]))]);
+    if ([NSCursor respondsToSelector:cursor_selector])
+      [[NSCursor performSelector:cursor_selector] set];
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void pushCursor(string name)
+  //
+  // Sets the cursor to `name` using the cursor stack.
+  DEFINE_METHOD(pushCursor, 1)
+#if PLASK_OSX
+    SEL cursor_selector = NSSelectorFromString([NSString stringWithUTF8String:
+        *(v8::String::Utf8Value(args[0]))]);
+    if ([NSCursor respondsToSelector:cursor_selector])
+      [[NSCursor performSelector:cursor_selector] push];
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void popCursor(string name)
+  //
+  // Pop the cursor from the top of the cursor stack.
+  DEFINE_METHOD(popCursor, 0)
+#if PLASK_OSX
+    [NSCursor pop];
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void setCursorPosition(float x, float y)
+  //
+  // Set the cursor position (within the main display).
+  DEFINE_METHOD(setCursorPosition, 2)
+#if PLASK_OSX
+    CGDisplayMoveCursorToPoint(
+        CGMainDisplayID(),
+        CGPointMake(args[0]->NumberValue(), args[1]->NumberValue()));
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void warpCursorPosition(float x, float y)
+  //
+  // Set the cursor position (in global display coordinate space), without
+  // generating any events.
+  DEFINE_METHOD(warpCursorPosition, 2)
+#if PLASK_OSX
+    CGWarpMouseCursorPosition(
+        CGPointMake(args[0]->NumberValue(), args[1]->NumberValue()));
+#endif
     return args.GetReturnValue().SetUndefined();
   }
 

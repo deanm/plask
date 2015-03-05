@@ -376,8 +376,47 @@ exports.Window = function(width, height, opts) {
     return nswindow_.hideCursor();
   };
 
+  function cursor_name_to_selector_name(name) {
+    switch (name) {
+      case 'arrow':               return 'arrowCursor';
+      case 'context':             return 'contextualMenuCursor';
+      case 'closedhand':          return 'closedHandCursor';
+      case 'crosshair':           return 'crosshairCursor';
+      case 'poof':
+      case 'disappearingitem':    return 'disappearingItemCursor';
+      case 'dragcopy':            return 'dragCopyCursor';
+      case 'draglink':            return 'dragLinkCursor';
+      case 'ibeam':               return 'IBeamCursor';
+      case 'openhand':            return 'openHandCursor';
+      case 'notallowed':          return 'operationNotAllowedCursor';
+      case 'pointinghand':        return 'pointingHandCursor';
+      case 'resizedown':          return 'resizeDownCursor';
+      case 'resizeleft':          return 'resizeLeftCursor';
+      case 'resizeleftright':     return 'resizeLeftRightCursor';
+      case 'resizeright':         return 'resizeRightCursor';
+      case 'resizeup':            return 'resizeUpCursor';
+      case 'resizeupdown':        return 'resizeUpDownCursor';
+      case 'vibeam':              return 'IBeamCursorForVerticalLayout';
+    };
+    return null;
+  }
+
   this.showCursor = function() {
     return nswindow_.showCursor();
+  };
+
+  this.setCursor = function(name) {
+    var selector = cursor_name_to_selector_name(name);
+    return selector !== null ? nswindow_.setCursor(selector) : undefined;
+  };
+
+  this.pushCursor = function(name) {
+    var selector = cursor_name_to_selector_name(name);
+    return selector !== null ? nswindow_.pushCursor(selector) : undefined;
+  };
+
+  this.popCursor = function() {
+    return nswindow_.popCursor();
   };
 
   this.center = function() {
@@ -602,6 +641,12 @@ exports.simpleWindow = function(obj) {
     window_.setTitle(settings.title);
 
   obj.setTitle = function(title) { window_.setTitle(title); };
+
+  obj.hideCursor = function() { window_.hideCursor(); }
+  obj.showCursor = function() { window_.showCursor(); }
+  obj.setCursor  = function(name) { window_.setCursor(name); }
+  obj.pushCursor = function(name) { window_.pushCursor(name); }
+  obj.popCursor  = function() { window_.popCursor(); }
 
   if (settings.cursor === false)
     window_.hideCursor();
