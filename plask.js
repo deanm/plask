@@ -427,6 +427,10 @@ exports.Window = function(width, height, opts) {
     return nswindow_.warpCursorPosition(x, y);
   };
 
+  this.associateMouse = function(connected) {
+    return nswindow_.associateMouse(connected);
+  };
+
   this.center = function() {
     nswindow_.center();
   };
@@ -657,6 +661,7 @@ exports.simpleWindow = function(obj) {
   obj.popCursor  = function() { return window_.popCursor(); };
   obj.setCursorPosition = function(x, y) { return window_.setCursorPosition(x, y); };
   obj.warpCursorPosition = function(x, y) { return window_.warpCursorPosition(x, y); };
+  obj.associateMouse = function(connected) { return window_.associateMouse(connected); };
 
   if (settings.cursor === false)
     window_.hideCursor();

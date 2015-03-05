@@ -3098,6 +3098,7 @@ class NSWindowWrapper {
       { "popCursor", &NSWindowWrapper::popCursor },
       { "setCursorPosition", &NSWindowWrapper::setCursorPosition },
       { "warpCursorPosition", &NSWindowWrapper::warpCursorPosition },
+      METHOD_ENTRY(associateMouse),
       { "hide", &NSWindowWrapper::hide },
       { "show", &NSWindowWrapper::show },
       { "screenSize", &NSWindowWrapper::screenSize },
@@ -3487,6 +3488,17 @@ class NSWindowWrapper {
 #if PLASK_OSX
     CGWarpMouseCursorPosition(
         CGPointMake(args[0]->NumberValue(), args[1]->NumberValue()));
+#endif
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void associateMouse(bool connted)
+  //
+  // Sets whether the mouse and the mouse cursor are connected (whether moving
+  // the mouse moves the cursor).
+  DEFINE_METHOD(associateMouse, 1)
+#if PLASK_OSX
+    CGAssociateMouseAndMouseCursorPosition(args[0]->BooleanValue());
 #endif
     return args.GetReturnValue().SetUndefined();
   }
