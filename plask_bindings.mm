@@ -63,6 +63,7 @@
 #include "skia/include/effects/SkDashPathEffect.h"
 #include "skia/include/pdf/SkPDFDevice.h"
 #include "skia/include/pdf/SkPDFDocument.h"
+#include "skia/include/pathops/SkPathOps.h"
 
 #if PLASK_OSX
 #include "skia/include/ports/SkTypeface_mac.h"  // SkCreateTypefaceFromCTFont.
@@ -3872,6 +3873,11 @@ class SkPathWrapper {
       { "kEvenOddFillType", SkPath::kEvenOdd_FillType },
       { "kInverseWindingFillType", SkPath::kInverseWinding_FillType },
       { "kInverseEvenOddFillType", SkPath::kInverseEvenOdd_FillType },
+      { "kDifferencePathOp", SkPathOp::kDifference_PathOp },  //!< subtract the op path from the first path
+      { "kIntersectPathOp", SkPathOp::kIntersect_PathOp },  //!< intersect the two paths
+      { "kUnionPathOp", SkPathOp::kUnion_PathOp },  //!< union (inclusive-or) the two paths
+      { "kXORPathOp", SkPathOp::kXOR_PathOp },  //!< exclusive-or the two paths
+      { "kReverseDifferencePathOp", SkPathOp::kReverseDifference_PathOp },  //!< subtract the first path from the op path
     };
 
     static BatchedMethods methods[] = {
@@ -3893,6 +3899,7 @@ class SkPathWrapper {
       { "transform", &SkPathWrapper::transform },
       { "toSVGString", &SkPathWrapper::toSVGString },
       { "fromSVGString", &SkPathWrapper::fromSVGString },
+      METHOD_ENTRY(op),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4140,6 +4147,22 @@ class SkPathWrapper {
     SkPath* path = ExtractPointer(args.Holder());
     v8::String::Utf8Value utf8(args[0]);
     return args.GetReturnValue().Set(SkParsePath::FromSVGString(*utf8, path));
+  }
+
+  // bool Op(SkPath one, SkPath two, int pathop)
+  //
+  // Sets the path to the result of the operation `pathop` on `one` and `two`.
+  DEFINE_METHOD(op, 3)
+    SkPath* path = ExtractPointer(args.Holder());
+
+    if (!HasInstance(isolate, args[0]) || !HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    SkPath* one = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
+    SkPath* two = ExtractPointer(v8::Handle<v8::Object>::Cast(args[1]));
+    SkPathOp op = static_cast<SkPathOp>(args[2]->Uint32Value());
+
+    return args.GetReturnValue().Set(::Op(*one, *two, op, path));
   }
 
   // void SkPath(SkPath? path_to_copy)
