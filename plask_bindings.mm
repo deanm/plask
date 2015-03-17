@@ -2033,7 +2033,7 @@ class NSOpenGLContextWrapper {
   }
 
   // any getBufferParameter(GLenum target, GLenum pname)
-  DEFINE_METHOD(getBufferParameter, 1)
+  DEFINE_METHOD(getBufferParameter, 2)
     GLenum target = args[0]->Int32Value();
     GLenum pname = args[1]->Int32Value();
     switch (pname) {
