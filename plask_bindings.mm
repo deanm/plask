@@ -4209,11 +4209,11 @@ class SkPaintWrapper {
       { "kSubpixelTextFlag", SkPaint::kSubpixelText_Flag },
       { "kDevKernTextFlag", SkPaint::kDevKernText_Flag },
       { "kAllFlags", SkPaint::kAllFlags },
-      // FilterLevel.
-      { "kNoneFilterLevel", SkPaint::kNone_FilterLevel },
-      { "kLowFilterLevel", SkPaint::kLow_FilterLevel },
-      { "kMediumFilterLevel", SkPaint::kMedium_FilterLevel },
-      { "kHighFilterLevel", SkPaint::kHigh_FilterLevel },
+      // FilterLevel / SkFilterQuality.
+      { "kNoneFilterLevel", kNone_SkFilterQuality },
+      { "kLowFilterLevel", kLow_SkFilterQuality },
+      { "kMediumFilterLevel", kMedium_SkFilterQuality },
+      { "kHighFilterLevel", kHigh_SkFilterQuality },
       // Style.
       { "kFillStyle", SkPaint::kFill_Style },
       { "kStrokeStyle", SkPaint::kStroke_Style },
@@ -4377,7 +4377,7 @@ class SkPaintWrapper {
   //     // kHighFilterLevel
   DEFINE_METHOD(setFilterLevel, 1)
     SkPaint* paint = ExtractPointer(args.Holder());
-    paint->setFilterLevel(static_cast<SkPaint::FilterLevel>(v8_utils::ToInt32(args[0])));
+    paint->setFilterQuality(static_cast<SkFilterQuality>(v8_utils::ToInt32(args[0])));
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -4386,7 +4386,7 @@ class SkPaintWrapper {
   // Get the filtering level (quality vs performance) for scaled images.
   DEFINE_METHOD(getFilterLevel, 0)
     SkPaint* paint = ExtractPointer(args.Holder());
-    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getFilterLevel()));
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, paint->getFilterQuality()));
   }
 
   // void setAntiAlias(bool aa)
