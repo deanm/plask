@@ -61,8 +61,7 @@
 #include "skia/include/utils/SkParsePath.h"
 #include "skia/include/effects/SkGradientShader.h"
 #include "skia/include/effects/SkDashPathEffect.h"
-#include "skia/include/pdf/SkPDFDevice.h"
-#include "skia/include/pdf/SkPDFDocument.h"
+#include "skia/include/core/SkDocument.h"
 #include "skia/include/pathops/SkPathOps.h"
 
 #if PLASK_OSX
@@ -4955,7 +4954,7 @@ class SkCanvasWrapper {
     v8::Local<v8::FunctionTemplate> ft =
         v8::FunctionTemplate::New(isolate, &SkCanvasWrapper::V8New);
     v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
-    instance->SetInternalFieldCount(1);  // SkCanvas pointers.
+    instance->SetInternalFieldCount(2);  // SkCanvas and SkDocument (pdf) pointers.
 
     v8::Local<v8::Signature> default_signature = v8::Signature::New(isolate, ft);
 
@@ -5018,6 +5017,10 @@ class SkCanvasWrapper {
     return reinterpret_cast<SkCanvas*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
+  static SkDocument* ExtractDocumentPointer(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<SkDocument*>(obj->GetAlignedPointerFromInternalField(1));
+  }
+
   static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
     return PersistentToLocal(isolate, GetTemplate(isolate))->HasInstance(value);
   }
@@ -5027,10 +5030,7 @@ class SkCanvasWrapper {
       const v8::WeakCallbackData<v8::Object, v8::Persistent<v8::Object> >& data) {
     v8::Isolate* isolate = data.GetIsolate();
     SkCanvas* canvas = ExtractPointer(data.GetValue());
-
-    SkImageInfo info = canvas->imageInfo();
-    int size_bytes = info.width() * info.height() * info.bytesPerPixel();
-    isolate->AdjustAmountOfExternalAllocatedMemory(-size_bytes);
+    SkDocument* doc = ExtractDocumentPointer(data.GetValue());
 
     v8::Persistent<v8::Object>* persistent = data.GetParameter();
     persistent->ClearWeak();
@@ -5039,7 +5039,14 @@ class SkCanvasWrapper {
 
     // Delete the backing SkCanvas object.  Skia reference counting should
     // handle cleaning up deeper resources (for example the backing pixels).
-    delete canvas;
+    if (doc) {
+      doc->unref();  // Owns the canvas, right?
+    } else {
+      SkImageInfo info = canvas->imageInfo();
+      int size_bytes = info.width() * info.height() * info.bytesPerPixel();
+      isolate->AdjustAmountOfExternalAllocatedMemory(-size_bytes);
+      delete canvas;
+    }
   }
 
   static void V8New(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -5053,21 +5060,18 @@ class SkCanvasWrapper {
     SkBitmap tbitmap;
     SkBitmap* bitmap = &tbitmap;
 
-    SkCanvas* canvas;
+    SkCanvas* canvas = NULL;
+    SkDocument* doc = NULL;
+
     if (args[0]->StrictEquals(v8::String::NewFromUtf8(isolate, "%PDF"))) {  // PDF constructor.
-      SkMatrix initial_matrix;
-      initial_matrix.reset();
-      SkISize page_size =
-          SkISize::Make(args[1]->Int32Value(), args[2]->Int32Value());
-      SkISize content_size =
-          SkISize::Make(args[3]->Int32Value(), args[4]->Int32Value());
-      SkPDFDevice* pdf_device = new SkPDFDevice(
-          page_size, content_size, initial_matrix);
-      canvas = new SkCanvas(pdf_device);
+      v8::String::Utf8Value filename(args[1]);
+      doc = SkDocument::CreatePDF(*filename);
+      if (!doc) return v8_utils::ThrowError(isolate, "Unable to create PDF document.");
+      SkScalar width = args[2]->Int32Value(), height = args[3]->Int32Value();
+      SkRect content = SkRect::MakeWH(args[4]->Int32Value(), args[5]->Int32Value());
+      canvas = doc->beginPage(width, height, &content);
       // Bit of a hack to get the width and height properties set.
-      tbitmap.setInfo(SkImageInfo::Make(
-        pdf_device->width(), pdf_device->height(),
-        kUnknown_SkColorType, kIgnore_SkAlphaType));
+      tbitmap.setInfo(SkImageInfo::Make(width, height, kUnknown_SkColorType, kUnknown_SkAlphaType));
     } else if (args[0]->StrictEquals(v8::String::NewFromUtf8(isolate, "^IMG"))) {
       // Load an image, either a path to a file on disk, or a TypedArray or
       // other external array data backed JS object.
@@ -5174,6 +5178,7 @@ class SkCanvasWrapper {
     }
 
     args.This()->SetAlignedPointerInInternalField(0, canvas);
+    args.This()->SetAlignedPointerInInternalField(1, doc);
     // Direct pixel access via array[] indexing.
     args.This()->SetIndexedPropertiesToPixelData(
         reinterpret_cast<uint8_t*>(bitmap->getPixels()), bitmap->getSize());
@@ -5183,10 +5188,11 @@ class SkCanvasWrapper {
                      v8::Integer::NewFromUnsigned(isolate, bitmap->height()));
 
     // Notify the GC that we have a possibly large amount of data allocated
-    // behind this object.  This is sometimes a bit of a lie, for example for
-    // a PDF surface or an NSWindow surface.  Anyway, it's just a heuristic.
-    int size_bytes = bitmap->width() * bitmap->height() * 4;
-    isolate->AdjustAmountOfExternalAllocatedMemory(size_bytes);
+    // behind this object for bitmap backed canvases.
+    if (!doc) {
+      int size_bytes = bitmap->width() * bitmap->height() * 4;
+      isolate->AdjustAmountOfExternalAllocatedMemory(size_bytes);
+    }
 
     v8::Persistent<v8::Object>* persistent = new v8::Persistent<v8::Object>;
     persistent->Reset(isolate, args.This());
@@ -5696,18 +5702,14 @@ class SkCanvasWrapper {
   //
   // Write the contents of a vector-mode SkCanvas (created with createForPDF) to the
   // file named `filename`.
-  DEFINE_METHOD(writePDF, 1)
-    SkCanvas* canvas = ExtractPointer(args.Holder());
+  DEFINE_METHOD(writePDF, 0)
+    SkDocument* doc = ExtractDocumentPointer(args.Holder());
 
-    v8::String::Utf8Value filename(args[0]);
+    if (!doc)
+      return v8_utils::ThrowError(isolate, "Not a PDF canvas.");
 
-    SkFILEWStream stream(*filename);
-    SkPDFDocument document;
-    // You shouldn't be calling this with an SkDevice (bitmap) backed SkCanvas.
-    document.appendPage(reinterpret_cast<SkPDFDevice*>(canvas->getDevice()));
-
-    if (!document.emitPDF(&stream))
-      return v8_utils::ThrowError(isolate, "Error writing PDF.");
+    args.Holder()->SetAlignedPointerInInternalField(0, NULL);  // Clear SkCanvas*
+    doc->close();
 
     return args.GetReturnValue().SetUndefined();
   }

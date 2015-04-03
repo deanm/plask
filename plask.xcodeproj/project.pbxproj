@@ -36,7 +36,7 @@
 		C5EB3AB2196C6B4800F1165A /* libskia_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA3196C6B4600F1165A /* libskia_core.a */; };
 		C5EB3AB3196C6B4800F1165A /* libskia_effects.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA4196C6B4600F1165A /* libskia_effects.a */; };
 		C5EB3AB4196C6B4800F1165A /* libskia_images.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA5196C6B4700F1165A /* libskia_images.a */; };
-		C5EB3AB5196C6B4800F1165A /* libskia_opts_sse4.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA6196C6B4700F1165A /* libskia_opts_sse4.a */; };
+		C5EB3AB5196C6B4800F1165A /* libskia_opts_sse41.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */; };
 		C5EB3AB6196C6B4800F1165A /* libskia_opts_ssse3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */; };
 		C5EB3AB7196C6B4800F1165A /* libskia_opts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA8196C6B4700F1165A /* libskia_opts.a */; };
 		C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */; };
@@ -100,7 +100,7 @@
 		C5EB3AA3196C6B4600F1165A /* libskia_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_core.a; path = deps/libskia_core.a; sourceTree = "<group>"; };
 		C5EB3AA4196C6B4600F1165A /* libskia_effects.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_effects.a; path = deps/libskia_effects.a; sourceTree = "<group>"; };
 		C5EB3AA5196C6B4700F1165A /* libskia_images.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_images.a; path = deps/libskia_images.a; sourceTree = "<group>"; };
-		C5EB3AA6196C6B4700F1165A /* libskia_opts_sse4.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_sse4.a; path = deps/libskia_opts_sse4.a; sourceTree = "<group>"; };
+		C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_sse41.a; path = deps/libskia_opts_sse41.a; sourceTree = "<group>"; };
 		C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_ssse3.a; path = deps/libskia_opts_ssse3.a; sourceTree = "<group>"; };
 		C5EB3AA8196C6B4700F1165A /* libskia_opts.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts.a; path = deps/libskia_opts.a; sourceTree = "<group>"; };
 		C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_pdf.a; path = deps/libskia_pdf.a; sourceTree = "<group>"; };
@@ -136,7 +136,7 @@
 				C5EB3AB2196C6B4800F1165A /* libskia_core.a in Frameworks */,
 				C5EB3AB3196C6B4800F1165A /* libskia_effects.a in Frameworks */,
 				C5EB3AB4196C6B4800F1165A /* libskia_images.a in Frameworks */,
-				C5EB3AB5196C6B4800F1165A /* libskia_opts_sse4.a in Frameworks */,
+				C5EB3AB5196C6B4800F1165A /* libskia_opts_sse41.a in Frameworks */,
 				C5EB3AB6196C6B4800F1165A /* libskia_opts_ssse3.a in Frameworks */,
 				C5EB3AB7196C6B4800F1165A /* libskia_opts.a in Frameworks */,
 				C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */,
@@ -180,7 +180,7 @@
 				C5EB3AA3196C6B4600F1165A /* libskia_core.a */,
 				C5EB3AA4196C6B4600F1165A /* libskia_effects.a */,
 				C5EB3AA5196C6B4700F1165A /* libskia_images.a */,
-				C5EB3AA6196C6B4700F1165A /* libskia_opts_sse4.a */,
+				C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */,
 				C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */,
 				C5EB3AA8196C6B4700F1165A /* libskia_opts.a */,
 				C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */,

@@ -50,11 +50,11 @@ exports.SkCanvas.create = function(width, height) {
 // Sizes are in points, at 72 points per inch, letter would be 612x792.
 // That makes A4 about 595x842.
 // TODO(deanm): The sizes are integer, check the right size to use for A4.
-exports.SkCanvas.createForPDF = function(page_width, page_height,
+exports.SkCanvas.createForPDF = function(filename, page_width, page_height,
                                          content_width, content_height) {
   return new exports.SkCanvas(
       '%PDF',
-      page_width, page_height,
+      filename, page_width, page_height,
       content_width === undefined ? page_width : content_width,
       content_height === undefined ? page_height : content_height);
 };
