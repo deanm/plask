@@ -3262,6 +3262,21 @@ class NSWindowWrapper {
     v8::Local<v8::Object> context_wrapper = ft->
         InstanceTemplate()->NewInstance();
     context_wrapper->SetAlignedPointerInInternalField(0, context);
+
+    // NOTE(deanm): I assume we want the real (highdpi) resolution here.
+    // There is some discussion about this at:
+    //   https://bugzilla.mozilla.org/show_bug.cgi?id=780361
+    // readonly attribute GLsizei drawingBufferWidth;
+    context_wrapper->Set(
+        v8::String::NewFromUtf8(isolate, "drawingBufferWidth"),
+        v8::Integer::New(isolate, bwidth),
+        v8::ReadOnly);
+    // readonly attribute GLsizei drawingBufferHeight;
+    context_wrapper->Set(
+        v8::String::NewFromUtf8(isolate, "drawingBufferHeight"),
+        v8::Integer::New(isolate, bheight),
+        v8::ReadOnly);
+
     args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
 
 #if PLASK_GPUSKIA
