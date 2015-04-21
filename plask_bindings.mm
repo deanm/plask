@@ -801,6 +801,8 @@ class SyphonClientWrapper {
 static const char* const kWebGLExtensions[] = {
   // https://www.khronos.org/registry/webgl/extensions/WEBGL_depth_texture/
   "WEBGL_depth_texture",
+  // https://www.khronos.org/registry/webgl/extensions/OES_texture_float/
+  "OES_texture_float",
 };
 
 class NSOpenGLContextWrapper {
