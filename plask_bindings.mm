@@ -803,6 +803,8 @@ static const char* const kWebGLExtensions[] = {
   "WEBGL_depth_texture",
   // https://www.khronos.org/registry/webgl/extensions/OES_texture_float/
   "OES_texture_float",
+  // https://www.khronos.org/registry/webgl/extensions/OES_standard_derivatives/
+  "OES_standard_derivatives",
 };
 
 class NSOpenGLContextWrapper {
