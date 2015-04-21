@@ -798,6 +798,11 @@ class SyphonClientWrapper {
 #include "webgl_constants.h"
 #undef WEBGL_CONSTANTS_EACH
 
+static const char* const kWebGLExtensions[] = {
+  // https://www.khronos.org/registry/webgl/extensions/WEBGL_depth_texture/
+  "WEBGL_depth_texture",
+};
+
 class NSOpenGLContextWrapper {
  public:
   enum WebGLType {
@@ -1002,6 +1007,8 @@ class NSOpenGLContextWrapper {
       //METHOD_ENTRY( vertexAttrib4fv ),
       METHOD_ENTRY( vertexAttribPointer ),
       METHOD_ENTRY( viewport ),
+      METHOD_ENTRY( getSupportedExtensions ),
+      METHOD_ENTRY( getExtension ),
       // Plask-specific, not in WebGL.  From ARB_draw_buffers.
 #if PLASK_WEBGL2
       METHOD_ENTRY( drawBuffers ),
@@ -3006,6 +3013,34 @@ class NSOpenGLContextWrapper {
                args[2]->Int32Value(),
                args[3]->Int32Value());
     return args.GetReturnValue().SetUndefined();
+  }
+
+  // sequence<DOMString>? getSupportedExtensions()
+  DEFINE_METHOD(getSupportedExtensions, 0)
+    v8::Local<v8::Array> res = v8::Array::New(isolate, arraysize(kWebGLExtensions));
+    for (size_t i = 0; i < arraysize(kWebGLExtensions); ++i) {
+      res->Set(v8::Integer::New(isolate, i),
+               v8::String::NewFromUtf8(isolate, kWebGLExtensions[i]));
+    }
+
+    return args.GetReturnValue().Set(res);
+  }
+
+  // NOTE(deanm): Extensions should actually return a new object that just has
+  // the methods and constants for the extension.  This would require creating
+  // some new wrapper objects with the gl context embedded, which is just a
+  // little bit cumbersome.  Instead we just return the main OpenGL object,
+  // which will have the extension constants and methods, but also everything
+  // else.  Hopefully this doesn't cause too much trouble.
+
+  // object? getExtension(DOMString name)
+  DEFINE_METHOD(getExtension, 1)
+    v8::String::Utf8Value utf8(args[0]);
+    for (size_t i = 0; i < arraysize(kWebGLExtensions); ++i) {
+      if (strcasecmp(*utf8, kWebGLExtensions[i]) == 0)  // case insensitive.
+        return args.GetReturnValue().Set(args.Holder());  // self
+    }
+    return args.GetReturnValue().SetNull();
   }
 
 #if PLASK_WEBGL2
