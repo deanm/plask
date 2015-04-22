@@ -821,12 +821,17 @@ static const char* const kWebGLSLPrefix =
   "#define texture2DGradEXT texture2DGrad\n"
   "#define texture2DProjGradEXT texture2DProjGrad\n"
   "#define textureCubeGradEXT textureCubeGrad\n"
+  // https://www.khronos.org/registry/webgl/extensions/OES_standard_derivatives/
+  "#define GL_OES_standard_derivatives 1\n"
   "";
 
 // NOTE: We do a memcpy so the overwrite needs to be the same length.
 static const char* const kExtensionRewrites[] = {
   // https://www.khronos.org/registry/webgl/extensions/EXT_shader_texture_lod/
   "GL_EXT_shader_texture_lod", "GL_ARB_shader_texture_lod",
+  // https://www.khronos.org/registry/webgl/extensions/OES_standard_derivatives/
+  // Eat the GL_OES_standard_derivatives directive, just with another we have.
+  "GL_OES_standard_derivatives", "GL_ARB_draw_buffers        ",
 };
 
 // Small rewriter, rewriting the string in place.  Does things like rewrite
