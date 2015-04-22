@@ -805,7 +805,107 @@ static const char* const kWebGLExtensions[] = {
   "OES_texture_float",
   // https://www.khronos.org/registry/webgl/extensions/OES_standard_derivatives/
   "OES_standard_derivatives",
+  // https://www.khronos.org/registry/webgl/extensions/EXT_shader_texture_lod/
+  "EXT_shader_texture_lod",
 };
+
+// 10.33 Should Extension Macros be Globally Defined?
+// RESOLUTION: The macros are defined globally.
+static const char* const kWebGLSLPrefix =
+  "#version 120\n"
+  // https://www.khronos.org/registry/webgl/extensions/EXT_shader_texture_lod/
+  "#define GL_EXT_shader_texture_lod 1\n"
+  "#define texture2DLodEXT texture2DLod\n"
+  "#define texture2DProjLodEXT texture2DProjLod\n"
+  "#define textureCubeLodEXT textureCubeLod\n"
+  "#define texture2DGradEXT texture2DGrad\n"
+  "#define texture2DProjGradEXT texture2DProjGrad\n"
+  "#define textureCubeGradEXT textureCubeGrad\n"
+  "";
+
+// NOTE: We do a memcpy so the overwrite needs to be the same length.
+static const char* const kExtensionRewrites[] = {
+  // https://www.khronos.org/registry/webgl/extensions/EXT_shader_texture_lod/
+  "GL_EXT_shader_texture_lod", "GL_ARB_shader_texture_lod",
+};
+
+// Small rewriter, rewriting the string in place.  Does things like rewrite
+// extension names to map from WebGL names to the native names.
+static void RewriteWebGLSLtoGLSL(char* p, int len) {
+  char prev = 0;
+  int state = 0, state_before_cmt = 0;
+  bool line_beginning = true;
+  for ( ; len > 0; prev = *p++, --len) {
+    char c = *p;
+
+    if (c == '*' && prev == '/') {
+      state_before_cmt = state;
+      state = 1; continue;
+    }
+    if (c == '/' && prev == '/') {
+      state_before_cmt = state;
+      state = 2; continue;
+    }
+
+    // From GLSL ES 1.0.17
+    //   "White space: the space character, horizontal tab, vertical tab, form
+    //    feed, carriage-return, and line-feed."
+    // NOTE: However, for preprocessor directives only space and horizonal tab.
+    bool is_st = (c == ' ' || c == '\t');
+    //bool is_ws = (is_st || c == '\v' || c == '\f' || c == '\r' || c == '\n');
+    bool is_ws = (is_st || c == '\v' || c == '\f');
+    bool is_nl = (c == '\r' || c == '\n');
+    if (is_nl) line_beginning = true;
+
+    switch (state) {
+      case 0:
+        // "Each number sign (#) can be preceded in its line only by spaces or
+        //  horizontal tabs. It may also be followed by spaces and horizontal
+        //  tabs, preceding the directive. Each directive is terminated by a
+        //  new- line."
+        if (line_beginning && c == '#') {
+          state = 3; break;
+        }
+        break;
+      case 1:  // Inside a /* */ comment.
+        if (c == '/' && prev == '*') state = state_before_cmt;
+        break;
+      case 2:  // Inside a '//' line comment.
+        if (c == '\r' || c == '\n') state = state_before_cmt;
+        break;
+      case 3:  // # found, check for extension
+        if (is_st) break;  // # can be followed by space or tab.
+        state = 0;
+        if (len > 9 && memcmp(p, "extension", 9) == 0) {
+          p += 8; state = 4;
+        }
+        break;
+      case 4:  // #extension found, expect whitespace after for a proper token.
+        // We also support something like #extension/**/BLAH, not sure if that
+        // is proper in the grammar but probably via the tokenization process.
+        state = (is_ws || prev != 'n') ? 5 : 0;
+        break;
+      case 5:
+        // Keep eating whitespace, but preprocessor directives are terminated by a newline.
+        if (line_beginning == true) {
+          state = 0; break;
+        }
+        if (is_ws) break;
+        for (int i = 0; i < arraysize(kExtensionRewrites); i += 2) {
+          int elen = strlen(kExtensionRewrites[i]);
+          if (len < elen) continue;
+          if (memcmp(kExtensionRewrites[i], p, elen) == 0) {
+            memcpy(p, kExtensionRewrites[i+1], elen);
+            break;
+          }
+        }
+        state = 0;
+        break;
+    }
+
+    if (line_beginning && !is_nl && !is_st) line_beginning = false;
+  }
+}
 
 class NSOpenGLContextWrapper {
  public:
@@ -969,6 +1069,7 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( sampleCoverage ),
       METHOD_ENTRY( scissor ),
       METHOD_ENTRY( shaderSource ),
+      METHOD_ENTRY( shaderSourceRaw ),  // Without WebGL rewriting.
       METHOD_ENTRY( stencilFunc ),
       METHOD_ENTRY( stencilFuncSeparate ),
       METHOD_ENTRY( stencilMask ),
@@ -2452,6 +2553,19 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void shaderSourceRaw(WebGLShader shader, DOMString source)
+  DEFINE_METHOD(shaderSourceRaw, 2)
+    if (!WebGLShader::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
+
+    v8::String::Utf8Value data(args[1]);
+    const GLchar* strs[] = { *data };
+    glShaderSource(shader, 1, strs, NULL);
+    return args.GetReturnValue().SetUndefined();
+  }
+
   // void shaderSource(WebGLShader shader, DOMString source)
   DEFINE_METHOD(shaderSource, 2)
     if (!WebGLShader::HasInstance(isolate, args[0]))
@@ -2460,9 +2574,11 @@ class NSOpenGLContextWrapper {
     GLuint shader = WebGLShader::ExtractNameFromValue(args[0]);
 
     v8::String::Utf8Value data(args[1]);
-    // NOTE(deanm): We want GLSL version 1.20.  Is there a better way to do this
-    // than sneaking in a #version at the beginning?
-    const GLchar* strs[] = { "#version 120\n", *data };
+
+    // The string data is allocated in V8's zone, should be okay to modify it.
+    RewriteWebGLSLtoGLSL(*data, data.length());
+
+    const GLchar* strs[] = { kWebGLSLPrefix, *data };
     glShaderSource(shader, 2, strs, NULL);
     return args.GetReturnValue().SetUndefined();
   }
