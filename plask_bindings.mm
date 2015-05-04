@@ -6830,6 +6830,7 @@ class AVPlayerWrapper {
       METHOD_ENTRY( play ),
       METHOD_ENTRY( currentTime ),
       METHOD_ENTRY( seekToTime ),
+      METHOD_ENTRY( currentDuration ),
       METHOD_ENTRY( currentFrameTexture ),
       METHOD_ENTRY( rate ),
       METHOD_ENTRY( setRate ),
@@ -7040,6 +7041,15 @@ class AVPlayerWrapper {
     // We probably want max precision to be default ?
     [player seekToTime:time toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
     return args.GetReturnValue().SetUndefined();
+  }
+
+  // float currentDuration()
+  DEFINE_METHOD(currentDuration, 0)
+    TextureAVPlayer* player = ExtractPlayerPointer(args.This());
+    AVPlayerItem* item = [player currentItem];
+    if (item == nil)
+      return args.GetReturnValue().SetNull();
+    return args.GetReturnValue().Set(CMTimeGetSeconds(item.duration));
   }
 
   // object currentFrameTexture()
