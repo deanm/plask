@@ -2046,6 +2046,8 @@ class NSOpenGLContextWrapper {
     unsigned long pname = args[0]->Uint32Value();
 
     switch (pname) {
+      case WEBGL_UNPACK_PREMULTIPLY_ALPHA_WEBGL:
+        return args.GetReturnValue().Set(true);  // Always using premultiplied.
       case WEBGL_SHADING_LANGUAGE_VERSION:
       {
         std::string str = "WebGL GLSL ES 1.0 (";
@@ -2471,7 +2473,20 @@ class NSOpenGLContextWrapper {
 
   // void pixelStorei(GLenum pname, GLint param)
   DEFINE_METHOD(pixelStorei, 2)
-    glPixelStorei(args[0]->Uint32Value(), args[1]->Int32Value());
+    GLenum pname = args[0]->Uint32Value();
+    GLint  param = args[1]->Int32Value();
+    // Catch unpack just so that we don't get a glError for an unknown enum,
+    // and also print a message if you try to set it to unpremultiply.
+    if (pname == WEBGL_UNPACK_PREMULTIPLY_ALPHA_WEBGL) {
+      if (param == GL_FALSE) {
+        fprintf(stderr, "Warning: Setting UNPACK_PREMULTIPLY_ALPHA_WEBGL to "
+                        "unpremultiplied alpha but Plask is too lazy for that, "
+                        "use premultiplied alpha, it is better, I promise.\n");
+        fflush(stderr);
+      }
+    } else {
+      glPixelStorei(pname, param);
+    }
     return args.GetReturnValue().SetUndefined();
   }
 
