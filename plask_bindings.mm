@@ -3462,7 +3462,7 @@ class NSWindowWrapper {
       rt_desc.fSampleCnt = multisample ? 4 : 0;
       rt_desc.fStencilBits = 8;
 
-      GrRenderTarget* gr_rt = gr_context->wrapBackendRenderTarget(rt_desc);
+      GrRenderTarget* gr_rt = gr_context->textureProvider()->wrapBackendRenderTarget(rt_desc);
       sk_surface = SkSurface::NewRenderTargetDirect(gr_rt);
     }
 
