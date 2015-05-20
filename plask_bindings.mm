@@ -5168,6 +5168,7 @@ class SkCanvasWrapper {
       METHOD_ENTRY( rotate ),
       METHOD_ENTRY( skew ),
       METHOD_ENTRY( save ),
+      METHOD_ENTRY( saveLayer ),
       METHOD_ENTRY( restore ),
       METHOD_ENTRY( writeImage ),
       METHOD_ENTRY( writePDF ),
@@ -5808,6 +5809,12 @@ class SkCanvasWrapper {
   static void save(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
     canvas->save();
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(saveLayer, 0)
+    SkCanvas* canvas = ExtractPointer(args.Holder());
+    canvas->saveLayer(NULL, NULL);  // TODO: arguments.
     return args.GetReturnValue().SetUndefined();
   }
 
