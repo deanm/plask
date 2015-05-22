@@ -1469,6 +1469,11 @@ Mat3.prototype.invert = function() {
   return this;
 };
 
+// Mat3 inverted()
+//
+// Return an inverted matrix.  The matrix must be invertible.
+Mat3.prototype.inverted = function() { return this.dup().invert(); };
+
 // this transpose()
 //
 // Transpose the matrix, rows become columns and columns become rows.
@@ -1874,6 +1879,11 @@ Mat4.prototype.invert = function() {
 
   return this;
 };
+
+// Mat4 inverted()
+//
+// Return an inverted matrix.  The matrix must be invertible.
+Mat4.prototype.inverted = function() { return this.dup().invert(); };
 
 // this transpose()
 //
