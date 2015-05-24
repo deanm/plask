@@ -61,6 +61,7 @@
 #include "skia/include/utils/SkParsePath.h"
 #include "skia/include/effects/SkGradientShader.h"
 #include "skia/include/effects/SkDashPathEffect.h"
+#include "skia/include/effects/SkDiscretePathEffect.h"
 #include "skia/include/core/SkDocument.h"
 #include "skia/include/pathops/SkPathOps.h"
 
@@ -4470,6 +4471,7 @@ class SkPaintWrapper {
       METHOD_ENTRY( setRadialGradientShader ),
       METHOD_ENTRY( clearShader ),
       METHOD_ENTRY( setDashPathEffect ),
+      METHOD_ENTRY( setDiscretePathEffect ),
       METHOD_ENTRY( clearPathEffect ),
       METHOD_ENTRY( measureText ),
       METHOD_ENTRY( measureTextBounds ),
@@ -5007,6 +5009,15 @@ class SkPaintWrapper {
         intervals, length,
         SkDoubleToScalar(args[1]->IsUndefined() ? 0.0 : args[1]->NumberValue())));
     delete[] intervals;
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  static void setDiscretePathEffect(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setPathEffect(SkDiscretePathEffect::Create(
+        SkDoubleToScalar(args[0]->NumberValue()),
+        SkDoubleToScalar(args[1]->NumberValue()),
+        args[2]->Uint32Value()));
     return args.GetReturnValue().SetUndefined();
   }
 
