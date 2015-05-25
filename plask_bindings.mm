@@ -3805,6 +3805,7 @@ class NSEventWrapper {
     static BatchedMethods methods[] = {
       METHOD_ENTRY( type ),
       METHOD_ENTRY( buttonNumber ),
+      METHOD_ENTRY( clickCount ),
       METHOD_ENTRY( characters ),
       METHOD_ENTRY( keyCode ),
       METHOD_ENTRY( locationInWindow ),
@@ -3913,6 +3914,16 @@ class NSEventWrapper {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event buttonNumber]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
+  // int clickCount()
+  DEFINE_METHOD(clickCount, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event clickCount]));
 #else
     return v8_utils::ThrowError(isolate, "Unimplemented.");
 #endif

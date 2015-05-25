@@ -463,6 +463,7 @@ exports.Window = function(width, height, opts) {
           y: height - loc.y * dpi_scale,  // Map from button left to top left.
           buttonNumber: button,
           buttonName: buttonNumberToName(button),
+          clickCount: e.clickCount(),
           capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,
