@@ -4057,6 +4057,13 @@ class SkPathWrapper {
       { "kUnionPathOp", SkPathOp::kUnion_PathOp },  //!< union (inclusive-or) the two paths
       { "kXORPathOp", SkPathOp::kXOR_PathOp },  //!< exclusive-or the two paths
       { "kReverseDifferencePathOp", SkPathOp::kReverseDifference_PathOp },  //!< subtract the first path from the op path
+      { "kMoveVerb",  SkPath::kMove_Verb },   //!< iter.next returns 1 point
+      { "kLineVerb",  SkPath::kLine_Verb },   //!< iter.next returns 2 points
+      { "kQuadVerb",  SkPath::kQuad_Verb },   //!< iter.next returns 3 points
+      { "kConicVerb", SkPath::kConic_Verb },  //!< iter.next returns 3 points + iter.conicWeight()
+      { "kCubicVerb", SkPath::kCubic_Verb },  //!< iter.next returns 4 points
+      { "kCloseVerb", SkPath::kClose_Verb },  //!< iter.next returns 1 point (contour's moveTo pt)
+      { "kDoneVerb",  SkPath::kDone_Verb },   //!< iter.next returns 0 points
     };
 
     static BatchedMethods methods[] = {
@@ -4079,6 +4086,8 @@ class SkPathWrapper {
       METHOD_ENTRY( toSVGString ),
       METHOD_ENTRY( fromSVGString ),
       METHOD_ENTRY( op ),
+      METHOD_ENTRY( getPoints ),
+      METHOD_ENTRY( getVerbs ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4342,6 +4351,42 @@ class SkPathWrapper {
     SkPathOp op = static_cast<SkPathOp>(args[2]->Uint32Value());
 
     return args.GetReturnValue().Set(::Op(*one, *two, op, path));
+  }
+
+  // float[] getPoints()
+  DEFINE_METHOD(getPoints, 0)
+    SkPath* path = ExtractPointer(args.Holder());
+    int num = path->countPoints();
+    SkPoint* points = new SkPoint[num];
+    path->getPoints(points, num);
+    v8::Local<v8::Array> res = v8::Array::New(isolate, num * 2);
+    for (int i = 0; i < num; ++i) {
+      SkPoint* p = points + i;
+      res->Set(v8::Integer::New(isolate, i*2),   v8::Number::New(isolate, p->x()));
+      res->Set(v8::Integer::New(isolate, i*2+1), v8::Number::New(isolate, p->y()));
+    }
+    delete[] points;
+
+    return args.GetReturnValue().Set(res);
+  }
+
+  // float[] getVerbs()
+  DEFINE_METHOD(getVerbs, 0)
+    SkPath* path = ExtractPointer(args.Holder());
+    int num = path->countVerbs();
+    uint8_t* verbs = new uint8_t[num];
+    if (path->getVerbs(verbs, num) != num) {
+      delete[] verbs;
+      return v8_utils::ThrowError(isolate, "getVerbs() failed");
+    }
+
+    v8::Local<v8::Array> res = v8::Array::New(isolate, num);
+    for (int i = 0; i < num; ++i) {
+      res->Set(v8::Integer::New(isolate, i), v8::Integer::New(isolate, verbs[i]));
+    }
+    delete[] verbs;
+
+    return args.GetReturnValue().Set(res);
   }
 
   // void SkPath(SkPath? path_to_copy)
