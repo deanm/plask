@@ -32,4 +32,14 @@ function test_path() {
   // assert_eq(false, path.fromSVGString("M 5"));  // crashes Skia (bug 3491).
 }
 
+function test_fracts() {
+  assert_eq( 0.25, plask.fract(  1.25));
+  assert_eq( 0.25, plask.fract( -1.75));
+  assert_eq( 0.25, plask.fract2( 1.25));
+  assert_eq( 0.25, plask.fract2(-1.25));
+  assert_eq( 0.25, plask.fract3( 1.25));
+  assert_eq(-0.25, plask.fract3(-1.25));
+}
+
 test_path();
+test_fracts();

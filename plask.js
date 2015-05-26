@@ -111,6 +111,34 @@ function smootherstep(edge0, edge1, x) {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
+// http://en.wikipedia.org/wiki/Fractional_part
+//
+// There are various conflicting ways to extend the fractional part function to
+// negative numbers. It is either defined as frac(x) = x - floor(x)
+// (Graham, Knuth & Patashnik 1992), as the part of the number to the
+// right of the radix point, frac(x) = |x| - floor(|x|)
+// (Daintith 2004), or as the odd function:
+//    frac(x) = x - floor(x), x >= 0
+//              x - ceil(x),  x <  0
+
+// float fract(float x)
+//
+// Like GLSL fract(), returns x - floor(x).  NOTE, for negative numbers, this
+// is a positive value, ex fract(-1.3) == 0.7.
+function fract(x) { return x - Math.floor(x); }
+
+// float fract2(float x)
+//
+// Returns the part of the number to the right of the radix point.
+// For negative numbers, this is a positive value, ex fract(-1.25) == 0.25
+function fract2(x) { return x < 0 ? (x|0) - x : x - (x|0); }
+
+// float fract3(float x)
+//
+// Returns the signed part of the number to the right of the radix point.
+// For negative numbers, this is a negative value, ex fract(-1.25) == -0.25
+function fract3(x) { return x - (x|0); }
+
 // Test if `num` is a floating point -0.
 function isNegZero(num) {
   return 1/num === -Infinity;
@@ -2152,6 +2180,10 @@ exports.clamp = clamp;
 exports.lerp = lerp;
 exports.smoothstep = smoothstep;
 exports.smootherstep = smootherstep;
+
+exports.fract  = fract;
+exports.fract2 = fract2;
+exports.fract3 = fract3;
 
 exports.Vec3 = Vec3;
 exports.Vec2 = Vec2;
