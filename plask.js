@@ -59,10 +59,12 @@ exports.SkCanvas.createForPDF = function(filename, page_width, page_height,
       content_height === undefined ? page_height : content_height);
 };
 
-var kPI  = 3.14159265358979323846264338327950288;
-var kPI2 = 1.57079632679489661923132169163975144;
-var kPI4 = 0.785398163397448309615660845819875721;
-var k2PI = 6.28318530717958647692528676655900576;
+var kPI   = 3.14159265358979323846264338327950288;
+var kPI2  = 1.57079632679489661923132169163975144;
+var kPI4  = 0.785398163397448309615660845819875721;
+var k2PI  = 6.28318530717958647692528676655900576;
+var kLN2  = 0.693147180559945309417232121458176568;
+var kLN10 = 2.30258509299404568401799145468436421;
 
 // float min(float a, float b)
 function min(a, b) {
@@ -2141,6 +2143,8 @@ exports.kPI4 = kPI4;
 exports.k2PI = k2PI;
 exports.kRadToDeg = 180/kPI;
 exports.kDegToRad = kPI/180;
+exports.kLN2  = kLN2;
+exports.kLN10 = kLN10;
 
 exports.min = min;
 exports.max = max;
