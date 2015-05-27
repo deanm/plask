@@ -6366,11 +6366,11 @@ class CAMIDISourceWrapper {
 
   static MIDIEndpointRef ExtractEndpoint(v8::Handle<v8::Object> obj) {
     // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    return (MIDIEndpointRef)(intptr_t)obj->GetAlignedPointerFromInternalField(0);
+    return (MIDIEndpointRef)((intptr_t)obj->GetAlignedPointerFromInternalField(0) >> 2);
   }
 
   static MIDIPortRef ExtractPort(v8::Handle<v8::Object> obj) {
-    return (MIDIPortRef)(intptr_t)obj->GetAlignedPointerFromInternalField(1);
+    return (MIDIPortRef)((intptr_t)obj->GetAlignedPointerFromInternalField(1) >> 2);
   }
 
   static bool HasInstance(v8::Isolate* isolate, v8::Handle<v8::Value> value) {
@@ -6465,7 +6465,7 @@ class CAMIDISourceWrapper {
     }
 
     // NOTE(deanm): MIDIEndpointRef (MIDIObjectRef) is UInt32 on 64-bit.
-    args.This()->SetAlignedPointerInInternalField(0, (void*)(intptr_t)endpoint);
+    args.This()->SetAlignedPointerInInternalField(0, (void*)((intptr_t)endpoint << 2));
     args.This()->SetAlignedPointerInInternalField(1, NULL);
     return args.GetReturnValue().SetUndefined();
   }
@@ -6486,8 +6486,8 @@ class CAMIDISourceWrapper {
     if (result != noErr)
       return v8_utils::ThrowError(isolate, "Couldn't create midi output port.");
 
-    args.This()->SetAlignedPointerInInternalField(0, (void*)(intptr_t)destination);
-    args.This()->SetAlignedPointerInInternalField(1, (void*)(intptr_t)port);
+    args.This()->SetAlignedPointerInInternalField(0, (void*)((intptr_t)destination << 2));
+    args.This()->SetAlignedPointerInInternalField(1, (void*)((intptr_t)port << 2));
 
     return args.GetReturnValue().SetUndefined();
     return args.GetReturnValue().SetUndefined();
