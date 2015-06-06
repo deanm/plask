@@ -1177,7 +1177,45 @@ class NSOpenGLContextWrapper {
     if (!args.IsConstructCall())
       return v8_utils::ThrowTypeError(isolate, kMsgNonConstructCall);
 
-    args.This()->SetAlignedPointerInInternalField(0, NULL);
+    unsigned int multisample = args[0]->Uint32Value();
+
+    NSOpenGLContext* context = NULL;
+
+#if PLASK_OSX
+    NSOpenGLPixelFormatAttribute attrs[] = {
+        NSOpenGLPFAColorSize, 24,
+        NSOpenGLPFADepthSize, 16,
+        NSOpenGLPFADoubleBuffer,
+        NSOpenGLPFAAccelerated,
+        NSOpenGLPFAStencilSize, 8,
+        // Truncate here for non-multisampling
+        NSOpenGLPFAMultisample,
+        NSOpenGLPFASampleBuffers, 1,
+        NSOpenGLPFASamples, multisample,
+        NSOpenGLPFANoRecovery,
+        0
+    };
+
+    if (!multisample)
+      attrs[8] = 0;
+
+    NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc] initWithAttributes:attrs];
+    context = [[NSOpenGLContext alloc] initWithFormat:format shareContext:nil];
+    [format release];
+
+    [context makeCurrentContext];
+
+    if (multisample) {
+      glEnable(GL_MULTISAMPLE_ARB);
+      glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
+    }
+
+    // Point sprite support.
+    glEnable(GL_POINT_SPRITE);
+    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+#endif  // PLASK_OSX
+
+    return args.This()->SetAlignedPointerInInternalField(0, context);
   }
 
   static void makeCurrentContext(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -3339,6 +3377,10 @@ class NSWindowWrapper {
 #endif
       return v8_utils::ThrowError(isolate, "Unsupported window type.");
 
+    bool use_highdpi = false;
+    uint32_t width = bwidth;
+    uint32_t height = bheight;
+
 #if PLASK_OSX
     NSScreen* screen = [NSScreen mainScreen];
     NSArray* screens = [NSScreen screens];
@@ -3347,10 +3389,6 @@ class NSWindowWrapper {
       screen = [screens objectAtIndex:display];
       NSLog(@"Using alternate screen: %@", screen);
     }
-
-    bool use_highdpi = false;
-    uint32_t width = bwidth;
-    uint32_t height = bheight;
 
     if (dpi_factor == 2) {
       if ((bwidth & 1) || (bheight & 1)) {
@@ -3392,34 +3430,19 @@ class NSWindowWrapper {
     // CGColorSpaceRelease(rgb_space)
     //
     // kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little;
-    NSOpenGLContext* context = NULL;
 
-    NSOpenGLPixelFormatAttribute attrs[] = {
-        NSOpenGLPFAColorSize, 24,
-        NSOpenGLPFADepthSize, 16,
-        NSOpenGLPFADoubleBuffer,
-        NSOpenGLPFAAccelerated,
-        NSOpenGLPFAStencilSize, 8,
-        // Truncate here for non-multisampling
-        NSOpenGLPFAMultisample,
-        NSOpenGLPFASampleBuffers, 1,
-        NSOpenGLPFASamples, 4,
-        NSOpenGLPFANoRecovery,
-        0
-    };
+    v8::Local<v8::FunctionTemplate> gl_cls = v8::Local<v8::FunctionTemplate>::New(
+        isolate, NSOpenGLContextWrapper::GetTemplate(isolate));
+    v8::Local<v8::Value> js_multisample =
+        v8::Integer::NewFromUnsigned(isolate, multisample ? 4 : 0);
+    v8::Local<v8::Object> gl = gl_cls->GetFunction()->NewInstance(1, &js_multisample);
 
-    if (!multisample)
-      attrs[8] = 0;
+    NSOpenGLContext* context = NSOpenGLContextWrapper::ExtractContextPointer(gl);
 
-    NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc]
-                                      initWithAttributes:attrs];
     NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0.0, 0.0,
                                                             width, height)];
     if (use_highdpi)
       [view setWantsBestResolutionOpenGLSurface:YES];
-    context = [[NSOpenGLContext alloc] initWithFormat:format
-                                       shareContext:nil];
-    [format release];
     [window setContentView:view];
     [context setView:view];
     [view release];
@@ -3434,38 +3457,23 @@ class NSWindowWrapper {
       [context flushBuffer];
     }
 
-    if (multisample) {
-      glEnable(GL_MULTISAMPLE_ARB);
-      glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
-    }
-
-    // Point sprite support.
-    glEnable(GL_POINT_SPRITE);
-    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
-
 #endif  // PLASK_OSX
-
-    v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
-        isolate, NSOpenGLContextWrapper::GetTemplate(isolate));
-    v8::Local<v8::Object> context_wrapper = ft->
-        InstanceTemplate()->NewInstance();
-    context_wrapper->SetAlignedPointerInInternalField(0, context);
 
     // NOTE(deanm): I assume we want the real (highdpi) resolution here.
     // There is some discussion about this at:
     //   https://bugzilla.mozilla.org/show_bug.cgi?id=780361
     // readonly attribute GLsizei drawingBufferWidth;
-    context_wrapper->Set(
+    gl->Set(
         v8::String::NewFromUtf8(isolate, "drawingBufferWidth"),
         v8::Integer::New(isolate, bwidth),
         v8::ReadOnly);
     // readonly attribute GLsizei drawingBufferHeight;
-    context_wrapper->Set(
+    gl->Set(
         v8::String::NewFromUtf8(isolate, "drawingBufferHeight"),
         v8::Integer::New(isolate, bheight),
         v8::ReadOnly);
 
-    args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), context_wrapper);
+    args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), gl);
 
 #if PLASK_GPUSKIA
     SkSurface* sk_surface = NULL;
@@ -3494,8 +3502,8 @@ class NSWindowWrapper {
       sk_surface = SkSurface::NewRenderTargetDirect(gr_rt);
     }
 
-    context_wrapper->SetAlignedPointerInInternalField(1, sk_surface);
-    context_wrapper->SetAlignedPointerInInternalField(2, gr_context);
+    gl->SetAlignedPointerInInternalField(1, sk_surface);
+    gl->SetAlignedPointerInInternalField(2, gr_context);
 #endif
 
 #if PLASK_OSX
