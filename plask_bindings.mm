@@ -1319,11 +1319,10 @@ class NSOpenGLContextWrapper {
 
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
     // TODO(deanm): There should be a better way to get the width and height.
-#if PLASK_OSX
-    NSRect frame = [[context view] convertRectToBacking:[[context view] frame]];
-    int width = frame.size.width;
-    int height = frame.size.height;
-#endif  // PLASK_OSX
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    int width  = viewport[2];
+    int height = viewport[3];
 
     int buffer_type = args[3]->Int32Value();
 
