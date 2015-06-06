@@ -277,9 +277,16 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
                                       chan: msg[j+0] & 0x0f,
                                       val: (msg[j+2] << 7) | msg[j+1]});
             j += 3; break;
-          // TODO(deanm): SysEx and the 0xFx messages.
+          case 0xf0:  // SysEx and the 0xFx messages.
+            if (msg[j] !== 0xf0)
+              return 'Unhandled MIDI status byte: 0x' + msg[j].toString(16);
+            var start = j;
+            while (j+1 < msg.length && msg[j] !== 0xf7) ++j;
+            if (msg[j++] !== 0xf7) return 'Missing expected SysEx termination.';
+            this_.emit('sysex', {type: 'sysex', data: msg.slice(start, j)});
+            break;
           default:
-            return 'Unhandled MIDI status byte: 0x' + msg[0].toString(16);
+            return 'Unhandled MIDI status byte: 0x' + msg[j].toString(16);
         }
       }
 
