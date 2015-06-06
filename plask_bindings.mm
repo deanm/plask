@@ -946,7 +946,7 @@ class NSOpenGLContextWrapper {
         v8::FunctionTemplate::New(isolate, &NSOpenGLContextWrapper::V8New);
     v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
 #if PLASK_GPUSKIA
-    instance->SetInternalFieldCount(2);  // gl context and SkSurface.
+    instance->SetInternalFieldCount(3);  // gl context, SkSurface, and GrContext.
 #else
     instance->SetInternalFieldCount(1);
 #endif
@@ -963,6 +963,9 @@ class NSOpenGLContextWrapper {
 
     static BatchedMethods methods[] = {
       METHOD_ENTRY( makeCurrentContext ),
+      METHOD_ENTRY( pushAllState ),  // client and server state
+      METHOD_ENTRY( popAllState ),   // client and server state
+      METHOD_ENTRY( resetSkiaContext ),
       METHOD_ENTRY( setSwapInterval ),
       METHOD_ENTRY( writeImage ),
 
@@ -1163,6 +1166,10 @@ class NSOpenGLContextWrapper {
   static SkSurface* ExtractSkSurface(v8::Handle<v8::Object> obj) {
     return reinterpret_cast<SkSurface*>(obj->GetAlignedPointerFromInternalField(1));
   }
+
+  static GrContext* ExtractGrContext(v8::Handle<v8::Object> obj) {
+    return reinterpret_cast<GrContext*>(obj->GetAlignedPointerFromInternalField(2));
+  }
 #endif
 
  private:
@@ -1178,6 +1185,22 @@ class NSOpenGLContextWrapper {
 #if PLASK_OSX
     [context makeCurrentContext];
 #endif  // PLASK_OSX
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(pushAllState, 0)
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(popAllState, 0)
+    glPopClientAttrib(); glPopAttrib();
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(resetSkiaContext, 0)
+    ExtractGrContext(args.Holder())->resetContext();
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -3446,15 +3469,19 @@ class NSWindowWrapper {
 
 #if PLASK_GPUSKIA
     SkSurface* sk_surface = NULL;
+    GrContext* gr_context = NULL;
 
     if (window_type == 2) {  // OpenGL window with a Skia GPU canvas attached.
+      // Save pre-Skia state in case the caller wants to restore it.
+      glPushAttrib(GL_ALL_ATTRIB_BITS);
+      glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
       const GrGLInterface* gr_native_interface = GrGLCreateNativeInterface();
       if (!gr_native_interface->validate())
         return v8_utils::ThrowError(isolate, "Skia GL Native Interface didn't validate.");
       GrGLInterface* gr_interface = GrGLInterface::NewClone(gr_native_interface);
       if (!gr_interface->validate())
         return v8_utils::ThrowError(isolate, "Skia GL Interface didn't validate.");
-      GrContext* gr_context = GrContext::Create(kOpenGL_GrBackend, (intptr_t)gr_interface);
+      gr_context = GrContext::Create(kOpenGL_GrBackend, (intptr_t)gr_interface);
       GrBackendRenderTargetDesc rt_desc;
       rt_desc.fWidth = bwidth; rt_desc.fHeight = bheight;
       rt_desc.fConfig = kSkia8888_GrPixelConfig;
@@ -3468,6 +3495,7 @@ class NSWindowWrapper {
     }
 
     context_wrapper->SetAlignedPointerInInternalField(1, sk_surface);
+    context_wrapper->SetAlignedPointerInInternalField(2, gr_context);
 #endif
 
 #if PLASK_OSX

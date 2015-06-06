@@ -715,6 +715,7 @@ exports.simpleWindow = function(obj) {
     if (settings.type === '2dx') {  // GPU accelerated
       canvas = gpu_canvas = new exports.SkCanvas(gl_);
       canvas.width = width; canvas.height = height;
+      obj.gl = gl_;  // Expose the OpenGL context for mixed usage.
     } else {
       canvas = bitmap_canvas = exports.SkCanvas.create(width, height);  // Offscreen.
     }
