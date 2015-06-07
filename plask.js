@@ -590,6 +590,24 @@ exports.Window = function(width, height, opts) {
         this_.emit(te.type, te);
         break;
       case PlaskRawMac.NSEvent.NSMouseMoved:
+        var mods = e.modifierFlags();
+        var loc = e.locationInWindow();
+        var te = {
+          type: nsEventNameToEmitName(type),
+          x: loc.x * dpi_scale,
+          y: height - loc.y * dpi_scale,
+          dx: e.deltaX() * dpi_scale,
+          dy: e.deltaY() * dpi_scale,  // Doesn't need flip, in device space.
+          dz: e.deltaZ(),
+          capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
+          shift: (mods & e.NSShiftKeyMask) !== 0,
+          ctrl: (mods & e.NSControlKeyMask) !== 0,
+          option: (mods & e.NSAlternateKeyMask) !== 0,
+          cmd: (mods & e.NSCommandKeyMask) !== 0,
+          function: (mods & e.NSFunctionKeyMask) !== 0
+        };
+        this_.emit(te.type, te);
+        break;
       case PlaskRawMac.NSEvent.NSScrollWheel:
         var mods = e.modifierFlags();
         var loc = e.locationInWindow();
@@ -600,6 +618,11 @@ exports.Window = function(width, height, opts) {
           dx: e.deltaX() * dpi_scale,
           dy: e.deltaY() * dpi_scale,  // Doesn't need flip, in device space.
           dz: e.deltaZ(),
+          hasPreciseScrollingDeltas: e.hasPreciseScrollingDeltas(),
+          scrollingDeltaX: e.scrollingDeltaX(),
+          scrollingDeltaY: e.scrollingDeltaY(),
+          phase: e.phase(),
+          momentumPhase: e.momentumPhase(),
           capslock: (mods & e.NSAlphaShiftKeyMask) !== 0,
           shift: (mods & e.NSShiftKeyMask) !== 0,
           ctrl: (mods & e.NSControlKeyMask) !== 0,

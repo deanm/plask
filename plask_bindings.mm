@@ -3847,10 +3847,15 @@ class NSEventWrapper {
       METHOD_ENTRY( deltaX ),
       METHOD_ENTRY( deltaY ),
       METHOD_ENTRY( deltaZ ),
+      METHOD_ENTRY( hasPreciseScrollingDeltas ),
+      METHOD_ENTRY( scrollingDeltaX ),
+      METHOD_ENTRY( scrollingDeltaY ),
       METHOD_ENTRY( pressure ),
       METHOD_ENTRY( isEnteringProximity ),
       METHOD_ENTRY( modifierFlags ),
       METHOD_ENTRY( isARepeat ),
+      METHOD_ENTRY( phase ),
+      METHOD_ENTRY( momentumPhase ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4034,6 +4039,36 @@ class NSEventWrapper {
 #endif
   }
 
+  // float hasPreciseScrollingDeltas()
+  DEFINE_METHOD(hasPreciseScrollingDeltas, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(!![event hasPreciseScrollingDeltas]);
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
+  // float scrollingDeltaX()
+  DEFINE_METHOD(scrollingDeltaX, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [event scrollingDeltaX]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
+  // float scrollingDeltaY()
+  DEFINE_METHOD(scrollingDeltaY, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Number::New(isolate, [event scrollingDeltaY]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
   // float pressure()
   static void pressure(const v8::FunctionCallbackInfo<v8::Value>& args) {
 #if PLASK_OSX
@@ -4071,6 +4106,26 @@ class NSEventWrapper {
 #if PLASK_OSX
     NSEvent* event = ExtractPointer(args.Holder());
     return args.GetReturnValue().Set(!![event isARepeat]);
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
+  // int momentumPhase()
+  DEFINE_METHOD(momentumPhase, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event momentumPhase]));
+#else
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+#endif
+  }
+
+  // int phase()
+  DEFINE_METHOD(phase, 0)
+#if PLASK_OSX
+    NSEvent* event = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate, [event phase]));
 #else
     return v8_utils::ThrowError(isolate, "Unimplemented.");
 #endif
