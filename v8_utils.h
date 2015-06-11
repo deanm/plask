@@ -30,6 +30,7 @@ namespace v8_utils {
 int ToInt32(v8::Handle<v8::Value> value, bool* ok);
 int ToInt32(v8::Handle<v8::Value> value);
 int ToInt32WithDefault(v8::Handle<v8::Value> value, int def);
+double ToNumberWithDefault(v8::Handle<v8::Value> value, double def);
 
 void ThrowError(v8::Isolate* isolate, const char* msg);
 void ThrowTypeError(v8::Isolate* isolate, const char* msg);

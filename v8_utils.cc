@@ -51,6 +51,10 @@ int ToInt32WithDefault(v8::Handle<v8::Value> value, int def) {
   return ok ? res : def;
 }
 
+double ToNumberWithDefault(v8::Handle<v8::Value> value, double def) {
+  value->IsNumber() ? value->NumberValue() : def;
+}
+
 void ThrowError(v8::Isolate* isolate, const char* msg) {
   isolate->ThrowException(
       v8::Exception::Error(v8::String::NewFromUtf8(isolate, msg)));

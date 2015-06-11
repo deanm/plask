@@ -5710,7 +5710,7 @@ class SkCanvasWrapper {
   //                       0, 0, 200, 300,  // Draw at (0, 0) size 200x300.
   //                       0, 0, 100, 150)  // Draw the entire source image.
   static void drawCanvas(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    if (args.Length() < 6)
+    if (args.Length() < 2)
       return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
     if (!SkCanvasWrapper::HasInstance(isolate, args[1]))
@@ -5727,21 +5727,21 @@ class SkCanvasWrapper {
           v8::Handle<v8::Object>::Cast(args[1]));
     SkBaseDevice* src_device = src_canvas->getDevice();
 
-    SkRect dst_rect = { SkDoubleToScalar(args[2]->NumberValue()),
-                        SkDoubleToScalar(args[3]->NumberValue()),
-                        SkDoubleToScalar(args[4]->NumberValue()),
-                        SkDoubleToScalar(args[5]->NumberValue()) };
+    double dstx1 = v8_utils::ToNumberWithDefault(args[2], 0);
+    double dsty1 = v8_utils::ToNumberWithDefault(args[3], 0);
+    double dstx2 = v8_utils::ToNumberWithDefault(args[4], dstx1 + src_device->width());
+    double dsty2 = v8_utils::ToNumberWithDefault(args[5], dsty1 + src_device->height());
+
+    SkRect dst_rect = { SkDoubleToScalar(dstx1), SkDoubleToScalar(dsty1),
+                        SkDoubleToScalar(dstx2), SkDoubleToScalar(dsty2) };
 
     int srcx1 = v8_utils::ToInt32WithDefault(args[6], 0);
     int srcy1 = v8_utils::ToInt32WithDefault(args[7], 0);
-    int srcx2 = v8_utils::ToInt32WithDefault(args[8],
-                                             srcx1 + src_device->width());
-    int srcy2 = v8_utils::ToInt32WithDefault(args[9],
-                                             srcy1 + src_device->height());
+    int srcx2 = v8_utils::ToInt32WithDefault(args[8], srcx1 + src_device->width());
+    int srcy2 = v8_utils::ToInt32WithDefault(args[9], srcy1 + src_device->height());
     SkIRect src_rect = { srcx1, srcy1, srcx2, srcy2 };
 
-    canvas->drawBitmapRect(src_device->accessBitmap(false),
-                           &src_rect, dst_rect, paint);
+    canvas->drawBitmapRect(src_device->accessBitmap(false), &src_rect, dst_rect, paint);
     return args.GetReturnValue().SetUndefined();
   }
 
