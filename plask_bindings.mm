@@ -4609,6 +4609,7 @@ class SkPaintWrapper {
       METHOD_ENTRY( getFillPath ),
       METHOD_ENTRY( setColor ),
       METHOD_ENTRY( setColorHSV ),
+      METHOD_ENTRY( setAlpha ),
       METHOD_ENTRY( setTextSize ),
       METHOD_ENTRY( setXfermodeMode ),
       METHOD_ENTRY( setFontFamily ),
@@ -4952,6 +4953,15 @@ class SkPaintWrapper {
     int a = Clamp(v8_utils::ToInt32WithDefault(args[3], 255), 0, 255);
 
     paint->setColor(SkHSVToColor(a, hsv));
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void setAlpha(float a)
+  //
+  // Set the alpha of the paint color, leaving rgb unchanged.
+  DEFINE_METHOD(setAlpha, 1);
+    SkPaint* paint = ExtractPointer(args.Holder());
+    paint->setAlpha(Clamp(v8_utils::ToInt32WithDefault(args[0], 255), 0, 255));
     return args.GetReturnValue().SetUndefined();
   }
 
