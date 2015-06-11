@@ -220,8 +220,9 @@ PlaskRawMac.CAMIDIDestination.prototype.on = function(evname, callback) {
       // TODO(deanm): Use framing instead of assuming atomic writes on the pipe.
       for (var j = 0, jl = msg.length; j < jl; ) {
         if ((msg[j] & 0x80) !== 0x80) {
-          console.log('First MIDI byte not a status byte.');
-          return;
+          console.trace(msg);
+          console.trace(msg.slice(j));
+          return 'First MIDI byte not a status byte.';
         }
 
         var rem = jl - j;  // Number of bytes remaining.
