@@ -336,6 +336,73 @@ bool GetTypedArrayBytes(
   return true;
 }
 
+struct ScopedFree {
+  ScopedFree(void* ptr) : ptr_(ptr) { }
+  ~ScopedFree() { free(ptr_); }
+  void* ptr_;
+};
+
+// Common routine shared for writing images from OpenGL or Skia.
+void writeImageHelper(const v8::FunctionCallbackInfo<v8::Value>& args,
+                      int width, int height, void* pixels, FIBITMAP* fb, bool flip) {
+  const uint32_t rmask = SK_R32_MASK << SK_R32_SHIFT;
+  const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
+  const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
+
+  if (args.Length() < 2)
+    return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
+
+  FREE_IMAGE_FORMAT format;
+
+  v8::String::Utf8Value type(args[0]);
+  if (strcmp(*type, "png") == 0) {
+    format = FIF_PNG;
+  } else if (strcmp(*type, "tiff") == 0) {
+    format = FIF_TIFF;
+  } else if (strcmp(*type, "targa") == 0) {
+    format = FIF_TARGA;
+  } else {
+    return v8_utils::ThrowError(isolate, "writeImage unsupported output type.");
+  }
+
+  v8::String::Utf8Value filename(args[1]);
+
+  if (!fb) {
+    fb = FreeImage_ConvertFromRawBits(
+        reinterpret_cast<BYTE*>(pixels),
+        width, height, width * 4, 32,
+        rmask, gmask, bmask, FALSE);
+    if (!fb)
+      return v8_utils::ThrowError(isolate, "Couldn't allocate FreeImage bitmap.");
+  }
+
+  int save_flags = 0;
+
+  if (args.Length() >= 3 && args[2]->IsObject()) {
+    v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
+    if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))) {
+      FreeImage_SetDotsPerMeterX(fb,
+          opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))->Uint32Value());
+    }
+    if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))) {
+      FreeImage_SetDotsPerMeterY(fb,
+          opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))->Uint32Value());
+    }
+    if (format == FIF_TIFF && opts->Has(v8::String::NewFromUtf8(isolate, "tiffCompression"))) {
+      if (!opts->Get(v8::String::NewFromUtf8(isolate, "tiffCompression"))->BooleanValue())
+        save_flags = TIFF_NONE;
+    }
+  }
+
+  bool saved = true;
+  if (flip)  saved = FreeImage_FlipVertical(fb);
+  if (saved) saved = FreeImage_Save(format, fb, *filename, save_flags);
+  FreeImage_Unload(fb);
+
+  if (!saved)
+    return v8_utils::ThrowError(isolate, "Failed to save png.");
+}
+
 
 const char kMsgNonConstructCall[] =
     "Constructor cannot be called as a function.";
@@ -1309,16 +1376,11 @@ class NSOpenGLContextWrapper {
   }
 
   // TODO(deanm): Share more code with SkCanvas#writeImage.
+
+  // void writeImage(filetype, filename, opts)
   static void writeImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    const uint32_t rmask = SK_R32_MASK << SK_R32_SHIFT;
-    const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
-    const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
-
-    if (args.Length() < 2)
-      return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
-
     NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-    // TODO(deanm): There should be a better way to get the width and height.
+
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
     int width  = viewport[2];
@@ -1326,83 +1388,27 @@ class NSOpenGLContextWrapper {
 
     int buffer_type = args[3]->Int32Value();
 
-    // Handle width / height in the optional options object.  This allows you
-    // to override the width and height, for example if there is a framebuffer
-    // object that is a different size than the window.
-    // TODO(deanm): Also allow passing the x/y ?
-    if (args.Length() >= 3 && args[2]->IsObject()) {
-      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
-      if (opts->Has(v8::String::NewFromUtf8(isolate, "width")))
-        width = opts->Get(v8::String::NewFromUtf8(isolate, "width"))->Int32Value();
-      if (opts->Has(v8::String::NewFromUtf8(isolate, "height")))
-        height = opts->Get(v8::String::NewFromUtf8(isolate, "height"))->Int32Value();
-    }
-
-    FREE_IMAGE_FORMAT format;
-
-    v8::String::Utf8Value type(args[0]);
-    if (strcmp(*type, "png") == 0) {
-      format = FIF_PNG;
-    } else if (strcmp(*type, "tiff") == 0) {
-      format = FIF_TIFF;
-    } else if (strcmp(*type, "targa") == 0) {
-      format = FIF_TARGA;
-    } else {
-      return v8_utils::ThrowError(isolate, "writeImage unsupported output type.");
-    }
-
-    v8::String::Utf8Value filename(args[1]);
-
-    FIBITMAP* fb;
-
     if (buffer_type == 0) {  // RGBA color buffer.
       void* pixels = malloc(width * height * 4);
+      ScopedFree freepixels(pixels);
       glReadPixels(0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
-
-      fb = FreeImage_ConvertFromRawBits(
-          reinterpret_cast<BYTE*>(pixels),
-          width, height, width * 4, 32,
-          rmask, gmask, bmask, FALSE);
-      free(pixels);
-      if (!fb)
-        return v8_utils::ThrowError(isolate, "Couldn't allocate FreeImage bitmap.");
+      writeImageHelper(args, width, height, pixels, NULL, false);
     } else {  // Floating point depth buffer
-      fb = FreeImage_AllocateT(FIT_FLOAT, width, height);
+      FIBITMAP* fb = FreeImage_AllocateT(FIT_FLOAT, width, height);  // Helper will dealloc
       if (!fb)
         return v8_utils::ThrowError(isolate, "Couldn't allocate FreeImage bitmap.");
+      // Read into the FreeImage allocated buffer.
       glReadPixels(0, 0, width, height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, FreeImage_GetBits(fb));
+      writeImageHelper(args, width, height, NULL, fb, false);
     }
 
-    int save_flags = 0;
-
-    if (args.Length() >= 3 && args[2]->IsObject()) {
-      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
-      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))) {
-        FreeImage_SetDotsPerMeterX(fb,
-            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))->Uint32Value());
-      }
-      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))) {
-        FreeImage_SetDotsPerMeterY(fb,
-            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))->Uint32Value());
-      }
-      if (format == FIF_TIFF && opts->Has(v8::String::NewFromUtf8(isolate, "tiffCompression"))) {
-        if (!opts->Get(v8::String::NewFromUtf8(isolate, "tiffCompression"))->BooleanValue())
-          save_flags = TIFF_NONE;
-      }
-    }
-
-    bool saved = FreeImage_Save(format, fb, *filename, save_flags);
-    FreeImage_Unload(fb);
-
-    if (!saved)
-      return v8_utils::ThrowError(isolate, "Failed to save png.");
-
-    return args.GetReturnValue().SetUndefined();
+    return;
   }
 
   // void activeTexture(GLenum texture)
-  DEFINE_METHOD(activeTexture, 1)    glActiveTexture(args[0]->Uint32Value());
+  DEFINE_METHOD(activeTexture, 1)
+    glActiveTexture(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -6003,52 +6009,26 @@ class SkCanvasWrapper {
     if (args.Length() < 2)
       return v8_utils::ThrowError(isolate, "Wrong number of arguments.");
 
-    const uint32_t rmask = SK_R32_MASK << SK_R32_SHIFT;
-    const uint32_t gmask = SK_G32_MASK << SK_G32_SHIFT;
-    const uint32_t bmask = SK_B32_MASK << SK_B32_SHIFT;
-
-    v8::String::Utf8Value type(args[0]);
-    if (strcmp(*type, "png") != 0)
-      return v8_utils::ThrowError(isolate, "writeImage: can only write PNG types.");
-
-    v8::String::Utf8Value filename(args[1]);
-
     // NOTE(deanm): Would be nice if we could just peekPixels, but we need to unpremultiply.
-
     SkCanvas* canvas = ExtractPointer(args.Holder());
     SkImageInfo image_info =
         canvas->imageInfo().makeColorType(kN32_SkColorType).makeAlphaType(kUnpremul_SkAlphaType);
 
-    FIBITMAP* fb = FreeImage_Allocate(
-        image_info.width(), image_info.height(), 32, rmask, gmask, bmask);
-    if (!fb) return v8_utils::ThrowError(isolate, "Couldn't allocate output FreeImage bitmap.");
+    int width = image_info.width(), height = image_info.height();
 
-    if (!canvas->readPixels(image_info, FreeImage_GetBits(fb), 4 * image_info.width(), 0, 0)) {
-      FreeImage_Unload(fb);
+    void* pixels = malloc(width * height * 4);
+
+    if (!pixels)
+      return v8_utils::ThrowError(isolate, "writeImage: couldn't allocate pixels.");
+
+    ScopedFree freepixels(pixels);
+
+    if (!canvas->readPixels(image_info, pixels, 4 * width, 0, 0))
       return v8_utils::ThrowError(isolate, "writeImage: couldn't readPixels().");
-    }
 
-    if (args.Length() >= 3 && args[2]->IsObject()) {
-      v8::Handle<v8::Object> opts = v8::Handle<v8::Object>::Cast(args[2]);
-      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))) {
-        FreeImage_SetDotsPerMeterX(fb,
-            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterX"))->Uint32Value());
-      }
-      if (opts->Has(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))) {
-        FreeImage_SetDotsPerMeterY(fb,
-            opts->Get(v8::String::NewFromUtf8(isolate, "dotsPerMeterY"))->Uint32Value());
-      }
-    }
+    writeImageHelper(args, width, height, pixels, NULL, true);
 
-    bool saved = FreeImage_FlipVertical(fb);
-    if (saved)
-      saved = FreeImage_Save(FIF_PNG, fb, *filename, 0);
-    FreeImage_Unload(fb);
-
-    if (!saved)
-      return v8_utils::ThrowError(isolate, "Failed to save png.");
-
-    return args.GetReturnValue().SetUndefined();
+    return;
   }
 
   // void writePDF(filename)
