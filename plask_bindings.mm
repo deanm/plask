@@ -392,6 +392,20 @@ void writeImageHelper(const v8::FunctionCallbackInfo<v8::Value>& args,
       if (!opts->Get(v8::String::NewFromUtf8(isolate, "tiffCompression"))->BooleanValue())
         save_flags = TIFF_NONE;
     }
+
+    // TODO(deanm): Full metadata support, XMP with types, etc.
+    if (opts->Has(v8::String::NewFromUtf8(isolate, "comment"))) {
+      v8::String::Utf8Value val(opts->Get(v8::String::NewFromUtf8(isolate, "comment")));
+      FITAG* tag = FreeImage_CreateTag();
+      FreeImage_SetTagType(tag, FIDT_ASCII);
+      FreeImage_SetTagKey(tag, "Comment");
+      FreeImage_SetTagCount(tag, val.length());
+      FreeImage_SetTagLength(tag, val.length());
+      FreeImage_SetTagValue(tag, *val);
+      // NOTE(deanm): If we want to support TIFFs then should use XMP.
+      FreeImage_SetMetadata(FIMD_COMMENTS, fb, "Comment", tag);
+      FreeImage_DeleteTag(tag);
+    }
   }
 
   bool saved = true;
