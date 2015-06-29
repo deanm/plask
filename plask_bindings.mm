@@ -1173,6 +1173,7 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( stencilOpSeparate ),
       METHOD_ENTRY( texImage2D ),
       METHOD_ENTRY( texImage2DSkCanvasB ),
+      METHOD_ENTRY( compressedTexImage2D ),
       METHOD_ENTRY( texParameterf ),
       METHOD_ENTRY( texParameteri ),
       METHOD_ENTRY( texSubImage2D ),
@@ -2773,6 +2774,31 @@ class NSOpenGLContextWrapper {
   // NOTE: implemented outside of class definition (SkCanvasWrapper dependency).
   static void texImage2DSkCanvasB(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void drawSkCanvas(const v8::FunctionCallbackInfo<v8::Value>& args);
+
+  // void compressedTexImage2D(GLenum target, GLint level, GLenum internalformat,
+  //                           GLsizei width, GLsizei height, GLint border,
+  //                           ArrayBufferView data)
+  DEFINE_METHOD(compressedTexImage2D, 7)
+    GLvoid* data = NULL;
+    GLsizeiptr size = 0;  // FIXME use size
+
+    if (!args[6]->IsNull()) {
+      // TODO(deanm): Check size / format.  For now just use it correctly.
+      if (!GetTypedArrayBytes(args[6], &data, &size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
+    }
+
+    // TODO(deanm): Support more than just the zero initialization case.
+    glCompressedTexImage2D(args[0]->Uint32Value(),  // target
+                           args[1]->Int32Value(),   // level
+                           args[2]->Int32Value(),   // internalFormat
+                           args[3]->Int32Value(),   // width
+                           args[4]->Int32Value(),   // height
+                           args[5]->Int32Value(),   // border
+                           size,                    // size
+                           data);                   // data
+    return args.GetReturnValue().SetUndefined();
+  }
 
   // void texParameterf(GLenum target, GLenum pname, GLfloat param)
   DEFINE_METHOD(texParameterf, 3)
