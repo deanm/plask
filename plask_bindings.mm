@@ -2560,13 +2560,14 @@ class NSOpenGLContextWrapper {
     }
 
     // TODO(deanm): Support more than just the zero initialization case.
-	glCompressedTexImage2D(args[0]->Uint32Value(),  // target
+    glCompressedTexImage2D(args[0]->Uint32Value(),  // target
+                 args[7]->Uint32Value(),  // type
                  args[1]->Int32Value(),   // level
                  args[2]->Int32Value(),   // internalFormat
                  args[3]->Int32Value(),   // width
                  args[4]->Int32Value(),   // height
                  args[5]->Int32Value(),   // border
-                 size,                    //size
+                 size,                    // size
                  data);                   // data
     return args.GetReturnValue().SetUndefined();
   }
