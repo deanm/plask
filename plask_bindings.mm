@@ -311,18 +311,23 @@ bool GetTypedArrayBytes(
     v8::Local<v8::Value> value, void** data, intptr_t* size) {
 
   v8::Local<v8::ArrayBuffer> buffer;
+  size_t offset = 0, length = 0;
 
   if (value->IsArrayBuffer()) {
     buffer = v8::Handle<v8::ArrayBuffer>::Cast(value);
+    length = buffer->ByteLength();
   } else if (value->IsArrayBufferView()) {
-    buffer = v8::Local<v8::ArrayBufferView>::Cast(value)->Buffer();
+    v8::Local<v8::ArrayBufferView> bv = v8::Local<v8::ArrayBufferView>::Cast(value);
+    offset = bv->ByteOffset();
+    length = bv->ByteLength();
+    buffer = bv->Buffer();
   } else {
     return false;
   }
 
   // Always create a new wrapper, see above.
   v8::Local<v8::ArrayBufferView> view =
-      v8::Uint8Array::New(buffer, 0, buffer->ByteLength());
+      v8::Uint8Array::New(buffer, offset, length);
 
   if (!view->HasIndexedPropertiesInExternalArrayData())
     abort();
