@@ -398,7 +398,11 @@ int main(int argc, char** argv) {
   #else
       // [NSApp run];
       [NSApp finishLaunching];
-      [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
+      // It is usually desired to activate the app and bring it up as the
+      // front application, but allow this behaviour to be overriden.  This
+      // happens pretty early so it is probably best done via the environment.
+      if (!getenv("PLASK_DONT_ACTIVATE"))
+        [NSApp activateIgnoringOtherApps:YES];
       [NSApp setWindowsNeedUpdate:YES];
 
       int pipefds[2];
