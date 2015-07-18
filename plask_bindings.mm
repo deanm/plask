@@ -4204,11 +4204,11 @@ class SkPathWrapper {
       { "kEvenOddFillType", SkPath::kEvenOdd_FillType },
       { "kInverseWindingFillType", SkPath::kInverseWinding_FillType },
       { "kInverseEvenOddFillType", SkPath::kInverseEvenOdd_FillType },
-      { "kDifferencePathOp", SkPathOp::kDifference_PathOp },  //!< subtract the op path from the first path
-      { "kIntersectPathOp", SkPathOp::kIntersect_PathOp },  //!< intersect the two paths
-      { "kUnionPathOp", SkPathOp::kUnion_PathOp },  //!< union (inclusive-or) the two paths
-      { "kXORPathOp", SkPathOp::kXOR_PathOp },  //!< exclusive-or the two paths
-      { "kReverseDifferencePathOp", SkPathOp::kReverseDifference_PathOp },  //!< subtract the first path from the op path
+      { "kDifferencePathOp", SkPathOp::kDifference_SkPathOp },  //!< subtract the op path from the first path
+      { "kIntersectPathOp", SkPathOp::kIntersect_SkPathOp },  //!< intersect the two paths
+      { "kUnionPathOp", SkPathOp::kUnion_SkPathOp },  //!< union (inclusive-or) the two paths
+      { "kXORPathOp", SkPathOp::kXOR_SkPathOp },  //!< exclusive-or the two paths
+      { "kReverseDifferencePathOp", SkPathOp::kReverseDifference_SkPathOp },  //!< subtract the first path from the op path
       { "kMoveVerb",  SkPath::kMove_Verb },   //!< iter.next returns 1 point
       { "kLineVerb",  SkPath::kLine_Verb },   //!< iter.next returns 2 points
       { "kQuadVerb",  SkPath::kQuad_Verb },   //!< iter.next returns 3 points

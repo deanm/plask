@@ -13,9 +13,11 @@
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		C51CAD0E133AACE900FF807C /* Syphon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
 		C51CAD17133AACF300FF807C /* Syphon.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
+		C51CE4521B53C5350024FBCE /* libsfntly.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CE4511B53C5350024FBCE /* libsfntly.a */; };
 		C52D4CFD1993EB0500AB37F3 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */; };
 		C542EFDC1987F06600E9013B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C542EFDB1987F06600E9013B /* AVFoundation.framework */; };
 		C54480A9133CDB760074124E /* Plask.icns in Resources */ = {isa = PBXBuildFile; fileRef = C54480A8133CDB760074124E /* Plask.icns */; };
+		C55215F71B53C77B00046F3D /* libicuuc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C55215F61B53C77B00046F3D /* libicuuc.a */; };
 		C5573ED21987F50700981CEB /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5573ED11987F50700981CEB /* CoreVideo.framework */; };
 		C5703517124FFED40082AA14 /* plask_bindings.mm in Sources */ = {isa = PBXBuildFile; fileRef = C5703516124FFED40082AA14 /* plask_bindings.mm */; };
 		C570353B125003630082AA14 /* v8_utils.cc in Sources */ = {isa = PBXBuildFile; fileRef = C5703539125003630082AA14 /* v8_utils.cc */; };
@@ -76,9 +78,11 @@
 		8D1107310486CEB800E47090 /* plask-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "plask-Info.plist"; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* Plask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Plask.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C51CAD0D133AACE900FF807C /* Syphon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Syphon.framework; path = deps/Syphon.framework; sourceTree = "<group>"; };
+		C51CE4511B53C5350024FBCE /* libsfntly.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsfntly.a; path = deps/libsfntly.a; sourceTree = "<group>"; };
 		C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = ../../../../System/Library/Frameworks/CoreMedia.framework; sourceTree = "<group>"; };
 		C542EFDB1987F06600E9013B /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = /System/Library/Frameworks/AVFoundation.framework; sourceTree = "<absolute>"; };
 		C54480A8133CDB760074124E /* Plask.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Plask.icns; sourceTree = "<group>"; };
+		C55215F61B53C77B00046F3D /* libicuuc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libicuuc.a; path = deps/libicuuc.a; sourceTree = "<group>"; };
 		C5573ED11987F50700981CEB /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		C5703515124FFED40082AA14 /* plask_bindings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = plask_bindings.h; sourceTree = "<group>"; };
 		C5703516124FFED40082AA14 /* plask_bindings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = plask_bindings.mm; sourceTree = "<group>"; };
@@ -135,11 +139,13 @@
 				C5DA222C168378CC00929928 /* libv8_snapshot.a in Frameworks */,
 				C5EB3AB2196C6B4800F1165A /* libskia_core.a in Frameworks */,
 				C5EB3AB3196C6B4800F1165A /* libskia_effects.a in Frameworks */,
+				C55215F71B53C77B00046F3D /* libicuuc.a in Frameworks */,
 				C5EB3AB4196C6B4800F1165A /* libskia_images.a in Frameworks */,
 				C5EB3AB5196C6B4800F1165A /* libskia_opts_sse41.a in Frameworks */,
 				C5EB3AB6196C6B4800F1165A /* libskia_opts_ssse3.a in Frameworks */,
 				C5EB3AB7196C6B4800F1165A /* libskia_opts.a in Frameworks */,
 				C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */,
+				C51CE4521B53C5350024FBCE /* libsfntly.a in Frameworks */,
 				C5EB3AB9196C6B4900F1165A /* libskia_ports.a in Frameworks */,
 				C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */,
 				C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */,
@@ -191,6 +197,8 @@
 				C5EB3ACA196C6E8600F1165A /* libskflate.a */,
 				C5EB3AD7196C6EA300F1165A /* libetc1.a */,
 				C5BADEE7196C7B73007328B8 /* libSkKTX.a */,
+				C51CE4511B53C5350024FBCE /* libsfntly.a */,
+				C55215F61B53C77B00046F3D /* libicuuc.a */,
 				C57036191250EB5E0082AA14 /* libfreeimage.framework */,
 				1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */,
 				C5A5260A12561A2200C0F632 /* OpenGL.framework */,
