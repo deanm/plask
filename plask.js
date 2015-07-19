@@ -366,9 +366,8 @@ exports.Window = function(width, height, opts) {
     }
   }
 
-  this.setTitle = function(title) {
-    nswindow_.setTitle(title);
-  }
+  this.setTitle = function(title) { return nswindow_.setTitle(title); };
+  this.setFullscreen = function(fs) { return nswindow_.setFullscreen(fs); };
 
   // This is quite noisy on the event loop if you don't need it.
   //nswindow_.setAcceptsMouseMovedEvents(true);
@@ -714,7 +713,8 @@ exports.simpleWindow = function(obj) {
   if (settings.title !== undefined)
     window_.setTitle(settings.title);
 
-  obj.setTitle = function(title) { window_.setTitle(title); };
+  obj.setTitle = function(title) { return window_.setTitle(title); };
+  obj.setFullscreen = function(title) { return window_.setFullscreen(title); };
 
   obj.hideCursor = function() { return window_.hideCursor(); };
   obj.unhideCursor = function() { return window_.unhideCursor(); };

@@ -3378,6 +3378,7 @@ class NSWindowWrapper {
       METHOD_ENTRY( hide ),
       METHOD_ENTRY( show ),
       METHOD_ENTRY( screenSize ),
+      METHOD_ENTRY( setFullscreen ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -3818,6 +3819,29 @@ class NSWindowWrapper {
     res->Set(v8::String::NewFromUtf8(isolate, "height"), v8::Number::New(isolate, frame.size.height));
 #endif  // PLASK_OSX
     return args.GetReturnValue().Set(res);
+  }
+
+  // void setFullscreen(bool fullscreen)
+  //
+  // Switches the window in and out of "fullscreen".  Fullscreen means that
+  // the window is borderless and on a higher window level.
+  DEFINE_METHOD(setFullscreen, 1)
+    WrappedNSWindow* window = ExtractWindowPointer(args.Holder());
+    bool fullscreen = args[0]->BooleanValue();
+#if PLASK_OSX
+    // NOTE(deanm): When you create a window with NSBorderlessWindowMask it
+    // seems like a bunch of things change under the hood that don't change
+    // just by calling setStyleMask.  So we have to manually set shadow, etc.
+    [window setLevel:(fullscreen ? NSMainMenuWindowLevel+1 : NSNormalWindowLevel)];
+    // NOTE(deanm): Without fixing opaque when you switch from fullscreen to
+    // not fullscreen the opacity around the corners of the title bar breaks
+    // and there is just black in what should be the transparency space.
+    // Seems occasionally glitchy if you don't set it before the style mask.
+    [window setOpaque:fullscreen];
+    [window setStyleMask:(fullscreen ? NSBorderlessWindowMask : NSTitledWindowMask)];
+    [window setHasShadow:!fullscreen];
+#endif  // PLASK_OSX
+    return args.GetReturnValue().SetUndefined();
   }
 
 };
