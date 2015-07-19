@@ -6521,6 +6521,8 @@ class CAMIDISourceWrapper {
     if (!args[0]->IsArray())
       return args.GetReturnValue().SetUndefined();
 
+    uint64_t future_ns = args[1]->IntegerValue();
+
     MIDIEndpointRef endpoint = ExtractEndpoint(args.Holder());
 
     if (!endpoint) {
@@ -6529,6 +6531,7 @@ class CAMIDISourceWrapper {
 
     MIDIPortRef port = ExtractPort(args.Holder());
     MIDITimeStamp timestamp = AudioGetCurrentHostTime();
+    timestamp += future_ns;
     ByteCount pl_count;
     MIDIPacketList* pl = AllocateMIDIPacketList(1, &pl_count);
     MIDIPacket* cur_packet = MIDIPacketListInit(pl);

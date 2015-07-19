@@ -177,12 +177,12 @@ PlaskRawMac.NSOpenGLContext.prototype.texImage2DSkCanvasNoFlip = function() {
   return this.texImage2DSkCanvasB.apply(this, arguments);
 };
 
-PlaskRawMac.CAMIDISource.prototype.noteOn = function(chan, note, vel) {
-  return this.sendData([0x90 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
+PlaskRawMac.CAMIDISource.prototype.noteOn = function(chan, note, vel, ns) {
+  return this.sendData([0x90 | (chan & 0xf), note & 0x7f, vel & 0x7f], ns);
 };
 
-PlaskRawMac.CAMIDISource.prototype.noteOff = function(chan, note, vel) {
-  return this.sendData([0x80 | (chan & 0xf), note & 0x7f, vel & 0x7f]);
+PlaskRawMac.CAMIDISource.prototype.noteOff = function(chan, note, vel, ns) {
+  return this.sendData([0x80 | (chan & 0xf), note & 0x7f, vel & 0x7f], ns);
 };
 
 // Pitch wheel takes a value between -1 .. 1, and will be mapped to 14-bit midi.
