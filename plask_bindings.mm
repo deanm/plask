@@ -6498,6 +6498,7 @@ class CAMIDISourceWrapper {
       METHOD_ENTRY( openDestination ),
       METHOD_ENTRY( createVirtual ),
       METHOD_ENTRY( sendData ),
+      METHOD_ENTRY( close ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -6661,12 +6662,31 @@ class CAMIDISourceWrapper {
     return args.GetReturnValue().Set(arr);
   }
 
+  DEFINE_METHOD(close, 0)
+    MIDIEndpointRef endpoint = ExtractEndpoint(args.Holder());
+    MIDIPortRef port = ExtractPort(args.Holder());
+
+    if (port) {  // Non-virtual connections
+      MIDIPortDispose(port);
+    } else if (endpoint) {  // Virtual
+      // NOTE: Don't want to call MIDIEndpointDispose except when it was
+      // created by us with createVirtual, otherwise we will close the source
+      // across the entire CoreMIDI system, not just our process.
+      MIDIEndpointDispose(endpoint);
+    }
+
+    args.This()->SetAlignedPointerInInternalField(0, 0);
+    args.This()->SetAlignedPointerInInternalField(1, 0);
+
+    return args.GetReturnValue().SetUndefined();
+  }
 };
 
 class CAMIDIDestinationWrapper {
  private:
   struct State {
     MIDIEndpointRef endpoint;
+    MIDIEndpointRef port;
     int64_t clocks;
     int pipe_fds[2];
   };
@@ -6695,6 +6715,7 @@ class CAMIDIDestinationWrapper {
       METHOD_ENTRY( openSource ),
       METHOD_ENTRY( syncClocks ),
       METHOD_ENTRY( getPipeDescriptor ),
+      METHOD_ENTRY( close ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -6777,7 +6798,8 @@ class CAMIDIDestinationWrapper {
     }
 
     State* state = new State;
-    state->endpoint = NULL;
+    state->endpoint = 0;
+    state->port = 0;
     state->clocks = 0;
     int res = pipe(state->pipe_fds);
     if (res != 0)
@@ -6843,6 +6865,25 @@ class CAMIDIDestinationWrapper {
       return v8_utils::ThrowError(isolate, "Couldn't create midi source object.");
 
     state->endpoint = source;
+    state->port     = port;
+
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  DEFINE_METHOD(close, 0)
+    State* state = ExtractPointer(args.Holder());
+    if (state->port) {  // Non-virtual connections
+      MIDIPortDisconnectSource(state->port, state->endpoint);
+      MIDIPortDispose(state->port);
+    } else if (state->endpoint) {  // Virtual
+      // NOTE: Don't want to call MIDIEndpointDispose except when it was
+      // created by us with createVirtual, otherwise we will close the source
+      // across the entire CoreMIDI system, not just our process.
+      MIDIEndpointDispose(state->endpoint);
+    }
+
+    state->endpoint = 0;
+    state->port     = 0;
 
     return args.GetReturnValue().SetUndefined();
   }
