@@ -5593,7 +5593,10 @@ class SkCanvasWrapper {
     } else if (args.Length() == 1 && SkCanvasWrapper::HasInstance(isolate, args[0])) {
       SkCanvas* pcanvas = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
       // Allocate a new block of pixels with a copy from pbitmap.
-      if (!pcanvas->readPixels(&tbitmap, 0, 0)) abort();
+      // NOTE(deanm): Don't think this version of readPixels allocates properly.
+      // if (!pcanvas->readPixels(&tbitmap, 0, 0))
+      if (!pcanvas->readPixels(pcanvas->imageInfo().bounds(), &tbitmap))
+        return v8_utils::ThrowError(isolate, "SkCanvas constructor unable to readPixels().");
       canvas = new SkCanvas(tbitmap);
     } else {
       return v8_utils::ThrowError(isolate, "Improper SkCanvas constructor arguments.");
