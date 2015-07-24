@@ -5819,7 +5819,7 @@ class SkCanvasWrapper {
     int srcy2 = v8_utils::ToInt32WithDefault(args[9], srcy1 + src_device->height());
     SkIRect src_rect = { srcx1, srcy1, srcx2, srcy2 };
 
-    canvas->drawBitmapRect(src_device->accessBitmap(false), &src_rect, dst_rect, paint);
+    canvas->drawBitmapRect(src_device->accessBitmap(false), src_rect, dst_rect, paint);
     return args.GetReturnValue().SetUndefined();
   }
 
