@@ -2123,9 +2123,17 @@ class NSOpenGLContextWrapper {
     int value;
     glGetIntegerv(pname, &value);
     GLuint name = static_cast<unsigned int>(value);
-    if (name != 0 && map.count(name) == 1)
+    if (name == 0)
+      return args.GetReturnValue().SetNull();
+
+    if (map.count(name) == 1)  // Plask created, already have the wrapper.
       return args.GetReturnValue().Set(PersistentToLocal(isolate, map.at(name)));
-    return args.GetReturnValue().SetNull();
+
+    // In order to interface with external OpenGL code on our context, like
+    // GPU accelerated Skia, it is possible we might encounter one of their
+    // buffers when querying the mapping, it should be better to just create
+    // a wrapper for it than to return NULL as if there wasn't a mapping.
+    return args.GetReturnValue().Set(WebGLBuffer::NewFromName(name));
   }
 
   // any getParameter(GLenum pname)
