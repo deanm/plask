@@ -52,7 +52,7 @@ int ToInt32WithDefault(v8::Handle<v8::Value> value, int def) {
 }
 
 double ToNumberWithDefault(v8::Handle<v8::Value> value, double def) {
-  value->IsNumber() ? value->NumberValue() : def;
+  return value->IsNumber() ? value->NumberValue() : def;
 }
 
 void ThrowError(v8::Isolate* isolate, const char* msg) {
