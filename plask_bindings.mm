@@ -1064,6 +1064,7 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( bindTexture ),
 #if PLASK_WEBGL2
       METHOD_ENTRY( bindVertexArray ),
+      METHOD_ENTRY( bindTransformFeedback ),
 #endif
       METHOD_ENTRY( blendColor ),
       METHOD_ENTRY( blendEquation ),
@@ -1089,6 +1090,7 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( createTexture ),
 #if PLASK_WEBGL2
       METHOD_ENTRY( createVertexArray ),
+      METHOD_ENTRY( createTransformFeedback ),
 #endif
       METHOD_ENTRY( cullFace ),
       METHOD_ENTRY( deleteBuffer ),
@@ -1099,6 +1101,7 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( deleteTexture ),
 #if PLASK_WEBGL2
       METHOD_ENTRY( deleteVertexArray ),
+      METHOD_ENTRY( deleteTransformFeedback ),
 #endif
       METHOD_ENTRY( depthFunc ),
       METHOD_ENTRY( depthMask ),
@@ -1151,6 +1154,7 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( isTexture ),
 #if PLASK_WEBGL2
       METHOD_ENTRY( isVertexArray ),
+      METHOD_ENTRY( isTransformFeedback ),
 #endif
       METHOD_ENTRY( lineWidth ),
       METHOD_ENTRY( linkProgram ),
@@ -1165,6 +1169,17 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( scissor ),
       METHOD_ENTRY( shaderSource ),
       METHOD_ENTRY( shaderSourceRaw ),  // Without WebGL rewriting.
+#if PLASK_WEBGL2
+      METHOD_ENTRY( beginTransformFeedback ),
+      METHOD_ENTRY( endTransformFeedback ),
+      METHOD_ENTRY( pauseTransformFeedback ),
+      METHOD_ENTRY( resumeTransformFeedback ),
+      METHOD_ENTRY( transformFeedbackVaryings ),
+      METHOD_ENTRY( getTransformFeedbackVarying ),
+      METHOD_ENTRY( bindBufferBase ),
+      METHOD_ENTRY( bindBufferRange ),
+      METHOD_ENTRY( getBufferSubData ),
+#endif
       METHOD_ENTRY( stencilFunc ),
       METHOD_ENTRY( stencilFuncSeparate ),
       METHOD_ENTRY( stencilMask ),
@@ -1515,6 +1530,11 @@ class NSOpenGLContextWrapper {
     glBindVertexArrayAPPLE(WebGLVertexArrayObject::ExtractNameFromValue(args[0]));
     return args.GetReturnValue().SetUndefined();
   }
+
+  // void bindTransformFeedback (GLenum target, WebGLTransformFeedback? transformFeedback)
+  DEFINE_METHOD(bindTransformFeedback, 2)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
 #endif  // PLASK_WEBGL2
 
   // void blendColor(GLclampf red, GLclampf green,
@@ -1685,6 +1705,14 @@ class NSOpenGLContextWrapper {
     glGenVertexArraysAPPLE(1, &vao);
     return args.GetReturnValue().Set(WebGLVertexArrayObject::NewFromName(vao));
   }
+
+  // WebGLTransformFeedback? createTransformFeedback()
+  static void createTransformFeedback(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    // NOTE(deanm): This is a bit tricky, trying to implement transform feedback
+    // without requiring moving to OpenGL 3.0.  Can probably do it half way,
+    // and just try to use GL_EXT_transform_feedback.
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
 #endif  // PLASK_WEBGL2
 
   // void cullFace(GLenum mode)
@@ -1814,6 +1842,11 @@ class NSOpenGLContextWrapper {
       WebGLVertexArrayObject::ClearName(args[0]);
     }
     return args.GetReturnValue().SetUndefined();
+  }
+
+  // void deleteTransformFeedback(WebGLTransformFeedback? vertexArray)
+  DEFINE_METHOD(deleteTransformFeedback, 1)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 #endif  // PLASK_WEBGL2
 
@@ -2549,6 +2582,11 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().Set((bool)glIsVertexArrayAPPLE(
         WebGLVertexArrayObject::ExtractNameFromValue(args[0])));
   }
+
+  // GLboolean isTransformFeedback(WebGLTransformFeedback? vertexArray)
+  DEFINE_METHOD(isTransformFeedback, 1)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
 #endif  // PLASK_WEBGL2
 
   // void lineWidth(GLfloat width)
@@ -2697,6 +2735,129 @@ class NSOpenGLContextWrapper {
     glShaderSource(shader, 2, strs, NULL);
     return args.GetReturnValue().SetUndefined();
   }
+
+#if PLASK_WEBGL2
+  // void beginTransformFeedback(GLenum primitiveMode)
+  DEFINE_METHOD(beginTransformFeedback, 1)
+    glBeginTransformFeedbackEXT(args[0]->Uint32Value());
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void endTransformFeedback()
+  DEFINE_METHOD(endTransformFeedback, 0)
+    glEndTransformFeedbackEXT();
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void pauseTransformFeedback()
+  DEFINE_METHOD(pauseTransformFeedback, 0)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
+
+  // void resumeTransformFeedback()
+  DEFINE_METHOD(resumeTransformFeedback, 0)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
+
+  // void transformFeedbackVaryings(WebGLProgram? program,
+  //                                sequence<DOMString> varyings,
+  //                                GLenum bufferMode)
+  DEFINE_METHOD(transformFeedbackVaryings, 3)
+    if (!WebGLProgram::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+    if (!args[1]->IsArray())
+      return v8_utils::ThrowError(isolate, "Sequence must be an Array.");
+
+    GLuint program = WebGLProgram::ExtractNameFromValue(args[0]);
+    v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[1]);
+    GLenum buffer_mode = args[2]->Uint32Value();
+
+    uint32_t length = arr->Length();
+    v8::String::Utf8Value** varyings = new v8::String::Utf8Value*[length];
+    char** varyingc = new char*[length];
+    for (uint32_t i = 0; i < length; ++i) {
+      varyings[i] = new v8::String::Utf8Value(arr->Get(i));
+      varyingc[i] = **varyings[i];
+    }
+
+    glTransformFeedbackVaryingsEXT(program, length, varyingc, buffer_mode);
+
+    delete[] varyingc;
+    for (uint32_t i = 0; i < length; ++i) delete varyings[i];
+    delete[] varyings;
+
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // WebGLActiveInfo? getTransformFeedbackVarying(WebGLProgram? program, GLuint index)
+  DEFINE_METHOD(getTransformFeedbackVarying, 2)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
+
+  // void bindBufferBase(GLenum target, GLuint index, WebGLBuffer? buffer)
+  DEFINE_METHOD(bindBufferBase, 3)
+    // NOTE(deanm): Don't know if the NULL handling is right here, can't tell
+    // from the spec or the OpenGL docs if there should be unbinding behavior.
+    if (!args[1]->IsNull() && !WebGLBuffer::HasInstance(isolate, args[2]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    GLuint buffer = WebGLBuffer::ExtractNameFromValue(args[2]);
+    glBindBufferBaseEXT(args[0]->Uint32Value(), args[1]->Uint32Value(), buffer);
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void bindBufferRange(GLenum target, GLuint index, WebGLBuffer? buffer,
+  //                      GLintptr offset, GLsizeiptr size)
+  DEFINE_METHOD(bindBufferRange, 5)
+    // NOTE(deanm): Don't know if the NULL handling is right here, can't tell
+    // from the spec or the OpenGL docs if there should be unbinding behavior.
+    if (!args[1]->IsNull() && !WebGLBuffer::HasInstance(isolate, args[2]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    GLuint buffer = WebGLBuffer::ExtractNameFromValue(args[2]);
+    glBindBufferRangeEXT(args[0]->Uint32Value(), args[1]->Uint32Value(), buffer,
+                         args[3]->Int32Value(), args[4]->Int32Value());
+    return args.GetReturnValue().SetUndefined();
+  }
+
+  // void getBufferSubData(GLenum target, GLintptr offset, ArrayBuffer? returnedData)
+  DEFINE_METHOD(getBufferSubData, 3)
+    // "If returnedData is null then an INVALID_VALUE error is generated."
+    if (args[2]->IsNull()) return args.GetReturnValue().SetUndefined();
+
+    void* data;
+    intptr_t size = 0;
+
+    if (!args[2]->IsObject() || !GetTypedArrayBytes(args[2], &data, &size))
+      return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
+
+    GLenum target = args[0]->Uint32Value();
+    GLintptr offset = args[1]->IntegerValue();
+
+    GLboolean was_okay = false;
+
+    while (!was_okay) {  // This loop seems like a horrible idea...
+      //void* map = glMapBufferRange(target, offset, size, GL_MAP_READ_BIT);  // GL3
+      void* map = glMapBuffer(target, GL_READ_ONLY);  // GL2
+      if (!map) return args.GetReturnValue().SetUndefined();
+
+      //memcpy(data, map, size);
+      memcpy(data, reinterpret_cast<char*>(map) + offset, size);
+
+      // "When a data store is unmapped, the pointer to its data store becomes
+      //  invalid. glUnmapBuffer returns GL_TRUE unless the data store contents
+      //  have become corrupt during the time the data store was mapped. This
+      //  can occur for system-specific reasons that affect the availability of
+      //  graphics memory, such as screen mode changes. In such situations,
+      //  GL_FALSE is returned and the data store contents are undefined. An
+      //  application must detect this rare condition and reinitialize the data
+      //  store."
+      was_okay = glUnmapBuffer(target);
+    }
+
+    return args.GetReturnValue().SetUndefined();
+  }
+#endif  // PLASK_WEBGL2
 
   // void stencilFunc(GLenum func, GLint ref, GLuint mask)
   DEFINE_METHOD(stencilFunc, 3)
