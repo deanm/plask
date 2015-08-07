@@ -2172,16 +2172,40 @@ MagicProgram.createFromStrings = function(gl, vstr, fstr) {
       gl, vstr, fstr));
 };
 
-// static MagicProgram createFromFiles(gl, vfilename, ffilename)
+// static MagicProgram createFromFiles(gl, vfilename, ffilename, opts)
 //
 // Create a new MagicProgram from the vertex shader source in file `vfilename`
 // and the fragment shader source in file `ffilename`.
-MagicProgram.createFromFiles = function(gl, vfn, ffn) {
-  return MagicProgram.createFromStrings(
+//
+// If `opts` is supplied and `opts.watch` is true, the files will be watched
+// for changes and automatically reloaded with a success or failure message
+// printed to the console.
+MagicProgram.createFromFiles = function(gl, vfn, ffn, opts) {
+  function make() {
+    return MagicProgram.createFromStrings(
       gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8'));
+  }
+
+  var mprogram = make();
+
+  if (opts && opts.watch === true) {
+    function update(e, filename) {
+      try {
+        var new_mprogram = make();
+        mprogram.program = new_mprogram.program;
+        console.log("Updated MagicProgram for " + filename);
+      } catch(e) {
+        console.log("Failed to update MagicProgram: " + e);
+      }
+    }
+    fs.watch(vfn, { persistent: false }, update);
+    fs.watch(ffn, { persistent: false }, update);
+  }
+
+  return mprogram;
 };
 
-// static MagicProgram createFromBasename(gl, directory, base)
+// static MagicProgram createFromBasename(gl, directory, base, opts)
 //
 // Create a new MagicProgram from the vertex shader source in file
 // `base`.vshader and the fragment shader source in file `base`.fshader in the
@@ -2190,11 +2214,12 @@ MagicProgram.createFromFiles = function(gl, vfn, ffn) {
 //     // Creates a magic program from myshader.vshader and myshader.fshader in
 //     // the same directory as the running source JavaScript file.
 //     var mp = MagicProgram.createFromBasename(gl, __dirname, 'myshader');
-MagicProgram.createFromBasename = function(gl, directory, base) {
+MagicProgram.createFromBasename = function(gl, directory, base, opts) {
   return MagicProgram.createFromFiles(
       gl,
       path.join(directory, base + '.vshader'),
-      path.join(directory, base + '.fshader'));
+      path.join(directory, base + '.fshader'),
+      opts);
 };
 
 exports.kPI  = kPI;
