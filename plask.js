@@ -2163,6 +2163,14 @@ MagicProgram.prototype.use = function() {
   this.gl.useProgram(this.program);
 };
 
+MagicProgram.prototype.relink = function() {
+  var gl = this.gl, program = this.program;
+  gl.linkProgram(program);
+  if (gl.getProgramParameter(program, gl.LINK_STATUS) !== true)
+    throw gl.getProgramInfoLog(program);
+  return true;
+};
+
 // static MagicProgram createFromStrings(gl, string vstr, string fstr)
 //
 // Create a new MagicProgram from the vertex shader source string `vstr` and
