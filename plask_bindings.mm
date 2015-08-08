@@ -617,6 +617,7 @@ DEFINE_NAME_MAPPED_CLASS(WebGLRenderbuffer)
 DEFINE_NAME_MAPPED_CLASS(WebGLShader)
 DEFINE_NAME_MAPPED_CLASS(WebGLTexture)
 DEFINE_NAME_MAPPED_CLASS(WebGLVertexArrayObject)
+DEFINE_NAME_MAPPED_CLASS(WebGLTransformFeedback)
 
 class NSOpenGLContextWrapper;
 
@@ -1021,6 +1022,7 @@ class NSOpenGLContextWrapper {
     WebGLTypeWebGLRenderbuffer,
     WebGLTypeWebGLTexture,
     WebGLTypeWebGLVertexArrayObject,
+    WebGLTypeWebGLTransformFeedback,
   };
 
   static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
@@ -1533,7 +1535,12 @@ class NSOpenGLContextWrapper {
 
   // void bindTransformFeedback (GLenum target, WebGLTransformFeedback? transformFeedback)
   DEFINE_METHOD(bindTransformFeedback, 2)
-    return v8_utils::ThrowError(isolate, "Unimplemented.");
+    // "If transformFeedback is null, the default transform feedback object
+    // provided by the context is bound."
+    // NOTE(deanm): For now Plask only ever has and uses the default object,
+    // the feedback object related APIs are basically just no-ops.
+    return args.GetReturnValue().SetUndefined();
+    //return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 #endif  // PLASK_WEBGL2
 
@@ -1711,7 +1718,8 @@ class NSOpenGLContextWrapper {
     // NOTE(deanm): This is a bit tricky, trying to implement transform feedback
     // without requiring moving to OpenGL 3.0.  Can probably do it half way,
     // and just try to use GL_EXT_transform_feedback.
-    return v8_utils::ThrowError(isolate, "Unimplemented.");
+    return args.GetReturnValue().Set(WebGLTransformFeedback::NewFromName(0));
+    //return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 #endif  // PLASK_WEBGL2
 
@@ -1846,7 +1854,8 @@ class NSOpenGLContextWrapper {
 
   // void deleteTransformFeedback(WebGLTransformFeedback? vertexArray)
   DEFINE_METHOD(deleteTransformFeedback, 1)
-    return v8_utils::ThrowError(isolate, "Unimplemented.");
+    return args.GetReturnValue().SetUndefined();
+    //return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
 #endif  // PLASK_WEBGL2
 
@@ -2263,6 +2272,8 @@ class NSOpenGLContextWrapper {
         return getNameMappedParameter(isolate, args, pname, WebGLTexture::Map());
       case WebGLTypeWebGLVertexArrayObject:
         return getNameMappedParameter(isolate, args, pname, WebGLVertexArrayObject::Map());
+      case WebGLTypeWebGLTransformFeedback:
+        return getNameMappedParameter(isolate, args, pname, WebGLTransformFeedback::Map());
       case WebGLTypeInvalid:
         break;  // fall out.
     }
