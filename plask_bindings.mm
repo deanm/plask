@@ -2157,17 +2157,18 @@ class NSOpenGLContextWrapper {
     return ta;
   }
 
+  template <class T>
   static void getNameMappedParameter(
       v8::Isolate* isolate,
       const v8::FunctionCallbackInfo<v8::Value>& args,
-      unsigned long pname,
-      std::map<GLuint, v8::UniquePersistent<v8::Value> >& map) {
+      unsigned long pname) {
     int value;
     glGetIntegerv(pname, &value);
     GLuint name = static_cast<unsigned int>(value);
     if (name == 0)
       return args.GetReturnValue().SetNull();
 
+    std::map<GLuint, v8::UniquePersistent<v8::Value> >& map = T::Map();
     if (map.count(name) == 1)  // Plask created, already have the wrapper.
       return args.GetReturnValue().Set(PersistentToLocal(isolate, map.at(name)));
 
@@ -2175,7 +2176,7 @@ class NSOpenGLContextWrapper {
     // GPU accelerated Skia, it is possible we might encounter one of their
     // buffers when querying the mapping, it should be better to just create
     // a wrapper for it than to return NULL as if there wasn't a mapping.
-    return args.GetReturnValue().Set(WebGLBuffer::NewFromName(name));
+    return args.GetReturnValue().Set(T::NewFromName(name));
   }
 
   // any getParameter(GLenum pname)
@@ -2261,19 +2262,19 @@ class NSOpenGLContextWrapper {
         return v8_utils::ThrowError(isolate, "Unimplemented.");
         break;
       case WebGLTypeWebGLBuffer:
-        return getNameMappedParameter(isolate, args, pname, WebGLBuffer::Map());
+        return getNameMappedParameter<WebGLBuffer>(isolate, args, pname);
       case WebGLTypeWebGLFramebuffer:
-        return getNameMappedParameter(isolate, args, pname, WebGLFramebuffer::Map());
+        return getNameMappedParameter<WebGLFramebuffer>(isolate, args, pname);
       case WebGLTypeWebGLProgram:
-        return getNameMappedParameter(isolate, args, pname, WebGLProgram::Map());
+        return getNameMappedParameter<WebGLProgram>(isolate, args, pname);
       case WebGLTypeWebGLRenderbuffer:
-        return getNameMappedParameter(isolate, args, pname, WebGLRenderbuffer::Map());
+        return getNameMappedParameter<WebGLRenderbuffer>(isolate, args, pname);
       case WebGLTypeWebGLTexture:
-        return getNameMappedParameter(isolate, args, pname, WebGLTexture::Map());
+        return getNameMappedParameter<WebGLTexture>(isolate, args, pname);
       case WebGLTypeWebGLVertexArrayObject:
-        return getNameMappedParameter(isolate, args, pname, WebGLVertexArrayObject::Map());
+        return getNameMappedParameter<WebGLVertexArrayObject>(isolate, args, pname);
       case WebGLTypeWebGLTransformFeedback:
-        return getNameMappedParameter(isolate, args, pname, WebGLTransformFeedback::Map());
+        return getNameMappedParameter<WebGLTransformFeedback>(isolate, args, pname);
       case WebGLTypeInvalid:
         break;  // fall out.
     }
