@@ -121,6 +121,8 @@ function parse_source_js(lines, cb_continue, cb_start, cb_end, cb_export) {
     }
 
     match = line.match(/^(\s*)([A-Za-z_0-9]+)(?:\.prototype)?\.([A-Za-z_0-9]+) = function/);
+    if (!match)
+      match = line.match(/^(\s*)exports\.([A-Za-z_0-9]+)\.([A-Za-z_0-9]+) = function/);
     if (match) {
       cur_indent = match[1];
       cur_class  = match[2];
@@ -263,8 +265,8 @@ functions.sort(sorter);
 
 var last_cls = null;
 
-var kIncludeCls = ['AVPlayerWrapper', 'NSOpenGLContextWrapper', 'NSWindowWrapper',
-                   'SkCanvasWrapper', 'SkPaintWrapper', 'SkPathWrapper',
+var kIncludeCls = ['AVPlayer', 'NSOpenGLContext', 'NSWindow',
+                   'SkCanvas', 'SkPaint', 'SkPath',
                    'MagicProgram', 'Mat3', 'Mat4', 'Vec2', 'Vec3', 'Vec4', 'plask'];
 
 var tochtml = '';
@@ -273,22 +275,23 @@ var bodyhtml = '';
 for (var i = 0, il = functions.length; i < il; ++i) {
   var f = functions[i];
 
-  if (kIncludeCls.indexOf(f.cls) === -1) {
+  var clsdisp = f.cls.replace(/Wrapper/g, '');
+
+  if (kIncludeCls.indexOf(clsdisp) === -1) {
     process.stderr.write("Skipping: " + f.cls + "\n");
     continue;
   }
 
-  var clsdisp = f.cls.replace(/Wrapper/g, '');
   var methdisp = f.meth.replace('V8New', clsdisp);
   if (clsdisp === "MagicProgram") clsdisp = "gl." + clsdisp;
   var aname = (clsdisp + ' ' + methdisp).replace(/[^a-zA-Z0-9]/g, '_');
 
-  if (f.cls !== last_cls) {
+  if (clsdisp !== last_cls) {
     if (tochtml.length) tochtml += '</div>'
     tochtml += '<h3><a href="#' + clsdisp + '">' + clsdisp + '</a></h3><div class="toclist">';
     bodyhtml += '<a name="' + clsdisp + '"></a>';
     bodyhtml += '<h1>' + clsdisp + '</h1>';
-    last_cls = f.cls;
+    last_cls = clsdisp;
   }
 
   tochtml += '<div><a href="#' + aname + '">' + methdisp + '</a></div>';
@@ -297,7 +300,7 @@ for (var i = 0, il = functions.length; i < il; ++i) {
 
   var link = null;
 
-  if (f.cls === "NSOpenGLContextWrapper") {
+  if (clsdisp === "NSOpenGLContext") {
     var rx = new RegExp('^.*\\b' + f.meth + '\\([^;]+;', 'mg');
     var glver = '1.0';
     var match = webgl1_idl.match(rx);
@@ -313,7 +316,7 @@ for (var i = 0, il = functions.length; i < il; ++i) {
     }
   }
 
-  if (f.cls === "AVPlayerWrapper") {
+  if (clsdisp === "AVPlayer") {
     var m = f.meth;
     if (m.substr(0, 3) === "set") m = m.substr(3, 1).toLowerCase() + m.substr(4);
     var url = 'https://developer.apple.com/library/mac/documentation/AVFoundation/Reference/AVPlayer_Class/index.html#//apple_ref/occ/instm/AVPlayer/' + m;
@@ -321,7 +324,7 @@ for (var i = 0, il = functions.length; i < il; ++i) {
 
   }
 
-  if (f.cls === "NSEventWrapper") {
+  if (clsdisp === "NSEvent") {
     var m = f.meth;
     if (m.substr(0, 3) === "set") m = m.substr(3, 1).toLowerCase() + m.substr(4);
     var url = 'https://developer.apple.com/library/mac/documentation/Cocoa/Reference/ApplicationKit/Classes/NSEvent_Class/#//apple_ref/occ/instm/NSEvent/' + m;
