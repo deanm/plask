@@ -35,14 +35,24 @@ exports.AVPlayer = PlaskRawMac.AVPlayer;
 // NOTE(deanm): The SkCanvas constructor has become too complicated in
 // supporting different types of canvases and ways to create them.  Use one of
 // the following factory functions instead of calling the constructor directly.
+
+// static SkCanvas createFromImage(filename)
+//
+// Create a bitmap SkCanvas with the size/pixels from an image `filename`.
 exports.SkCanvas.createFromImage = function(path) {
   return new exports.SkCanvas('^IMG', path);
 };
 
+// static SkCanvas createFromImageData(data)
+//
+// Create a bitmap SkCanvas with the size/pixels from an image `data`.
 exports.SkCanvas.createFromImageData = function(data) {
   return new exports.SkCanvas('^IMG', data);
 };
 
+// static SkCanvas create(width, height)
+//
+// Create a bitmap SkCanvas with the specified size.
 exports.SkCanvas.create = function(width, height) {
   return new exports.SkCanvas(width, height);
 };
