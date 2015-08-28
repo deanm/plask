@@ -50,6 +50,10 @@ exports.SkCanvas.create = function(width, height) {
 // Sizes are in points, at 72 points per inch, letter would be 612x792.
 // That makes A4 about 595x842.
 // TODO(deanm): The sizes are integer, check the right size to use for A4.
+
+// static SkCanvas createForPDF(filename, page_width, page_height, content_width, content_height)
+//
+// Create a new vector-mode SkCanvas that can be written to a PDF with `writePDF`.
 exports.SkCanvas.createForPDF = function(filename, page_width, page_height,
                                          content_width, content_height) {
   return new exports.SkCanvas(

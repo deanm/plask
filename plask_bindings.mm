@@ -6284,10 +6284,13 @@ class SkCanvasWrapper {
     return;
   }
 
-  // void writePDF(filename)
+  // void writePDF()
   //
-  // Write the contents of a vector-mode SkCanvas (created with createForPDF) to the
-  // file named `filename`.
+  // Write the contents of a vector-mode SkCanvas (created with createForPDF) to
+  // the filename supplied when created with createForPDF.
+  //
+  // The canvas is no longer usable after a call to writePDF.  A PDF can
+  // only be written once and no further calls can be made on the canvas.
   DEFINE_METHOD(writePDF, 0)
     SkDocument* doc = ExtractDocumentPointer(args.Holder());
 
