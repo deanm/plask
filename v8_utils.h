@@ -21,23 +21,18 @@
 
 #include <v8.h>
 
+namespace v8 {
+typedef FunctionCallbackInfo<Value> Arguments;
+}
+
 namespace v8_utils {
 
 int ToInt32(v8::Handle<v8::Value> value, bool* ok);
 int ToInt32(v8::Handle<v8::Value> value);
 int ToInt32WithDefault(v8::Handle<v8::Value> value, int def);
+double ToNumberWithDefault(v8::Handle<v8::Value> value, double def);
 
-v8::Handle<v8::Value> ThrowError(const char* msg);
-v8::Handle<v8::Value> ThrowTypeError(const char* msg);
-
-// Create a V8 wrapper for a C pointer
-v8::Handle<v8::Value> WrapCPointer(void* cptr);
-
-void* UnwrapCPointerRaw(v8::Handle<v8::Value> obj);
-
-template <typename T>
-T* UnwrapCPointer(v8::Handle<v8::Value> obj) {
-  return reinterpret_cast<T*>(UnwrapCPointerRaw(obj));
-}
+void ThrowError(v8::Isolate* isolate, const char* msg);
+void ThrowTypeError(v8::Isolate* isolate, const char* msg);
 
 }  // namespace v8_utils

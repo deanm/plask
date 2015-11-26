@@ -81,8 +81,6 @@
 #include "node.h"
 #include "uv.h"
 
-#include "v8_typed_array.h"
-
 #define EVENTLOOP_DEBUG 0
 
 #define EVENTLOOP_BYPASS_CUSTOM 0
@@ -303,7 +301,7 @@ kevent_hook(int kq, const struct kevent *changelist, int nchanges,
       EVENTLOOP_DEBUG_C((printf("* Application Terminate event.\n")));
       g_should_quit = true;
       write(g_main_thread_pipe_fd, "q", 1);
-      return 0;  // See the notes about the dummy timer.
+      return 0;
     } else if ([event type] == NSApplicationDefined && [event subtype] == 8) {
       // A wakeup after the kqueue callback.
       EVENTLOOP_DEBUG_C((printf("* Wakeup event.\n")));
@@ -315,53 +313,17 @@ kevent_hook(int kq, const struct kevent *changelist, int nchanges,
   }
 
   // Do the actual kqueue call now (ignore the timeout, don't block).
-  return kevent(kq, NULL, 0, eventlist, nevents, &zerotimeout);
-}
-
-static void dummy_cb(uv_timer_t* handle, int status) {
-  EVENTLOOP_DEBUG_C((printf("dummy timer actually fired, interesting...\n")));
-}
-
-static void RunMainLoop() {
-  // TODO Probably don't need to start this each time.
-  // Avoids failing on test/simple/test-eio-race3.js though
-  // ev_idle_start(EV_DEFAULT_UC_ &eio_poller);
-
-  int pipefds[2];
-  if (pipe(pipefds) != 0) abort();
-
-  g_kqueue_thread_pipe_fd = pipefds[0];
-  g_main_thread_pipe_fd = pipefds[1];
-
-  uv_loop_t* uvloop = uv_default_loop();
-  uvloop->keventfunc = (void*)&kevent_hook;
-
-  g_kqueue_fd = uv_backend_fd(uvloop);
-
-  uv_thread_t checker;
-  uv_thread_create(&checker, &kqueue_checker_thread, NULL);
-
-  // There is an assert if the kqueue returns 0 but there was a timeout of
-  // -1 (infinite).  In order to avoid the logic of ever having no timeout
-  // set a dummy timer just to enforce some large timeout and avoid the assert.
-  // NOTE(deanm): We seem to hit some internal limit (libuv?) at 1410064 secs,
-  // (16 days), so keep it under to be safe.  Doesn't matter if it fires anyway.
-  static const int64_t kDummyTimerMs = 999999999L;  // ~11.5 days.
-  uv_timer_t dummy_timer;
-  uv_timer_init(uvloop, &dummy_timer);
-  uv_timer_start(&dummy_timer, &dummy_cb, kDummyTimerMs, kDummyTimerMs);
-
-  EVENTLOOP_DEBUG_C((printf("Kqueue fd: %d\n", uv_backend_fd(uvloop))));
-
-  // Our dummy timer is always 1 active handle.
-  while (!g_should_quit && uvloop->active_handles > 1) {
-    NSAutoreleasePool* pool = [NSAutoreleasePool new];
-    EVENTLOOP_DEBUG_C((printf("-> uv_run_once\n")));
-    uv_run(uvloop, UV_RUN_ONCE);  // uv_run_once(uvloop);
-    EVENTLOOP_DEBUG_C((printf("<- uv_run_once\n")));
-    EVENTLOOP_DEBUG_C((printf(" - handles: %d\n", uvloop->active_handles)));
-    [pool drain];
+  res = kevent(kq, NULL, 0, eventlist, nevents, &zerotimeout);
+  // libuv makes an assert that if it calls kevent without a timeout, it
+  // should never return 0.  One approach is to always have a timer somewhere
+  // in libuv, so that the timeout will never be indefinite.  Hopefully simpler
+  // here is just to pretend that the kevent was interrupted.  Haven't checked
+  // how this case is handled in libuv, but seems okay.
+  if (timeout == NULL && res == 0) {
+    errno = EINTR;
+    res = -1;
   }
+  return res;
 }
 
 int main(int argc, char** argv) {
@@ -370,7 +332,19 @@ int main(int argc, char** argv) {
 
   InitMenuBar();
   plaskAppDelegate* app_delegate = [[plaskAppDelegate alloc] init];
-  [NSApp setDelegate:app_delegate];
+  [[NSApplication sharedApplication] setDelegate:app_delegate];
+
+  // Mavericks introduced "App Nap" which implements timer coalescing and
+  // delaying in order to save power.  This results in nextEventMatchingMask
+  // being for example 10 seconds more over the specified timeout.  This should
+  // probably be somehow controllable from JavaScript, but until then just
+  // disable napping and keep our timers reliable.
+  NSProcessInfo* process_info = [NSProcessInfo processInfo];
+  if ([process_info respondsToSelector:@selector(beginActivityWithOptions:reason:)]) {
+    [process_info beginActivityWithOptions:(NSActivityUserInitiatedAllowingIdleSystemSleep |
+                                            NSActivityLatencyCritical)
+                                    reason:@"Plask"];
+  }
 
   char* bundled_argv[2];
   NSString* bundled_main_js =
@@ -390,49 +364,94 @@ int main(int argc, char** argv) {
   }
 
   argv = uv_setup_args(argc, argv);
-  argv = node::Init(argc, argv);
 
-  v8::V8::Initialize();
+  int exec_argc;
+  const char** exec_argv;
+  node::Init(&argc, const_cast<const char**>(argv), &exec_argc, &exec_argv);
+
+  v8::Isolate* isolate = v8::Isolate::New();
+
+  int exit_code = 0;
+
   {
-    v8::Locker locker;
-    v8::HandleScope handle_scope;
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::V8::Initialize();
 
-    // Create the one and only Context.
-    v8::Persistent<v8::Context> context = v8::Context::New();
+    v8::Locker locker(isolate);
+    v8::HandleScope handle_scope(isolate);
+
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
     v8::Context::Scope context_scope(context);
 
-    v8::Handle<v8::Object> process = node::SetupProcessObject(argc, argv);
-    v8_typed_array::AttachBindings(context->Global());
-
     v8::Handle<v8::ObjectTemplate> plask_raw = v8::ObjectTemplate::New();
-    plask_setup_bindings(plask_raw);
-    context->Global()->Set(v8::String::NewSymbol("PlaskRawMac"),
+    plask_setup_bindings(isolate, plask_raw);
+    context->Global()->Set(v8::String::NewFromUtf8(isolate, "PlaskRawMac"),
                            plask_raw->NewInstance());
 
-    node::Load(process);
+    node::Environment* env = node::CreateEnvironment(
+        isolate, context, argc, argv, exec_argc, exec_argv);
 
-#if EVENTLOOP_BYPASS_CUSTOM
-    uv_run(uv_default_loop());
-#else
-    // [NSApp run];
-    [NSApp finishLaunching];
-    [NSApp activateIgnoringOtherApps:YES];  // TODO(deanm): Do we want this?
-    [NSApp setWindowsNeedUpdate:YES];
-    RunMainLoop();
-#endif
+    {
 
-    node::EmitExit(process);
+  #if EVENTLOOP_BYPASS_CUSTOM
+      uv_run(uv_default_loop());
+  #else
+      // [NSApp run];
+      [NSApp finishLaunching];
+      // It is usually desired to activate the app and bring it up as the
+      // front application, but allow this behaviour to be overriden.  This
+      // happens pretty early so it is probably best done via the environment.
+      if (!getenv("PLASK_DONT_ACTIVATE"))
+        [NSApp activateIgnoringOtherApps:YES];
+      [NSApp setWindowsNeedUpdate:YES];
 
-    // NOTE(deanm): Only used for DeleteSlabAllocator?
-    // RunAtExit()
+      int pipefds[2];
+      if (pipe(pipefds) != 0) abort();
 
+      g_kqueue_thread_pipe_fd = pipefds[0];
+      g_main_thread_pipe_fd = pipefds[1];
+
+      uv_loop_t* uvloop = uv_default_loop();
+      uvloop->keventfunc = (void*)&kevent_hook;
+
+      g_kqueue_fd = uv_backend_fd(uvloop);
+
+      uv_thread_t checker;
+      uv_thread_create(&checker, &kqueue_checker_thread, NULL);
+
+      bool more = true;
+      while (!g_should_quit && more) {
+        NSAutoreleasePool* looppool = [NSAutoreleasePool new];
+        EVENTLOOP_DEBUG_C((printf("-> uv_run_once\n")));
+        more = uv_run(uvloop, UV_RUN_ONCE);
+        EVENTLOOP_DEBUG_C((printf("<- uv_run_once\n")));
+        EVENTLOOP_DEBUG_C((printf(" - handles: %d\n", uvloop->active_handles)));
+        if (more == false) {
+          node::EmitBeforeExit(env);
+          more = uv_loop_alive(uvloop);
+          if (uv_run(uvloop, UV_RUN_NOWAIT) != 0)
+            more = true;
+        }
+        [looppool drain];
+      }
+  #endif
+
+      exit_code = node::EmitExit(env);
+      // NOTE(deanm): Only used for DeleteSlabAllocator?
+      // node::RunAtExit(env);
+
+      plask_teardown_bindings();
+
+      //env->Dispose();
+      env = NULL;
+    }
 #ifndef NDEBUG
-    context.Dispose();
+    context.Clear();
 #endif  // NDEBUG
   }
 
 #ifndef NDEBUG
-  v8::V8::Dispose();
+  isolate->Dispose();
 #endif  // NDEBUG
 
   [pool release];

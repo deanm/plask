@@ -51,20 +51,18 @@ int ToInt32WithDefault(v8::Handle<v8::Value> value, int def) {
   return ok ? res : def;
 }
 
-v8::Handle<v8::Value> ThrowError(const char* msg) {
-  return v8::ThrowException(v8::Exception::Error(v8::String::New(msg)));
+double ToNumberWithDefault(v8::Handle<v8::Value> value, double def) {
+  return value->IsNumber() ? value->NumberValue() : def;
 }
 
-v8::Handle<v8::Value> ThrowTypeError(const char* msg) {
-  return v8::ThrowException(v8::Exception::TypeError(v8::String::New(msg)));
+void ThrowError(v8::Isolate* isolate, const char* msg) {
+  isolate->ThrowException(
+      v8::Exception::Error(v8::String::NewFromUtf8(isolate, msg)));
 }
 
-v8::Handle<v8::Value> WrapCPointer(void* cptr) {
-  return v8::External::Wrap(cptr);
-}
-
-void* UnwrapCPointerRaw(v8::Handle<v8::Value> obj) {
-  return v8::External::Unwrap(obj);
+void ThrowTypeError(v8::Isolate* isolate, const char* msg) {
+  isolate->ThrowException(
+      v8::Exception::TypeError(v8::String::NewFromUtf8(isolate, msg)));
 }
 
 }  // namespace v8_utils

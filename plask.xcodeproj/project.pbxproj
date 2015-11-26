@@ -13,12 +13,18 @@
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		C51CAD0E133AACE900FF807C /* Syphon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
 		C51CAD17133AACF300FF807C /* Syphon.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
+		C51CE4521B53C5350024FBCE /* libsfntly.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CE4511B53C5350024FBCE /* libsfntly.a */; };
+		C52D4CFD1993EB0500AB37F3 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */; };
+		C542EFDC1987F06600E9013B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C542EFDB1987F06600E9013B /* AVFoundation.framework */; };
 		C54480A9133CDB760074124E /* Plask.icns in Resources */ = {isa = PBXBuildFile; fileRef = C54480A8133CDB760074124E /* Plask.icns */; };
+		C55215F71B53C77B00046F3D /* libicuuc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C55215F61B53C77B00046F3D /* libicuuc.a */; };
+		C5573ED21987F50700981CEB /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5573ED11987F50700981CEB /* CoreVideo.framework */; };
 		C5703517124FFED40082AA14 /* plask_bindings.mm in Sources */ = {isa = PBXBuildFile; fileRef = C5703516124FFED40082AA14 /* plask_bindings.mm */; };
 		C570353B125003630082AA14 /* v8_utils.cc in Sources */ = {isa = PBXBuildFile; fileRef = C5703539125003630082AA14 /* v8_utils.cc */; };
 		C570361A1250EB5E0082AA14 /* libfreeimage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C57036191250EB5E0082AA14 /* libfreeimage.framework */; };
 		C58108C912FC55920053FB3A /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C58108C812FC55920053FB3A /* CoreMIDI.framework */; };
 		C5A5260B12561A2200C0F632 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5A5260A12561A2200C0F632 /* OpenGL.framework */; };
+		C5BADEE8196C7B73007328B8 /* libSkKTX.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5BADEE7196C7B73007328B8 /* libSkKTX.a */; };
 		C5C83E12140A9D78006E6DAE /* ScriptingBridge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5C83E11140A9D78006E6DAE /* ScriptingBridge.framework */; };
 		C5D8EA081295C268003479AA /* libfreeimage.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = C57036191250EB5E0082AA14 /* libfreeimage.framework */; };
 		C5DA2225168378CB00929928 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5DA221D168378CB00929928 /* libcares.a */; };
@@ -29,8 +35,19 @@
 		C5DA222A168378CB00929928 /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5DA2222168378CB00929928 /* libuv.a */; };
 		C5DA222B168378CB00929928 /* libv8_base.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5DA2223168378CB00929928 /* libv8_base.a */; };
 		C5DA222C168378CC00929928 /* libv8_snapshot.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5DA2224168378CB00929928 /* libv8_snapshot.a */; };
-		C5E26D181256442500EECE59 /* libskia_opts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5E26D161256442500EECE59 /* libskia_opts.a */; };
-		C5E26D191256442500EECE59 /* libskia.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5E26D171256442500EECE59 /* libskia.a */; };
+		C5EB3AB2196C6B4800F1165A /* libskia_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA3196C6B4600F1165A /* libskia_core.a */; };
+		C5EB3AB3196C6B4800F1165A /* libskia_effects.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA4196C6B4600F1165A /* libskia_effects.a */; };
+		C5EB3AB4196C6B4800F1165A /* libskia_images.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA5196C6B4700F1165A /* libskia_images.a */; };
+		C5EB3AB5196C6B4800F1165A /* libskia_opts_sse41.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */; };
+		C5EB3AB6196C6B4800F1165A /* libskia_opts_ssse3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */; };
+		C5EB3AB7196C6B4800F1165A /* libskia_opts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA8196C6B4700F1165A /* libskia_opts.a */; };
+		C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */; };
+		C5EB3AB9196C6B4900F1165A /* libskia_ports.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAA196C6B4700F1165A /* libskia_ports.a */; };
+		C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */; };
+		C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */; };
+		C5EB3ABD196C6B4900F1165A /* libskia_utils.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAE196C6B4800F1165A /* libskia_utils.a */; };
+		C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3ACA196C6E8600F1165A /* libskflate.a */; };
+		C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AD7196C6EA300F1165A /* libetc1.a */; };
 		C5EB3C6812FC55A60009FA7C /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */; };
 /* End PBXBuildFile section */
 
@@ -61,7 +78,12 @@
 		8D1107310486CEB800E47090 /* plask-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "plask-Info.plist"; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* Plask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Plask.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C51CAD0D133AACE900FF807C /* Syphon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Syphon.framework; path = deps/Syphon.framework; sourceTree = "<group>"; };
+		C51CE4511B53C5350024FBCE /* libsfntly.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsfntly.a; path = deps/libsfntly.a; sourceTree = "<group>"; };
+		C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = ../../../../System/Library/Frameworks/CoreMedia.framework; sourceTree = "<group>"; };
+		C542EFDB1987F06600E9013B /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = /System/Library/Frameworks/AVFoundation.framework; sourceTree = "<absolute>"; };
 		C54480A8133CDB760074124E /* Plask.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Plask.icns; sourceTree = "<group>"; };
+		C55215F61B53C77B00046F3D /* libicuuc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libicuuc.a; path = deps/libicuuc.a; sourceTree = "<group>"; };
+		C5573ED11987F50700981CEB /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		C5703515124FFED40082AA14 /* plask_bindings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = plask_bindings.h; sourceTree = "<group>"; };
 		C5703516124FFED40082AA14 /* plask_bindings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = plask_bindings.mm; sourceTree = "<group>"; };
 		C5703539125003630082AA14 /* v8_utils.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = v8_utils.cc; sourceTree = "<group>"; };
@@ -69,6 +91,7 @@
 		C57036191250EB5E0082AA14 /* libfreeimage.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = libfreeimage.framework; path = deps/libfreeimage.framework; sourceTree = SOURCE_ROOT; };
 		C58108C812FC55920053FB3A /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = /System/Library/Frameworks/CoreMIDI.framework; sourceTree = "<absolute>"; };
 		C5A5260A12561A2200C0F632 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
+		C5BADEE7196C7B73007328B8 /* libSkKTX.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSkKTX.a; path = deps/libSkKTX.a; sourceTree = "<group>"; };
 		C5C83E11140A9D78006E6DAE /* ScriptingBridge.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScriptingBridge.framework; path = System/Library/Frameworks/ScriptingBridge.framework; sourceTree = SDKROOT; };
 		C5DA221D168378CB00929928 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = deps/libcares.a; sourceTree = "<group>"; };
 		C5DA221E168378CB00929928 /* libchrome_zlib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libchrome_zlib.a; path = deps/libchrome_zlib.a; sourceTree = "<group>"; };
@@ -78,8 +101,19 @@
 		C5DA2222168378CB00929928 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuv.a; path = deps/libuv.a; sourceTree = "<group>"; };
 		C5DA2223168378CB00929928 /* libv8_base.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libv8_base.a; path = deps/libv8_base.a; sourceTree = "<group>"; };
 		C5DA2224168378CB00929928 /* libv8_snapshot.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libv8_snapshot.a; path = deps/libv8_snapshot.a; sourceTree = "<group>"; };
-		C5E26D161256442500EECE59 /* libskia_opts.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts.a; path = deps/skiabuild/src/xcodebuild/Release/libskia_opts.a; sourceTree = SOURCE_ROOT; };
-		C5E26D171256442500EECE59 /* libskia.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia.a; path = deps/skiabuild/src/xcodebuild/Release/libskia.a; sourceTree = SOURCE_ROOT; };
+		C5EB3AA3196C6B4600F1165A /* libskia_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_core.a; path = deps/libskia_core.a; sourceTree = "<group>"; };
+		C5EB3AA4196C6B4600F1165A /* libskia_effects.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_effects.a; path = deps/libskia_effects.a; sourceTree = "<group>"; };
+		C5EB3AA5196C6B4700F1165A /* libskia_images.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_images.a; path = deps/libskia_images.a; sourceTree = "<group>"; };
+		C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_sse41.a; path = deps/libskia_opts_sse41.a; sourceTree = "<group>"; };
+		C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_ssse3.a; path = deps/libskia_opts_ssse3.a; sourceTree = "<group>"; };
+		C5EB3AA8196C6B4700F1165A /* libskia_opts.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts.a; path = deps/libskia_opts.a; sourceTree = "<group>"; };
+		C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_pdf.a; path = deps/libskia_pdf.a; sourceTree = "<group>"; };
+		C5EB3AAA196C6B4700F1165A /* libskia_ports.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_ports.a; path = deps/libskia_ports.a; sourceTree = "<group>"; };
+		C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_sfnt.a; path = deps/libskia_sfnt.a; sourceTree = "<group>"; };
+		C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_skgpu.a; path = deps/libskia_skgpu.a; sourceTree = "<group>"; };
+		C5EB3AAE196C6B4800F1165A /* libskia_utils.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_utils.a; path = deps/libskia_utils.a; sourceTree = "<group>"; };
+		C5EB3ACA196C6E8600F1165A /* libskflate.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskflate.a; path = deps/libskflate.a; sourceTree = "<group>"; };
+		C5EB3AD7196C6EA300F1165A /* libetc1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libetc1.a; path = deps/libetc1.a; sourceTree = "<group>"; };
 		C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = /System/Library/Frameworks/CoreAudio.framework; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
@@ -91,8 +125,6 @@
 				8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */,
 				C570361A1250EB5E0082AA14 /* libfreeimage.framework in Frameworks */,
 				C5A5260B12561A2200C0F632 /* OpenGL.framework in Frameworks */,
-				C5E26D181256442500EECE59 /* libskia_opts.a in Frameworks */,
-				C5E26D191256442500EECE59 /* libskia.a in Frameworks */,
 				C58108C912FC55920053FB3A /* CoreMIDI.framework in Frameworks */,
 				C5EB3C6812FC55A60009FA7C /* CoreAudio.framework in Frameworks */,
 				C51CAD0E133AACE900FF807C /* Syphon.framework in Frameworks */,
@@ -105,6 +137,25 @@
 				C5DA222A168378CB00929928 /* libuv.a in Frameworks */,
 				C5DA222B168378CB00929928 /* libv8_base.a in Frameworks */,
 				C5DA222C168378CC00929928 /* libv8_snapshot.a in Frameworks */,
+				C5EB3AB2196C6B4800F1165A /* libskia_core.a in Frameworks */,
+				C5EB3AB3196C6B4800F1165A /* libskia_effects.a in Frameworks */,
+				C55215F71B53C77B00046F3D /* libicuuc.a in Frameworks */,
+				C5EB3AB4196C6B4800F1165A /* libskia_images.a in Frameworks */,
+				C5EB3AB5196C6B4800F1165A /* libskia_opts_sse41.a in Frameworks */,
+				C5EB3AB6196C6B4800F1165A /* libskia_opts_ssse3.a in Frameworks */,
+				C5EB3AB7196C6B4800F1165A /* libskia_opts.a in Frameworks */,
+				C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */,
+				C51CE4521B53C5350024FBCE /* libsfntly.a in Frameworks */,
+				C5EB3AB9196C6B4900F1165A /* libskia_ports.a in Frameworks */,
+				C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */,
+				C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */,
+				C5EB3ABD196C6B4900F1165A /* libskia_utils.a in Frameworks */,
+				C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */,
+				C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */,
+				C5BADEE8196C7B73007328B8 /* libSkKTX.a in Frameworks */,
+				C542EFDC1987F06600E9013B /* AVFoundation.framework in Frameworks */,
+				C5573ED21987F50700981CEB /* CoreVideo.framework in Frameworks */,
+				C52D4CFD1993EB0500AB37F3 /* CoreMedia.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -124,7 +175,6 @@
 			isa = PBXGroup;
 			children = (
 				C51CAD0D133AACE900FF807C /* Syphon.framework */,
-				C5E26D161256442500EECE59 /* libskia_opts.a */,
 				C5DA221D168378CB00929928 /* libcares.a */,
 				C5DA221E168378CB00929928 /* libchrome_zlib.a */,
 				C5DA221F168378CB00929928 /* libhttp_parser.a */,
@@ -133,13 +183,31 @@
 				C5DA2222168378CB00929928 /* libuv.a */,
 				C5DA2223168378CB00929928 /* libv8_base.a */,
 				C5DA2224168378CB00929928 /* libv8_snapshot.a */,
-				C5E26D171256442500EECE59 /* libskia.a */,
+				C5EB3AA3196C6B4600F1165A /* libskia_core.a */,
+				C5EB3AA4196C6B4600F1165A /* libskia_effects.a */,
+				C5EB3AA5196C6B4700F1165A /* libskia_images.a */,
+				C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */,
+				C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */,
+				C5EB3AA8196C6B4700F1165A /* libskia_opts.a */,
+				C5EB3AA9196C6B4700F1165A /* libskia_pdf.a */,
+				C5EB3AAA196C6B4700F1165A /* libskia_ports.a */,
+				C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */,
+				C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */,
+				C5EB3AAE196C6B4800F1165A /* libskia_utils.a */,
+				C5EB3ACA196C6E8600F1165A /* libskflate.a */,
+				C5EB3AD7196C6EA300F1165A /* libetc1.a */,
+				C5BADEE7196C7B73007328B8 /* libSkKTX.a */,
+				C51CE4511B53C5350024FBCE /* libsfntly.a */,
+				C55215F61B53C77B00046F3D /* libicuuc.a */,
 				C57036191250EB5E0082AA14 /* libfreeimage.framework */,
 				1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */,
 				C5A5260A12561A2200C0F632 /* OpenGL.framework */,
 				C5C83E11140A9D78006E6DAE /* ScriptingBridge.framework */,
 				C58108C812FC55920053FB3A /* CoreMIDI.framework */,
 				C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */,
+				C542EFDB1987F06600E9013B /* AVFoundation.framework */,
+				C5573ED11987F50700981CEB /* CoreVideo.framework */,
+				C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */,
 			);
 			name = "Linked Frameworks";
 			sourceTree = "<group>";
@@ -313,6 +381,8 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++11";
+				CLANG_CXX_LIBRARY = "libc++";
 				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -329,7 +399,6 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)/deps\"",
-					"\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"",
 				);
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = Plask;
@@ -341,6 +410,8 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++11";
+				CLANG_CXX_LIBRARY = "libc++";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -354,7 +425,6 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)/deps\"",
-					"\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"",
 				);
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = Plask;
@@ -369,25 +439,26 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "PLASK_OSX=1 PLASK_SYPHON=1 PLASK_COREMIDI=1 PLASK_WEBGL2=1 PLASK_GPUSKIA=1 SK_RELEASE=1 SK_GAMMA_SRGB SK_SUPPORT_GPU=1 SK_BUILD_FOR_MAC SK_SAMPLES_FOR_X";
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
-					deps/skiabuild/src/skia/src/core,
-					deps/skiabuild/src/third_party/skia/include/utils,
-					deps/skiabuild/src/third_party/skia/include/images,
-					deps/skiabuild/src/third_party/skia/include/effects,
-					deps/skiabuild/src/third_party/skia/include/core,
-					deps/skiabuild/src/third_party,
-					deps/skiabuild/src/skia/config,
+					deps/,
+					deps/skia/include/config,
+					deps/skia/include/core,
+					deps/skia/include/gpu,
+					deps/skia/include/utils,
 					deps/v8/include,
 					deps/uv,
 					deps/node,
 				);
-				LIBRARY_SEARCH_PATHS = "\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"";
-				MACOSX_DEPLOYMENT_TARGET = 10.6;
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
+					"-lz",
 					"-ldl",
+					"-force_load",
+					"\"$(SRCROOT)/deps/libnode.a\"",
 				);
 				PREBINDING = NO;
 				SDKROOT = macosx;
@@ -401,24 +472,25 @@
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS_NOT_USED_IN_PRECOMPS = "PLASK_OSX=1 PLASK_SYPHON=1 PLASK_COREMIDI=1 PLASK_WEBGL2=1 PLASK_GPUSKIA=1 SK_RELEASE=1 SK_GAMMA_SRGB SK_SUPPORT_GPU=1 SK_BUILD_FOR_MAC SK_SAMPLES_FOR_X";
 				HEADER_SEARCH_PATHS = (
 					deps/libfreeimage.framework/Headers,
 					deps/Syphon.framework/Headers,
-					deps/skiabuild/src/skia/src/core,
-					deps/skiabuild/src/third_party/skia/include/utils,
-					deps/skiabuild/src/third_party/skia/include/images,
-					deps/skiabuild/src/third_party/skia/include/effects,
-					deps/skiabuild/src/third_party/skia/include/core,
-					deps/skiabuild/src/third_party,
-					deps/skiabuild/src/skia/config,
+					deps/,
+					deps/skia/include/config,
+					deps/skia/include/core,
+					deps/skia/include/gpu,
+					deps/skia/include/utils,
 					deps/v8/include,
 					deps/uv,
 					deps/node,
 				);
-				LIBRARY_SEARCH_PATHS = "\"$(SRCROOT)/deps/skiabuild/src/xcodebuild/Release\"";
-				MACOSX_DEPLOYMENT_TARGET = 10.6;
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				OTHER_LDFLAGS = (
+					"-lz",
 					"-ldl",
+					"-force_load",
+					"\"$(SRCROOT)/deps/libnode.a\"",
 				);
 				PREBINDING = NO;
 				SDKROOT = macosx;
