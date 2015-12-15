@@ -19,12 +19,12 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-var sys = require('sys');
+var util = require('util');
 var fs = require('fs');
 var path = require('path');
 var events = require('events');
 var net = require('net');
-var inherits = sys.inherits;
+var inherits = util.inherits;
 
 exports.SkPath = PlaskRawMac.SkPath;
 exports.SkPaint = PlaskRawMac.SkPaint;
@@ -489,9 +489,9 @@ exports.Window = function(width, height, opts) {
   function handleRawNSEvent(e) {
     var type = e.type();
     if (0) {
-    sys.puts("event: " + type);
+    console.log("event: " + type);
     for (var key in e) {
-      if (e[key] === type) sys.puts(key);
+      if (e[key] === type) console.log(key);
     }
     }
 
@@ -665,7 +665,7 @@ exports.Window = function(width, height, opts) {
                                     y: height - msgdata.y});
       }
     } catch(ex) {
-      sys.puts(ex.stack);
+      console.log(ex.stack);
     }
   });
 
@@ -807,8 +807,8 @@ exports.simpleWindow = function(obj) {
     try {
       obj.init();
     } catch (ex) {
-      sys.error('Exception caught in simpleWindow init:\n' +
-                ex + '\n' + ex.stack);
+      console.error('Exception caught in simpleWindow init:\n' +
+                    ex + '\n' + ex.stack);
     }
   }
 
@@ -828,8 +828,8 @@ exports.simpleWindow = function(obj) {
       try {
         obj.draw();
       } catch (ex) {
-        sys.error('Exception caught in simpleWindow draw:\n' +
-                  ex + '\n' + ex.stack);
+        console.error('Exception caught in simpleWindow draw:\n' +
+                      ex + '\n' + ex.stack);
       }
       framenum++;
     }
