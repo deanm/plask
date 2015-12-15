@@ -1417,8 +1417,6 @@ class NSOpenGLContextWrapper {
 
   // void writeImage(filetype, filename, opts)
   static void writeImage(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    NSOpenGLContext* context = ExtractContextPointer(args.Holder());
-
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
     int width  = viewport[2];
