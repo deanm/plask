@@ -755,7 +755,8 @@ class SyphonServerWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  DEFINE_METHOD(bindToDrawFrameOfSize, 2)    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
+  DEFINE_METHOD(bindToDrawFrameOfSize, 2)
+    SyphonServer* server = ExtractSyphonServerPointer(args.Holder());
     BOOL res = [server bindToDrawFrameOfSize:NSMakeSize(args[0]->Int32Value(),
                                                         args[1]->Int32Value())];
     return args.GetReturnValue().Set((bool)res);
@@ -1555,24 +1556,28 @@ class NSOpenGLContextWrapper {
   }
 
   // void blendEquation(GLenum mode)
-  DEFINE_METHOD(blendEquation, 1)    glBlendEquation(args[0]->Uint32Value());
+  DEFINE_METHOD(blendEquation, 1)
+    glBlendEquation(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void blendEquationSeparate(GLenum modeRGB, GLenum modeAlpha)
-  DEFINE_METHOD(blendEquationSeparate, 2)    glBlendEquationSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
+  DEFINE_METHOD(blendEquationSeparate, 2)
+    glBlendEquationSeparate(args[0]->Uint32Value(), args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
 
   // void blendFunc(GLenum sfactor, GLenum dfactor)
-  DEFINE_METHOD(blendFunc, 2)    glBlendFunc(args[0]->Uint32Value(), args[1]->Uint32Value());
+  DEFINE_METHOD(blendFunc, 2)
+    glBlendFunc(args[0]->Uint32Value(), args[1]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
   // void blendFuncSeparate(GLenum srcRGB, GLenum dstRGB,
   //                        GLenum srcAlpha, GLenum dstAlpha)
-  DEFINE_METHOD(blendFuncSeparate, 4)    glBlendFuncSeparate(args[0]->Uint32Value(), args[1]->Uint32Value(),
+  DEFINE_METHOD(blendFuncSeparate, 4)
+    glBlendFuncSeparate(args[0]->Uint32Value(), args[1]->Uint32Value(),
                         args[2]->Uint32Value(), args[3]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
@@ -1614,12 +1619,14 @@ class NSOpenGLContextWrapper {
   }
 
   // GLenum checkFramebufferStatus(GLenum target)
-  DEFINE_METHOD(checkFramebufferStatus, 1)    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate,
+  DEFINE_METHOD(checkFramebufferStatus, 1)
+    return args.GetReturnValue().Set(v8::Integer::NewFromUnsigned(isolate,
         glCheckFramebufferStatus(args[0]->Uint32Value())));
   }
 
   // void clear(GLbitfield mask)
-  DEFINE_METHOD(clear, 1)    glClear(args[0]->Uint32Value());
+  DEFINE_METHOD(clear, 1)
+    glClear(args[0]->Uint32Value());
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -5215,7 +5222,7 @@ class SkPaintWrapper {
   // void setAlpha(float a)
   //
   // Set the alpha of the paint color, leaving rgb unchanged.
-  DEFINE_METHOD(setAlpha, 1);
+  DEFINE_METHOD(setAlpha, 1)
     SkPaint* paint = ExtractPointer(args.Holder());
     paint->setAlpha(Clamp(v8_utils::ToInt32WithDefault(args[0], 255), 0, 255));
     return args.GetReturnValue().SetUndefined();
