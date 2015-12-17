@@ -41,5 +41,17 @@ function test_fracts() {
   assert_eq(-0.25, plask.fract3(-1.25));
 }
 
+function test_read_rgb() {
+  var canvas = new plask.SkCanvas(3, 4);
+  canvas.clear(1, 2, 3, 255);
+  var pixels = canvas.pixels;
+  assert_eq(3, pixels[0]);
+  assert_eq(2, pixels[1]);
+  assert_eq(1, pixels[2]);
+  //assert_eq(3, pixels.width);
+  //assert_eq(4, pixels.height);
+}
+
 test_path();
 test_fracts();
+test_read_rgb();

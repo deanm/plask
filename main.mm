@@ -78,6 +78,7 @@
 #include "plask_bindings.h"
 
 #include "v8.h"
+#include "libplatform/libplatform.h"  // v8::platform
 #include "node.h"
 #include "uv.h"
 
@@ -90,6 +91,8 @@
 #else
 #define EVENTLOOP_DEBUG_C(x) do { } while(0)
 #endif
+
+namespace {
 
 static bool g_should_quit = false;
 static int g_kqueue_fd = 0;
@@ -326,6 +329,23 @@ kevent_hook(int kq, const struct kevent *changelist, int nchanges,
   return res;
 }
 
+class MallocArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
+ public:
+  virtual void* Allocate(size_t length) override {
+    return calloc(length, 1);
+  }
+
+  virtual void* AllocateUninitialized(size_t length) override {
+    return malloc(length);
+  }
+
+  virtual void Free(void* data, size_t length) override {
+    free(data);
+  }
+};
+
+}  // namespace
+
 int main(int argc, char** argv) {
   NSAutoreleasePool* pool = [NSAutoreleasePool new];
   [NSApplication sharedApplication];  // Make sure NSApp is initialized.
@@ -369,13 +389,20 @@ int main(int argc, char** argv) {
   const char** exec_argv;
   node::Init(&argc, const_cast<const char**>(argv), &exec_argc, &exec_argv);
 
-  v8::Isolate* isolate = v8::Isolate::New();
+  v8::Platform* platform = v8::platform::CreateDefaultPlatform(4);
+  v8::V8::InitializePlatform(platform);
+
+  v8::V8::Initialize();  // Docs say this has to happen before Isolate::New
+
+  MallocArrayBufferAllocator ab_alloc;
+  v8::Isolate::CreateParams isolate_params;
+  isolate_params.array_buffer_allocator = &ab_alloc;
+  v8::Isolate* isolate = v8::Isolate::New(isolate_params);
 
   int exit_code = 0;
 
   {
     v8::Isolate::Scope isolate_scope(isolate);
-    v8::V8::Initialize();
 
     v8::Locker locker(isolate);
     v8::HandleScope handle_scope(isolate);
@@ -422,11 +449,18 @@ int main(int argc, char** argv) {
       bool more = true;
       while (!g_should_quit && more) {
         NSAutoreleasePool* looppool = [NSAutoreleasePool new];
+
+        EVENTLOOP_DEBUG_C((printf("-> platform pump")));
+        v8::platform::PumpMessageLoop(platform, isolate);
+        EVENTLOOP_DEBUG_C((printf("<- platform pump")));
+
         EVENTLOOP_DEBUG_C((printf("-> uv_run_once\n")));
         more = uv_run(uvloop, UV_RUN_ONCE);
         EVENTLOOP_DEBUG_C((printf("<- uv_run_once\n")));
         EVENTLOOP_DEBUG_C((printf(" - handles: %d\n", uvloop->active_handles)));
+
         if (more == false) {
+          v8::platform::PumpMessageLoop(platform, isolate);
           node::EmitBeforeExit(env);
           more = uv_loop_alive(uvloop);
           if (uv_run(uvloop, UV_RUN_NOWAIT) != 0)

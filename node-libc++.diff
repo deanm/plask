@@ -1,0 +1,20 @@
+diff -ru a/common.gypi b/common.gypi
+--- a/common.gypi
++++ b/common.gypi
+@@ -290,7 +290,7 @@
+           'GCC_ENABLE_PASCAL_STRINGS': 'NO',        # No -mpascal-strings
+           'GCC_THREADSAFE_STATICS': 'NO',           # -fno-threadsafe-statics
+           'PREBINDING': 'NO',                       # No -Wl,-prebind
+-          'MACOSX_DEPLOYMENT_TARGET': '10.5',       # -mmacosx-version-min=10.5
++          'MACOSX_DEPLOYMENT_TARGET': '10.7',       # -mmacosx-version-min=10.7
+           'USE_HEADERMAP': 'NO',
+           'OTHER_CFLAGS': [
+             '-fno-strict-aliasing',
+@@ -301,6 +301,7 @@
+             '-W',
+             '-Wno-unused-parameter',
+           ],
++          'CLANG_CXX_LIBRARY': 'libc++',
+         },
+         'target_conditions': [
+           ['_type!="static_library"', {

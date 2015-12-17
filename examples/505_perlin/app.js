@@ -99,7 +99,8 @@ function makePerlinDataTextures(gl) {
 
   function perm(i) { return kPermutation[i & 0xff]; }
 
-  var permgrad = new plask.SkCanvas(256, 1);
+  var permgrad_canvas = new plask.SkCanvas(256, 1);
+  var permgrad = permgrad_canvas.pixels;
   for (var x = 0; x < 256; ++x) {
     var i = (kPermutation[x] & 0xf) * 3;
     permgrad[x*4 + 2] = kGradient[i];      // R
@@ -110,13 +111,14 @@ function makePerlinDataTextures(gl) {
   var permgrad_tex = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, permgrad_tex);
-  gl.texImage2DSkCanvasNoFlip(gl.TEXTURE_2D, 0, permgrad);
+  gl.texImage2DSkCanvasNoFlip(gl.TEXTURE_2D, 0, permgrad_canvas);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
-  var perm2d = new plask.SkCanvas(256, 256);
+  var perm2d_canvas = new plask.SkCanvas(256, 256);
+  var perm2d = perm2d_canvas.pixels;
   for (var x = 0; x < 256; ++x) {
     for (var y = 0; y < 256; ++y) {
       var A = perm(x) + y;
@@ -135,7 +137,7 @@ function makePerlinDataTextures(gl) {
   var perm2d_tex = gl.createTexture();
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, perm2d_tex);
-  gl.texImage2DSkCanvasNoFlip(gl.TEXTURE_2D, 0, perm2d);
+  gl.texImage2DSkCanvasNoFlip(gl.TEXTURE_2D, 0, perm2d_canvas);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
@@ -186,11 +188,11 @@ plask.simpleWindow({
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
-  
+
     gl.cullFace(gl.BACK);
     gl.enable(gl.CULL_FACE);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
+
     var mv = new plask.Mat4();
     mv.translate(0, 0, -10 + Math.sin(t/50));
     mv.rotate(t / 50, 0, 1, 0);

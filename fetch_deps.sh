@@ -1,5 +1,5 @@
-NAME=deps_v3_005
+NAME=deps_v4_001
 rm -rf deps
-curl -L -O https://googledrive.com/host/0B4M1ew30nMnnMFo2WVFrVDliU1U/$NAME.tar.bz2
-tar jxvf $NAME.tar.bz2
+curl -L -O https://googledrive.com/host/0B4M1ew30nMnnMFo2WVFrVDliU1U/$NAME.tar.xz
+tar xvf $NAME.tar.xz
 #rm $NAME.tar.bz2

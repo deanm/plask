@@ -280,33 +280,7 @@ inline v8::Local<TypeName> PersistentToLocal(
 }
 
 
-int SizeOfArrayElementForType(v8::ExternalArrayType type) {
-  switch (type) {
-    case v8::kExternalInt8Array:
-    case v8::kExternalUint8Array:
-    case v8::kExternalUint8ClampedArray:
-      return 1;
-    case v8::kExternalInt16Array:
-    case v8::kExternalUint16Array:
-      return 2;
-    case v8::kExternalInt32Array:
-    case v8::kExternalUint32Array:
-    case v8::kExternalFloat32Array:
-      return 4;
-    case v8::kExternalFloat64Array:
-      return 8;
-    default:
-      abort();
-      return 0;
-  }
-}
-
-// FIXME ugly, but currently not a better way to access the backing store
-// than just to wrap the ArrayBuffer in a new ArrayBufferView.
-// Seems there is a difference between:
-//   - new Float32Array(2);
-//   - new Float32Array([0, 1]);
-// The first doesn't have HasIndexedPropertiesInExternalArrayData
+// Get the underlying data / size for an ArrayBuffer / ArrayBufferView.
 bool GetTypedArrayBytes(
     v8::Local<v8::Value> value, void** data, intptr_t* size) {
 
@@ -325,19 +299,10 @@ bool GetTypedArrayBytes(
     return false;
   }
 
-  // Always create a new wrapper, see above.
-  v8::Local<v8::ArrayBufferView> view =
-      v8::Uint8Array::New(buffer, offset, length);
+  v8::ArrayBuffer::Contents contents = buffer->GetContents();
 
-  if (!view->HasIndexedPropertiesInExternalArrayData())
-    abort();
-
-  //printf("indexed %d\n", view->HasIndexedPropertiesInExternalArrayData());
-  //printf("pixel %d\n", view->HasIndexedPropertiesInPixelData());
-
-  *data = view->GetIndexedPropertiesExternalArrayData();
-  *size = view->GetIndexedPropertiesExternalArrayDataLength() *
-          SizeOfArrayElementForType(view->GetIndexedPropertiesExternalArrayDataType());
+  *data = reinterpret_cast<char*>(contents.Data()) + offset;
+  *size = length;
   return true;
 }
 
@@ -495,11 +460,21 @@ class WebGLActiveInfo {
     v8::Local<v8::FunctionTemplate> ft = v8::Local<v8::FunctionTemplate>::New(
         isolate, WebGLActiveInfo::GetTemplate(isolate));
     v8::Local<v8::Object> obj = ft->InstanceTemplate()->NewInstance();
-    obj->Set(v8::String::NewFromUtf8(isolate, "size"), v8::Integer::New(isolate, size), v8::ReadOnly);
-    obj->Set(v8::String::NewFromUtf8(isolate, "type"),
-             v8::Integer::NewFromUnsigned(isolate, type),
-             v8::ReadOnly);
-    obj->Set(v8::String::NewFromUtf8(isolate, "name"), v8::String::NewFromUtf8(isolate, name), v8::ReadOnly);
+    obj->DefineOwnProperty(
+        isolate->GetCurrentContext(),
+        v8::String::NewFromUtf8(isolate, "size"),
+        v8::Integer::New(isolate, size),
+        v8::ReadOnly).FromJust();
+    obj->DefineOwnProperty(
+        isolate->GetCurrentContext(),
+        v8::String::NewFromUtf8(isolate, "type"),
+        v8::Integer::NewFromUnsigned(isolate, type),
+        v8::ReadOnly).FromJust();
+    obj->DefineOwnProperty(
+        isolate->GetCurrentContext(),
+        v8::String::NewFromUtf8(isolate, "name"),
+        v8::String::NewFromUtf8(isolate, name),
+        v8::ReadOnly).FromJust();
     return obj;
   }
 
@@ -2662,24 +2637,21 @@ class NSOpenGLContextWrapper {
     if (type != GL_UNSIGNED_BYTE)
       return v8_utils::ThrowError(isolate, "readPixels only supports GL_UNSIGNED_BYTE.");
 
-    if (!args[6]->IsObject())
-      return v8_utils::ThrowError(isolate, "readPixels only supports Uint8Array.");
+    GLvoid* data = NULL;
+    GLsizeiptr size = 0;
 
-    v8::Handle<v8::Object> data = v8::Handle<v8::Object>::Cast(args[6]);
-
-    if (data->GetIndexedPropertiesExternalArrayDataType() !=
-        v8::kExternalUnsignedByteArray)
-      return v8_utils::ThrowError(isolate, "readPixels only supports Uint8Array.");
+    if (!GetTypedArrayBytes(args[6], &data, &size))
+      return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
 
     // TODO(deanm):  From the spec (requires synthesizing gl errors):
     //   If pixels is non-null, but is not large enough to retrieve all of the
     //   pixels in the specified rectangle taking into account pixel store
     //   modes, an INVALID_OPERATION value is generated.
-    if (data->GetIndexedPropertiesExternalArrayDataLength() < width*height*4)
-      return v8_utils::ThrowError(isolate, "Uint8Array buffer too small.");
+    if (size < width*height*4)
+      return v8_utils::ThrowError(isolate, "TypedArray buffer too small.");
 
-    glReadPixels(x, y, width, height, format, type,
-                 data->GetIndexedPropertiesExternalArrayData());
+    glReadPixels(x, y, width, height, format, type, data);
+
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -3700,17 +3672,22 @@ class NSWindowWrapper {
     // There is some discussion about this at:
     //   https://bugzilla.mozilla.org/show_bug.cgi?id=780361
     // readonly attribute GLsizei drawingBufferWidth;
-    gl->Set(
+    gl->DefineOwnProperty(
+        isolate->GetCurrentContext(),
         v8::String::NewFromUtf8(isolate, "drawingBufferWidth"),
         v8::Integer::New(isolate, bwidth),
-        v8::ReadOnly);
+        v8::ReadOnly).FromJust();
     // readonly attribute GLsizei drawingBufferHeight;
-    gl->Set(
+    gl->DefineOwnProperty(
+        isolate->GetCurrentContext(),
         v8::String::NewFromUtf8(isolate, "drawingBufferHeight"),
         v8::Integer::New(isolate, bheight),
-        v8::ReadOnly);
+        v8::ReadOnly).FromJust();
 
-    args.This()->Set(v8::String::NewFromUtf8(isolate, "context"), gl);
+    args.This()->DefineOwnProperty(
+        isolate->GetCurrentContext(),
+        v8::String::NewFromUtf8(isolate, "context"),
+        gl).FromJust();
 
 #if PLASK_GPUSKIA
     SkSurface* sk_surface = NULL;
@@ -5702,19 +5679,13 @@ class SkCanvasWrapper {
         fbitmap = FreeImage_Load(format, *filename, 0);
         if (!fbitmap)
           return v8_utils::ThrowError(isolate, "Couldn't load image.");
-      } else if (args[1]->IsObject()) {
-        v8::Local<v8::Object> data = v8::Local<v8::Object>::Cast(args[1]);
-        if (!data->HasIndexedPropertiesInExternalArrayData())
-          return v8_utils::ThrowError(isolate, "Data must be an ExternalArrayData.");
-        int element_size = SizeOfArrayElementForType(
-            data->GetIndexedPropertiesExternalArrayDataType());
-        // FreeImage's annoying Windows types...
-        DWORD size = data->GetIndexedPropertiesExternalArrayDataLength() *
-            element_size;
-        BYTE* datadata = reinterpret_cast<BYTE*>(
-            data->GetIndexedPropertiesExternalArrayData());
+      } else if (args[1]->IsArrayBuffer() || args[1]->IsArrayBufferView()) {
+        void* datadata = NULL;
+        intptr_t datasize = 0;
+        if (!GetTypedArrayBytes(args[1], &datadata, &datasize))
+          return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
 
-        FIMEMORY* mem = FreeImage_OpenMemory(datadata, size);
+        FIMEMORY* mem = FreeImage_OpenMemory(reinterpret_cast<BYTE*>(datadata), datasize);
         FREE_IMAGE_FORMAT format = FreeImage_GetFileTypeFromMemory(mem, 0);
         if (format == FIF_UNKNOWN || !FreeImage_FIFSupportsReading(format))
           return v8_utils::ThrowError(isolate, "Couldn't detect image type.");
@@ -5791,12 +5762,33 @@ class SkCanvasWrapper {
     args.This()->SetAlignedPointerInInternalField(0, canvas);
     args.This()->SetAlignedPointerInInternalField(1, doc);
     // Direct pixel access via array[] indexing.
-    args.This()->SetIndexedPropertiesToPixelData(
-        reinterpret_cast<uint8_t*>(bitmap->getPixels()), bitmap->getSize());
+    // NOTE(deanm): Previously pixel access was directly on the canvas object,
+    // however as TypedArrays developed V8 removed support for the arbitrary
+    // "indexed external data" on all objects.  There are two choices, try to
+    // make the canvas element a TypedArray, either doing some prototype chain
+    // setup (not sure this would work for TypedArrays), or just having a real
+    // TypedArray as a property on the canvas.  This unfortunately breaks
+    // compatibility but it is probably the better choice.
+    v8::Handle<v8::ArrayBuffer> pixels_data = v8::ArrayBuffer::New(
+        isolate, bitmap->getPixels(), bitmap->getSize());  // Externalized
+    v8::Handle<v8::Uint8ClampedArray> pixels = v8::Uint8ClampedArray::New(
+        pixels_data, 0, bitmap->getSize());
+    // NOTE(deanm): I hope that attaching additionaly properties to the
+    // TypedArray doesn't have any performance ramifications.  I don't know
+    // about the internal JIT implementation of TypedArrays, but brief testing
+    // didn't seem to show any negative impact.  Fingers crossed.
+#if 0  // NOTE(deanm): For now don't do it unless becomes really inconvenient.
+    pixels->Set(v8::String::NewFromUtf8(isolate, "width"),
+                v8::Integer::NewFromUnsigned(isolate, bitmap->width()));
+    pixels->Set(v8::String::NewFromUtf8(isolate, "height"),
+                v8::Integer::NewFromUnsigned(isolate, bitmap->height()));
+#endif
+
     args.This()->Set(v8::String::NewFromUtf8(isolate, "width"),
                      v8::Integer::NewFromUnsigned(isolate, bitmap->width()));
     args.This()->Set(v8::String::NewFromUtf8(isolate, "height"),
                      v8::Integer::NewFromUnsigned(isolate, bitmap->height()));
+    args.This()->Set(v8::String::NewFromUtf8(isolate, "pixels"), pixels);
 
     // Notify the GC that we have a possibly large amount of data allocated
     // behind this object for bitmap backed canvases.
