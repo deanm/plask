@@ -11,6 +11,9 @@
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072D0486CEB800E47090 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.mm */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
+		C505E34B1C3184AA00A99FCE /* libskia_opts_sse42.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C505E34A1C3184AA00A99FCE /* libskia_opts_sse42.a */; };
+		C505E34E1C3184B500A99FCE /* libskia_opts_avx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C505E34C1C3184B500A99FCE /* libskia_opts_avx.a */; };
+		C505E34F1C3184B500A99FCE /* libskia_opts_avx2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C505E34D1C3184B500A99FCE /* libskia_opts_avx2.a */; };
 		C51CAD0E133AACE900FF807C /* Syphon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
 		C51CAD17133AACF300FF807C /* Syphon.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = C51CAD0D133AACE900FF807C /* Syphon.framework */; };
 		C51CE4521B53C5350024FBCE /* libsfntly.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C51CE4511B53C5350024FBCE /* libsfntly.a */; };
@@ -48,7 +51,6 @@
 		C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */; };
 		C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */; };
 		C5EB3ABD196C6B4900F1165A /* libskia_utils.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AAE196C6B4800F1165A /* libskia_utils.a */; };
-		C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3ACA196C6E8600F1165A /* libskflate.a */; };
 		C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3AD7196C6EA300F1165A /* libetc1.a */; };
 		C5EB3C6812FC55A60009FA7C /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */; };
 /* End PBXBuildFile section */
@@ -79,6 +81,9 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		8D1107310486CEB800E47090 /* plask-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "plask-Info.plist"; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* Plask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Plask.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C505E34A1C3184AA00A99FCE /* libskia_opts_sse42.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_sse42.a; path = deps/libskia_opts_sse42.a; sourceTree = "<group>"; };
+		C505E34C1C3184B500A99FCE /* libskia_opts_avx.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_avx.a; path = deps/libskia_opts_avx.a; sourceTree = "<group>"; };
+		C505E34D1C3184B500A99FCE /* libskia_opts_avx2.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_opts_avx2.a; path = deps/libskia_opts_avx2.a; sourceTree = "<group>"; };
 		C51CAD0D133AACE900FF807C /* Syphon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Syphon.framework; path = deps/Syphon.framework; sourceTree = "<group>"; };
 		C51CE4511B53C5350024FBCE /* libsfntly.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsfntly.a; path = deps/libsfntly.a; sourceTree = "<group>"; };
 		C52D4CFC1993EB0500AB37F3 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = ../../../../System/Library/Frameworks/CoreMedia.framework; sourceTree = "<group>"; };
@@ -116,7 +121,6 @@
 		C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_sfnt.a; path = deps/libskia_sfnt.a; sourceTree = "<group>"; };
 		C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_skgpu.a; path = deps/libskia_skgpu.a; sourceTree = "<group>"; };
 		C5EB3AAE196C6B4800F1165A /* libskia_utils.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskia_utils.a; path = deps/libskia_utils.a; sourceTree = "<group>"; };
-		C5EB3ACA196C6E8600F1165A /* libskflate.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libskflate.a; path = deps/libskflate.a; sourceTree = "<group>"; };
 		C5EB3AD7196C6EA300F1165A /* libetc1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libetc1.a; path = deps/libetc1.a; sourceTree = "<group>"; };
 		C5EB3C6712FC55A60009FA7C /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = /System/Library/Frameworks/CoreAudio.framework; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
@@ -149,14 +153,16 @@
 				C5EB3AB4196C6B4800F1165A /* libskia_images.a in Frameworks */,
 				C5EB3AB5196C6B4800F1165A /* libskia_opts_sse41.a in Frameworks */,
 				C5EB3AB6196C6B4800F1165A /* libskia_opts_ssse3.a in Frameworks */,
+				C505E34B1C3184AA00A99FCE /* libskia_opts_sse42.a in Frameworks */,
+				C505E34E1C3184B500A99FCE /* libskia_opts_avx.a in Frameworks */,
 				C5EB3AB7196C6B4800F1165A /* libskia_opts.a in Frameworks */,
 				C5EB3AB8196C6B4900F1165A /* libskia_pdf.a in Frameworks */,
 				C51CE4521B53C5350024FBCE /* libsfntly.a in Frameworks */,
+				C505E34F1C3184B500A99FCE /* libskia_opts_avx2.a in Frameworks */,
 				C5EB3AB9196C6B4900F1165A /* libskia_ports.a in Frameworks */,
 				C5EB3ABA196C6B4900F1165A /* libskia_sfnt.a in Frameworks */,
 				C5EB3ABB196C6B4900F1165A /* libskia_skgpu.a in Frameworks */,
 				C5EB3ABD196C6B4900F1165A /* libskia_utils.a in Frameworks */,
-				C5EB3AD5196C6E8600F1165A /* libskflate.a in Frameworks */,
 				C5EB3ADB196C6EA300F1165A /* libetc1.a in Frameworks */,
 				C5BADEE8196C7B73007328B8 /* libSkKTX.a in Frameworks */,
 				C542EFDC1987F06600E9013B /* AVFoundation.framework in Frameworks */,
@@ -194,6 +200,9 @@
 				C5EB3AA3196C6B4600F1165A /* libskia_core.a */,
 				C5EB3AA4196C6B4600F1165A /* libskia_effects.a */,
 				C5EB3AA5196C6B4700F1165A /* libskia_images.a */,
+				C505E34C1C3184B500A99FCE /* libskia_opts_avx.a */,
+				C505E34D1C3184B500A99FCE /* libskia_opts_avx2.a */,
+				C505E34A1C3184AA00A99FCE /* libskia_opts_sse42.a */,
 				C5EB3AA6196C6B4700F1165A /* libskia_opts_sse41.a */,
 				C5EB3AA7196C6B4700F1165A /* libskia_opts_ssse3.a */,
 				C5EB3AA8196C6B4700F1165A /* libskia_opts.a */,
@@ -202,7 +211,6 @@
 				C5EB3AAB196C6B4800F1165A /* libskia_sfnt.a */,
 				C5EB3AAC196C6B4800F1165A /* libskia_skgpu.a */,
 				C5EB3AAE196C6B4800F1165A /* libskia_utils.a */,
-				C5EB3ACA196C6E8600F1165A /* libskflate.a */,
 				C5EB3AD7196C6EA300F1165A /* libetc1.a */,
 				C5BADEE7196C7B73007328B8 /* libSkKTX.a */,
 				C51CE4511B53C5350024FBCE /* libsfntly.a */,
