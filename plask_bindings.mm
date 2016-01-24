@@ -4427,6 +4427,8 @@ class SkPathWrapper {
       METHOD_ENTRY( op ),
       METHOD_ENTRY( getPoints ),
       METHOD_ENTRY( getVerbs ),
+      METHOD_ENTRY( getFillType ),
+      METHOD_ENTRY( setFillType ),
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -4726,6 +4728,19 @@ class SkPathWrapper {
     delete[] verbs;
 
     return args.GetReturnValue().Set(res);
+  }
+
+  // int getFillType()
+  DEFINE_METHOD(getFillType, 0)
+    SkPath* path = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(v8::Uint32::New(isolate, path->getFillType()));
+  }
+
+  // void setFillType(int)
+  DEFINE_METHOD(setFillType, 1)
+    SkPath* path = ExtractPointer(args.Holder());
+    path->setFillType(static_cast<SkPath::FillType>(v8_utils::ToInt32(args[0])));
+    return args.GetReturnValue().SetUndefined();
   }
 
   // void SkPath(SkPath? path_to_copy)
