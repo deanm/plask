@@ -4396,6 +4396,15 @@ class SkPathWrapper {
       { "kUnionPathOp", SkPathOp::kUnion_SkPathOp },  //!< union (inclusive-or) the two paths
       { "kXORPathOp", SkPathOp::kXOR_SkPathOp },  //!< exclusive-or the two paths
       { "kReverseDifferencePathOp", SkPathOp::kReverseDifference_SkPathOp },  //!< subtract the first path from the op path
+      // NOTE(deanm): These should have the same values as the PathOp version,
+      // but they are different constants in Skia so also have them additionally
+      // here.  Note there is also kReplaceOp which has no PathOp version.
+      { "kDifferenceOp", SkRegion::kDifference_Op },  //!< subtract the op region from the first region
+      { "kIntersectOp", SkRegion::kIntersect_Op },   //!< intersect the two regions
+      { "kUnionOp", SkRegion::kUnion_Op },       //!< union (inclusive-or) the two regions
+      { "kXOROp", SkRegion::kXOR_Op },         //!< exclusive-or the two regions
+      { "kReverseDifferenceOp", SkRegion::kReverseDifference_Op },  /** subtract the first region from the op region */
+      { "kReplaceOp", SkRegion::kReplace_Op },     //!< replace the dst region with the op region
       { "kMoveVerb",  SkPath::kMove_Verb },   //!< iter.next returns 1 point
       { "kLineVerb",  SkPath::kLine_Verb },   //!< iter.next returns 2 points
       { "kQuadVerb",  SkPath::kQuad_Verb },   //!< iter.next returns 3 points
@@ -5903,7 +5912,12 @@ class SkCanvasWrapper {
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[0]));
 
-    canvas->clipPath(*path);  // TODO(deanm): Handle the optional argument.
+    SkRegion::Op op = args[1]->IsUint32() ?
+        static_cast<SkRegion::Op>(args[1]->Uint32Value()) : SkRegion::kIntersect_Op;
+    bool aa = args[2]->BooleanValue();  // Defaults to false.
+
+    canvas->clipPath(*path, op, aa);
+
     return args.GetReturnValue().SetUndefined();
   }
 
