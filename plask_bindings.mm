@@ -5552,6 +5552,13 @@ class SkPaintWrapper {
 };
 
 
+// TODO(deanm): Should we use the Signature to enforce this instead?
+#define SKCANVAS_PAINT_ARG0 \
+    if (!SkPaintWrapper::HasInstance(isolate, args[0])) \
+      return v8_utils::ThrowTypeError(isolate, "First argument not an SkPaint"); \
+    SkPaint* paint = SkPaintWrapper::ExtractPointer( \
+        v8::Handle<v8::Object>::Cast(args[0]))
+
 class SkCanvasWrapper {
  public:
   static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
@@ -5926,12 +5933,7 @@ class SkCanvasWrapper {
   // Draw a circle centered at (`x`, `y`) of radius `radius`.
   static void drawCircle(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
+    SKCANVAS_PAINT_ARG0;
 
     canvas->drawCircle(SkDoubleToScalar(args[1]->NumberValue()),
                        SkDoubleToScalar(args[2]->NumberValue()),
@@ -5945,12 +5947,7 @@ class SkCanvasWrapper {
   // Draw a line between (`x0`, `y0`) and (`x1`, `y1`).
   static void drawLine(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
+    SKCANVAS_PAINT_ARG0;
 
     canvas->drawLine(SkDoubleToScalar(args[1]->NumberValue()),
                      SkDoubleToScalar(args[2]->NumberValue()),
@@ -5966,12 +5963,7 @@ class SkCanvasWrapper {
   // blending mode.
   static void drawPaint(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
+    SKCANVAS_PAINT_ARG0;
 
     canvas->drawPaint(*paint);
     return args.GetReturnValue().SetUndefined();
@@ -6070,15 +6062,10 @@ class SkCanvasWrapper {
   // style (see SkPaint#setStyle).
   static void drawPath(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
+    SKCANVAS_PAINT_ARG0;
 
     if (!SkPathWrapper::HasInstance(isolate, args[1]))
       return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
 
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[1]));
@@ -6095,15 +6082,10 @@ class SkCanvasWrapper {
   // of [x0, y0, x1, y1, ...].
   static void drawPoints(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
+    SKCANVAS_PAINT_ARG0;
 
     if (!args[2]->IsArray())
       return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
 
     v8::Handle<v8::Array> data = v8::Handle<v8::Array>::Cast(args[2]);
     uint32_t data_len = data->Length();
@@ -6131,12 +6113,7 @@ class SkCanvasWrapper {
   // Draw a rectangle specified by the upper-left and bottom-right corners.
   static void drawRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
+    SKCANVAS_PAINT_ARG0;
 
     SkRect rect = { SkDoubleToScalar(args[1]->NumberValue()),
                     SkDoubleToScalar(args[2]->NumberValue()),
@@ -6151,12 +6128,7 @@ class SkCanvasWrapper {
   // Draw a rectangle with rounded corners of radius `xradius` and `yradius`.
   static void drawRoundRect(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
+    SKCANVAS_PAINT_ARG0;
 
     SkRect rect = { SkDoubleToScalar(args[1]->NumberValue()),
                     SkDoubleToScalar(args[2]->NumberValue()),
@@ -6174,12 +6146,7 @@ class SkCanvasWrapper {
   // Draw the string `str` with the bottom left corner starting at (`x`, `y`).
   static void drawText(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
+    SKCANVAS_PAINT_ARG0;
 
     v8::String::Utf8Value utf8(args[1]);
     canvas->drawText(*utf8, utf8.length(),
@@ -6195,15 +6162,10 @@ class SkCanvasWrapper {
   // `hoffset` and above or below the path by `voffset`.
   static void drawTextOnPathHV(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkCanvas* canvas = ExtractPointer(args.Holder());
-    // TODO(deanm): Should we use the Signature to enforce this instead?
-    if (!SkPaintWrapper::HasInstance(isolate, args[0]))
-      return args.GetReturnValue().SetUndefined();
+    SKCANVAS_PAINT_ARG0;
 
     if (!SkPathWrapper::HasInstance(isolate, args[1]))
       return args.GetReturnValue().SetUndefined();
-
-    SkPaint* paint = SkPaintWrapper::ExtractPointer(
-        v8::Handle<v8::Object>::Cast(args[0]));
 
     SkPath* path = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[1]));
