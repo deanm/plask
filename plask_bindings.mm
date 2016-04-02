@@ -4434,6 +4434,7 @@ class SkPathWrapper {
       METHOD_ENTRY( toSVGString ),
       METHOD_ENTRY( fromSVGString ),
       METHOD_ENTRY( op ),
+      METHOD_ENTRY( simplify ),
       METHOD_ENTRY( getPoints ),
       METHOD_ENTRY( getVerbs ),
       METHOD_ENTRY( getFillType ),
@@ -4687,7 +4688,7 @@ class SkPathWrapper {
     return args.GetReturnValue().Set(SkParsePath::FromSVGString(*utf8, path));
   }
 
-  // bool Op(SkPath one, SkPath two, int pathop)
+  // bool op(SkPath one, SkPath two, int pathop)
   //
   // Sets the path to the result of the operation `pathop` on `one` and `two`.
   DEFINE_METHOD(op, 3)
@@ -4701,6 +4702,20 @@ class SkPathWrapper {
     SkPathOp op = static_cast<SkPathOp>(args[2]->Uint32Value());
 
     return args.GetReturnValue().Set(::Op(*one, *two, op, path));
+  }
+
+  // bool simplify(SkPath one)
+  //
+  // Sets the path to the result of simplifying `one`.
+  DEFINE_METHOD(simplify, 1)
+    SkPath* path = ExtractPointer(args.Holder());
+
+    if (!HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    SkPath* one = ExtractPointer(v8::Handle<v8::Object>::Cast(args[0]));
+
+    return args.GetReturnValue().Set(::Simplify(*one, path));
   }
 
   // float[] getPoints()
