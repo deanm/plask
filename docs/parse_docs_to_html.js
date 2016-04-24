@@ -267,7 +267,8 @@ var last_cls = null;
 
 var kIncludeCls = ['AVPlayer', 'NSOpenGLContext', 'NSWindow',
                    'SkCanvas', 'SkPaint', 'SkPath',
-                   'MagicProgram', 'Mat3', 'Mat4', 'Vec2', 'Vec3', 'Vec4', 'plask'];
+                   'MagicProgram', 'Mat3', 'Mat4', 'Vec2', 'Vec3', 'Vec4', 'plask',
+                   'Clipboard'];
 
 var tochtml = '';
 var bodyhtml = '';

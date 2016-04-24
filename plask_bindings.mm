@@ -3509,6 +3509,13 @@ class NSWindowWrapper {
     ft->Set(v8::String::NewFromUtf8(isolate, "screensInfo"),
              v8::FunctionTemplate::New(isolate, screensInfo));
 
+    ft->Set(v8::String::NewFromUtf8(isolate, "getClipboardString"),
+             v8::FunctionTemplate::New(isolate, getClipboardString));
+    ft->Set(v8::String::NewFromUtf8(isolate, "setClipboardString"),
+             v8::FunctionTemplate::New(isolate, setClipboardString));
+    ft->Set(v8::String::NewFromUtf8(isolate, "setClipboardData"),
+             v8::FunctionTemplate::New(isolate, setClipboardData));
+
     v8::Local<v8::ObjectTemplate> instance = ft->InstanceTemplate();
     instance->SetInternalFieldCount(1);  // NSWindow
 
@@ -3761,6 +3768,57 @@ class NSWindowWrapper {
                 v8::Number::New(isolate, highdpi));
       res->Set(i, info);
     }
+#endif  // PLASK_OSX
+    return args.GetReturnValue().Set(res);
+  }
+
+  // static string getClipboardString()
+  //
+  // Returns the string value from the current general clipboard.
+  DEFINE_METHOD(getClipboardString, 0)  // static method on NSWindow.
+#if PLASK_OSX
+  NSString* str = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+  if (!str)
+    return args.GetReturnValue().SetNull();
+  return args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate,
+      [str UTF8String],
+      v8::String::kNormalString,
+      [str lengthOfBytesUsingEncoding:NSUTF8StringEncoding]));
+#endif  // PLASK_OSX
+    return args.GetReturnValue().SetNull();
+  }
+
+  // static bool setClipboardString(str)
+  //
+  // Sets the string value for the current general clipboard.  Returns true
+  // on success.
+  DEFINE_METHOD(setClipboardString, 1)  // static method on NSWindow.
+  bool res = false;
+#if PLASK_OSX
+  v8::String::Utf8Value str(args[0]);
+  res = [[NSPasteboard generalPasteboard] setString:[NSString stringWithUTF8String:*str]
+                                            forType:NSPasteboardTypeString];
+#endif  // PLASK_OSX
+    return args.GetReturnValue().Set(res);
+  }
+
+  // static bool setClipboardData(TypedArray data, string datatype)
+  //
+  // Sets the data value for datatype in the current general clipboard.
+  // Returns true on success.
+  DEFINE_METHOD(setClipboardData, 2)  // static method on NSWindow.
+  bool res = false;
+  void* datadata = NULL;
+  intptr_t datasize = 0;
+  if (!GetTypedArrayBytes(args[0], &datadata, &datasize))
+    return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
+#if PLASK_OSX
+  v8::String::Utf8Value datatype(args[1]);
+  NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+  NSString* ptype = [NSString stringWithUTF8String:*datatype];
+  [pasteboard declareTypes:[NSArray arrayWithObjects:ptype, nil] owner:nil];
+  res = [pasteboard setData:[NSData dataWithBytes:datadata length:datasize]
+                    forType:ptype];
 #endif  // PLASK_OSX
     return args.GetReturnValue().Set(res);
   }

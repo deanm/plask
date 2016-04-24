@@ -30,6 +30,34 @@ exports.SkPath = PlaskRawMac.SkPath;
 exports.SkPaint = PlaskRawMac.SkPaint;
 exports.SkCanvas = PlaskRawMac.SkCanvas;
 
+// Clipboard methods are stuck on NSWindow as statics.  Not really the right
+// place for them, but anyway we create the public Clipboard interface here.
+
+exports.Clipboard = { };
+
+// static string getString()
+//
+// Returns the string value from the current general clipboard.
+exports.Clipboard.getString = function() {
+  return PlaskRawMac.NSWindow.getClipboardString();
+};
+
+// static bool setString(string str)
+//
+// Sets the string value for the current general clipboard.  Returns true on
+// success.
+exports.Clipboard.setString = function(str) {
+  return PlaskRawMac.NSWindow.setClipboardString(str);
+};
+
+// static bool setData(ArrayBuffer data, string datatype)
+//
+// Sets the data value for `datatype` in the current general clipboard.
+// Returns true on success.
+exports.Clipboard.setData = function(data, datatype) {
+  return PlaskRawMac.NSWindow.setClipboardData(data, datatype);
+};
+
 exports.AVPlayer = PlaskRawMac.AVPlayer;
 
 // NOTE(deanm): The SkCanvas constructor has become too complicated in
