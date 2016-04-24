@@ -175,6 +175,10 @@ function redo_tokens_for_proto(tokens) {
   while (i < il) {
     // split something like "BLAH " to keyword BLAH and ' ', for the case where
     // BLAH didn't match the keyword regex.
+    if (tokens[i].content === "static") {
+      tokens[i].type = "symbol";
+      ++i;
+    }
     if (typeof(tokens[i]) === "string") {
       var typename = tokens[i];
       if (typename[typename.length - 1] === " ") {
