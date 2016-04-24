@@ -4430,6 +4430,7 @@ class SkPathWrapper {
       METHOD_ENTRY( close ),
       METHOD_ENTRY( offset ),
       METHOD_ENTRY( getBounds ),
+      METHOD_ENTRY( contains ),
       METHOD_ENTRY( transform ),
       METHOD_ENTRY( toSVGString ),
       METHOD_ENTRY( fromSVGString ),
@@ -4642,6 +4643,17 @@ class SkPathWrapper {
     res->Set(v8::Integer::New(isolate, 2), v8::Number::New(isolate, bounds.fRight));
     res->Set(v8::Integer::New(isolate, 3), v8::Number::New(isolate, bounds.fBottom));
     return args.GetReturnValue().Set(res);
+  }
+
+  // bool contains(float x, float y)
+  //
+  // Returns true of (x, y) is contained in the path, taking the winding on
+  // the path into account.
+  DEFINE_METHOD(contains, 2)
+    SkPath* path = ExtractPointer(args.Holder());
+    return args.GetReturnValue().Set(
+      path->contains(SkDoubleToScalar(args[0]->NumberValue()),
+                     SkDoubleToScalar(args[1]->NumberValue())));
   }
 
   // void transform(a, b, c, d, e, f, g, h, i)
