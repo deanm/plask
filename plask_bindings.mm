@@ -4609,6 +4609,11 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void arcTo(float x0, float y0, float x1, float y1,
+  //            float startAngle, float sweepAngle, float forceMoveto)
+  //
+  // Create an arc inside the rectangle (x0, y0) (x1, y1), sweeping clockwise
+  // from startAngle by the amount sweepAngle (in degrees).
   static void arcTo(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
@@ -4623,6 +4628,9 @@ class SkPathWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
+  // void arct(float x0, float y0, float x1, float y1, float radius);
+  //
+  // Like HTML5 <canvas> arcTo, specified by tangents and radius.
   static void arct(const v8::FunctionCallbackInfo<v8::Value>& args) {
     SkPath* path = ExtractPointer(args.Holder());
 
