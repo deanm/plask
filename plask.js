@@ -2231,9 +2231,27 @@ MagicProgram.createFromStrings = function(gl, vstr, fstr) {
 // for changes and automatically reloaded with a success or failure message
 // printed to the console.
 MagicProgram.createFromFiles = function(gl, vfn, ffn, opts) {
+  var process_includes = opts && opts.process_includes !== undefined ?
+      opts.process_includes : true;
+
+  function replace_includes(str, basedir) {
+    return str.replace(/^\s*#\s*include\s+"([^"]*)"/mg, function(fullstr, m) {
+      var filepath = m[0] === '/' ? m : path.join(basedir, m);
+      return replace_includes(fs.readFileSync(filepath, 'utf8'), path.dirname(filepath));
+    });
+  }
+
   function make() {
+    var vstr = fs.readFileSync(vfn, 'utf8'),
+        fstr = fs.readFileSync(ffn, 'utf8');
+
+    if (process_includes) {
+      vstr = replace_includes(vstr, path.dirname(vfn));
+      fstr = replace_includes(fstr, path.dirname(ffn));
+    }
+
     return MagicProgram.createFromStrings(
-      gl, fs.readFileSync(vfn, 'utf8'), fs.readFileSync(ffn, 'utf8'));
+      gl, vstr, fstr);
   }
 
   var mprogram = make();
