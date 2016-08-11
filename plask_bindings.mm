@@ -5274,8 +5274,11 @@ class SkPaintWrapper {
         v8::Handle<v8::Object>::Cast(args[0]));
     SkPath* dst = SkPathWrapper::ExtractPointer(
         v8::Handle<v8::Object>::Cast(args[1]));
+    // args[2] cull rect ignored for now.
+    double res_scale = v8_utils::ToNumberWithDefault(args[3], 1);
 
-    return args.GetReturnValue().Set((bool)paint->getFillPath(*src, dst));
+    return args.GetReturnValue().Set(
+        (bool)paint->getFillPath(*src, dst, NULL, res_scale));
   }
 
   // void setColor(r, g, b, a)
