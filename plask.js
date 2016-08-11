@@ -2277,6 +2277,13 @@ MagicProgram.createFromFiles = function(gl, vfn, ffn, opts) {
     });
   }
 
+  function add_line_numbers(str) {
+    var i = 0;
+    return str.replace(/^/mg, function() {
+      return ('000' + i++).substr(-3) + ': ';
+    });
+  }
+
   function make() {
     var vstr = fs.readFileSync(vfn, 'utf8'),
         fstr = fs.readFileSync(ffn, 'utf8');
@@ -2284,6 +2291,11 @@ MagicProgram.createFromFiles = function(gl, vfn, ffn, opts) {
     if (process_includes) {
       vstr = replace_includes(vstr, path.dirname(vfn));
       fstr = replace_includes(fstr, path.dirname(ffn));
+    }
+
+    if (opts && opts.debug === true) {
+      console.log(add_line_numbers(vstr));
+      console.log(add_line_numbers(fstr));
     }
 
     return MagicProgram.createFromStrings(
