@@ -1749,18 +1749,27 @@ function Mat4() {
 //              a31, a32, a33, a34, a41, a42, a43, a44)
 //
 // Set the full 16 elements of the 4x4 matrix, arguments in row major order.
-// The elements are specified in row major order.
 Mat4.prototype.set4x4r = function(a11, a12, a13, a14, a21, a22, a23, a24,
                                   a31, a32, a33, a34, a41, a42, a43, a44) {
   this.a11 = a11; this.a12 = a12; this.a13 = a13; this.a14 = a14;
   this.a21 = a21; this.a22 = a22; this.a23 = a23; this.a24 = a24;
   this.a31 = a31; this.a32 = a32; this.a33 = a33; this.a34 = a34;
   this.a41 = a41; this.a42 = a42; this.a43 = a43; this.a44 = a44;
-
   return this;
 };
 
-// TODO(deanm): set4x4c.
+// this set4x4c(a11, a21, a31, a41, a12, a22, a32, a42,
+//              a13, a23, a33, a43, a14, a24, a34, a44)
+//
+// Set the full 16 elements of the 4x4 matrix, arguments in column major order.
+Mat4.prototype.set4x4c = function(a11, a21, a31, a41, a12, a22, a32, a42,
+                                  a13, a23, a33, a43, a14, a24, a34, a44) {
+  this.a11 = a11; this.a12 = a12; this.a13 = a13; this.a14 = a14;
+  this.a21 = a21; this.a22 = a22; this.a23 = a23; this.a24 = a24;
+  this.a31 = a31; this.a32 = a32; this.a33 = a33; this.a34 = a34;
+  this.a41 = a41; this.a42 = a42; this.a43 = a43; this.a44 = a44;
+  return this;
+};
 
 // this reset()
 //
