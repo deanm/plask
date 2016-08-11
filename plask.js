@@ -1337,6 +1337,17 @@ Vec2.prototype.perped = function() {
   return new Vec2(-this.y, this.x);
 };
 
+// Vec2 det(Vec2 b)
+//
+// Returns the scalar value of the determinant `det(a, b)`.
+// This is often referred to as the 2D cross product, which is not defined for
+// 2D, so this is an extension to 2D by taking the z component of the 3d cross
+// product: `<ax, ay, 0> x <bx, by, 0>`.
+// This is also the "Perp Dot Product", equivalent to `perped().dot(b)`
+Vec2.prototype.det = function(b) {
+  return this.x * b.y - this.y * b.x;
+};
+
 // this reflect(Vec2 n)
 //
 // Reflect a vector about the normal `n`.  The vectors should both be unit.
