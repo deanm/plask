@@ -2292,12 +2292,17 @@ MagicProgram.createFromFiles = function(gl, vfn, ffn, opts) {
 
   var mprogram = make();
 
-  if (opts && opts.watch === true) {
+  if (opts && opts.watch) {
+    var cb = typeof(opts.watch) === 'function' ? opts.watch : function() { };
     function update(e, filename) {
       try {
+        var gl = mprogram.gl;
+        gl.makeCurrentContext();
         var new_mprogram = make();
+        gl.deleteProgram(mprogram.program);
         mprogram.program = new_mprogram.program;
         console.log("Updated MagicProgram for " + filename);
+        cb();
       } catch(e) {
         console.log("Failed to update MagicProgram: " + e);
       }
