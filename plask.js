@@ -1321,6 +1321,22 @@ Vec2.prototype.rotated = function(theta) {
   return this.dup().rotate(theta);
 };
 
+// this perp()
+//
+// Make perpendicular (rotated 90 degrees ccw) in place: this = this⟂
+Vec2.prototype.perp = function() {
+  var x = this.x, y = this.y;
+  this.x = -y; this.y = x;
+  return this;
+};
+
+// Vec2 perped()
+//
+// Return a new perpendicular vector (rotated 90 degrees ccw).
+Vec2.prototype.perped = function() {
+  return new Vec2(-this.y, this.x);
+};
+
 // this reflect(Vec2 n)
 //
 // Reflect a vector about the normal `n`.  The vectors should both be unit.
