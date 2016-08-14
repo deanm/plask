@@ -110,14 +110,12 @@ var kLN10 = 2.30258509299404568401799145468436421;
 
 // float min(float a, float b)
 function min(a, b) {
-  if (a < b) return a;
-  return b;
+  return a < b ? a : b;
 }
 
 // float max(float a, float b)
 function max(a, b) {
-  if (a > b) return a;
-  return b;
+  return a > b ? a : b;
 }
 
 // float clamp(float v, float vmin, float vmax)
@@ -125,6 +123,20 @@ function max(a, b) {
 // GLSL clamp.  Keep the value `v` in the range `vmin` .. `vmax`.
 function clamp(v, vmin, vmax) {
   return min(vmax, max(vmin, v));
+}
+
+// float clamp01(float v)
+//
+// Convenient for `clamp(v, 0, 1)`.
+function clamp01(v) {
+  return min(1, max(0, v));
+}
+
+// float clamp11(float v)
+//
+// Convenient for `clamp(v, -1, 1)`.
+function clamp11(v) {
+  return min(1, max(-1, v));
 }
 
 // float lerp(float a, float b, float t)
@@ -2355,6 +2367,8 @@ exports.kLN10 = kLN10;
 exports.min = min;
 exports.max = max;
 exports.clamp = clamp;
+exports.clamp01 = clamp01;
+exports.clamp11 = clamp11;
 exports.lerp = lerp;
 exports.smoothstep = smoothstep;
 exports.smootherstep = smootherstep;
