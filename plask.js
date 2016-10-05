@@ -1169,6 +1169,17 @@ Vec2.prototype.dot = function(b) {
   return this.x * b.x + this.y * b.y;
 };
 
+// this negate()
+Vec2.prototype.negate = function() {
+  this.x = -this.x; this.y = -this.y;
+  return this;
+};
+
+// Vec2 negated()
+Vec2.prototype.negated = function() {
+  return new Vec2(-this.x, -this.y);
+};
+
 // this add2(Vec2 a, Vec2 b)
 //
 // Add two Vec2s, this = a + b.
