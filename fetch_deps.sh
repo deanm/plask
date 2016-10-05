@@ -1,6 +1,6 @@
 #!/bin/sh
-NAME=deps_v4_002
+NAME=deps_v4_2016_10_05
 rm -rf deps
-curl -L -O https://googledrive.com/host/0B4M1ew30nMnnMFo2WVFrVDliU1U/$NAME.tar.xz
+curl -L -O https://github.com/deanm/plask/releases/download/v4_2016-10-05/$NAME.tar.xz
 tar xvf $NAME.tar.xz
 #rm $NAME.tar.bz2
