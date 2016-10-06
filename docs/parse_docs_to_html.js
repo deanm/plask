@@ -253,9 +253,17 @@ parse_source_js(lines_js, function() { },
     jsexports.push(lhs);
   });
 
+/*
+// localeCompare sorts like aAbBcC instead of ABCabc...
 function sorter(a, b) {
   if (a.cls === b.cls) return a.meth.localeCompare(b.meth);
   return a.cls.localeCompare(b.cls);
+}
+*/
+
+function sorter(a, b) {
+  if (a.cls === b.cls) return a.meth < b.meth ? -1 : a.meth > b.meth ? 1 : 0;
+  return a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : 0;
 }
 
 // Rewrite some of the small "loose" functions to be under 'plask'.
