@@ -102,7 +102,7 @@ function parse_source_js(lines, cb_continue, cb_start, cb_end, cb_export) {
       cur_cmt = '';
     }
 
-    match = line.match(/^(\s*)exports.([A-Za-z_0-9]+) = ([A-Za-z_0-9]+);/);
+    match = line.match(/^(\s*)exports.([A-Za-z_0-9]+) *= ([A-Za-z_0-9]+);/);
     if (match) {
       cur_indent = match[1];
       cur_lhs    = match[2];
