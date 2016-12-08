@@ -4949,6 +4949,7 @@ class SkPaintWrapper {
       METHOD_ENTRY( setDevKernText ),
       METHOD_ENTRY( setLCDRenderText ),
       METHOD_ENTRY( setAutohinted ),
+      METHOD_ENTRY( getStrokeWidth ),
       METHOD_ENTRY( setStrokeWidth ),
       METHOD_ENTRY( getStyle ),
       METHOD_ENTRY( setStyle ),
@@ -5135,7 +5136,7 @@ class SkPaintWrapper {
     return args.GetReturnValue().SetUndefined();
   }
 
-  // void getStrokeWidth()
+  // float getStrokeWidth()
   //
   // Return the current stroke width.
   static void getStrokeWidth(const v8::FunctionCallbackInfo<v8::Value>& args) {
