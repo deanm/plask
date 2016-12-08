@@ -2206,12 +2206,10 @@ function MagicProgram(gl, program) {
       case gl.SAMPLER_CUBE:
         return function(value) {
           gl.uniform1i(loc, value);
-          return this;
         };
       case gl.FLOAT:
         return function(value) {
           gl.uniform1f(loc, value);
-          return this;
         };
       case gl.FLOAT_VEC2:
         return function(v) {
