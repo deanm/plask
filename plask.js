@@ -1360,7 +1360,7 @@ Vec2.prototype.perped = function() {
   return new Vec2(-this.y, this.x);
 };
 
-// Vec2 det(Vec2 b)
+// float det(Vec2 b)
 //
 // Returns the scalar value of the determinant `det(a, b)`.
 // This is often referred to as the 2D cross product, which is not defined for
