@@ -593,6 +593,7 @@ DEFINE_NAME_MAPPED_CLASS(WebGLShader)
 DEFINE_NAME_MAPPED_CLASS(WebGLTexture)
 DEFINE_NAME_MAPPED_CLASS(WebGLVertexArrayObject)
 DEFINE_NAME_MAPPED_CLASS(WebGLTransformFeedback)
+DEFINE_NAME_MAPPED_CLASS(WebGLQuery)
 
 class NSOpenGLContextWrapper;
 
@@ -871,6 +872,10 @@ static const char* const kWebGLExtensions[] = {
   "OES_standard_derivatives",
   // https://www.khronos.org/registry/webgl/extensions/EXT_shader_texture_lod/
   "EXT_shader_texture_lod",
+  // https://www.khronos.org/registry/webgl/extensions/EXT_disjoint_timer_query/
+  "EXT_disjoint_timer_query",
+  // https://www.khronos.org/registry/webgl/extensions/EXT_disjoint_timer_query_webgl2/
+  "EXT_disjoint_timer_query_webgl2",
 };
 
 // 10.33 Should Extension Macros be Globally Defined?
@@ -999,6 +1004,9 @@ class NSOpenGLContextWrapper {
     WebGLTypeWebGLTexture,
     WebGLTypeWebGLVertexArrayObject,
     WebGLTypeWebGLTransformFeedback,
+    WebGLTypeGLint64,
+    WebGLTypeGLuint64,
+    WebGLTypeWebGLQuery,
   };
 
   static v8::Persistent<v8::FunctionTemplate>& GetTemplate(v8::Isolate* isolate) {
@@ -1214,6 +1222,25 @@ class NSOpenGLContextWrapper {
       METHOD_ENTRY( createSyphonClient ),
 #endif
       METHOD_ENTRY( blit ),
+#if PLASK_WEBGL2
+      METHOD_ENTRY( createQuery ),
+      METHOD_ENTRY( deleteQuery ),
+      METHOD_ENTRY( isQuery ),
+      METHOD_ENTRY( beginQuery ),
+      METHOD_ENTRY( endQuery ),
+      METHOD_ENTRY( getQuery ),
+      METHOD_ENTRY( getQueryParameter ),
+      // https://www.khronos.org/registry/webgl/extensions/EXT_disjoint_timer_query_webgl2/
+      METHOD_ENTRY( queryCounterEXT ),
+      // https://www.khronos.org/registry/webgl/extensions/EXT_disjoint_timer_query/
+      { "createQueryEXT", &createQuery },
+      { "deleteQueryEXT", &deleteQuery },
+      { "isQueryEXT", &isQuery },
+      { "beginQueryEXT", &beginQuery },
+      { "endQueryEXT", &endQuery },
+      { "getQueryEXT", &getQuery },
+      { "getQueryObjectEXT", &getQueryParameter },
+#endif
     };
 
     for (size_t i = 0; i < arraysize(constants); ++i) {
@@ -1516,6 +1543,28 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().SetUndefined();
     //return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
+
+  // void beginQuery(GLenum target, WebGLQuery query)
+  DEFINE_METHOD(beginQuery, 2)
+    // NOTE: ExtractNameFromValue handles null.
+    if (!args[0]->IsNull() && !WebGLQuery::HasInstance(isolate, args[1]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    GLuint query = WebGLQuery::ExtractNameFromValue(args[1]);
+    glBeginQueryARB(args[0]->Uint32Value(), query);
+  }
+
+  // void endQuery(GLenum target)
+  DEFINE_METHOD(endQuery, 1)
+    glEndQueryARB(args[0]->Uint32Value());
+  }
+
+  // void queryCounterEXT(WebGLQuery query, enum target);
+  DEFINE_METHOD(queryCounterEXT, 2)
+    GLuint query = WebGLQuery::ExtractNameFromValue(args[1]);
+    // Not in OSX glext.h, defined in ARB_timer_query but not EXT_timer_query.
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
 #endif  // PLASK_WEBGL2
 
   // void blendColor(GLclampf red, GLclampf green,
@@ -1701,6 +1750,13 @@ class NSOpenGLContextWrapper {
     return args.GetReturnValue().Set(WebGLTransformFeedback::NewFromName(0));
     //return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
+
+  // WebGLQuery? createQuery()
+  static void createQuery(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    GLuint query;
+    glGenQueriesARB(1, &query);
+    return args.GetReturnValue().Set(WebGLQuery::NewFromName(query));
+  }
 #endif  // PLASK_WEBGL2
 
   // void cullFace(GLenum mode)
@@ -1836,6 +1892,23 @@ class NSOpenGLContextWrapper {
   DEFINE_METHOD(deleteTransformFeedback, 1)
     return args.GetReturnValue().SetUndefined();
     //return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
+
+  // void deleteQuery(WebGLQuery? query)
+  DEFINE_METHOD(deleteQuery, 1)
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return args.GetReturnValue().SetUndefined();
+
+    if (!WebGLQuery::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    GLuint query = WebGLQuery::ExtractNameFromValue(args[0]);
+    if (query != 0) {
+      glDeleteQueriesARB(1, &query);
+      WebGLQuery::ClearName(args[0]);
+    }
+    return args.GetReturnValue().SetUndefined();
   }
 #endif  // PLASK_WEBGL2
 
@@ -2190,6 +2263,9 @@ class NSOpenGLContextWrapper {
         return args.GetReturnValue().Set(
             v8::String::NewFromUtf8(isolate, str.c_str()));
       }
+      case WEBGL_TIMESTAMP_EXT:
+      case WEBGL_GPU_DISJOINT_EXT:
+        return v8_utils::ThrowError(isolate, "Unimplemented.");
     }
 
     WebGLType ptype = get_parameter_type(pname);
@@ -2255,6 +2331,10 @@ class NSOpenGLContextWrapper {
         return getNameMappedParameter<WebGLVertexArrayObject>(isolate, args, pname);
       case WebGLTypeWebGLTransformFeedback:
         return getNameMappedParameter<WebGLTransformFeedback>(isolate, args, pname);
+      case WebGLTypeGLuint64:
+      case WebGLTypeGLint64:
+      case WebGLTypeWebGLQuery:
+        return v8_utils::ThrowError(isolate, "Unimplemented.");
       case WebGLTypeInvalid:
         break;  // fall out.
     }
@@ -2579,6 +2659,19 @@ class NSOpenGLContextWrapper {
   DEFINE_METHOD(isTransformFeedback, 1)
     return v8_utils::ThrowError(isolate, "Unimplemented.");
   }
+
+  // GLboolean isQuery(WebGLQuery? query)
+  DEFINE_METHOD(isQuery, 1)
+    // Seems that Chrome does this...
+    if (args[0]->IsNull() || args[0]->IsUndefined())
+      return args.GetReturnValue().Set(false);
+
+    if (!WebGLQuery::HasInstance(isolate, args[0]))
+      return v8_utils::ThrowTypeError(isolate, "Type error");
+
+    return args.GetReturnValue().Set((bool)glIsQueryARB(
+        WebGLQuery::ExtractNameFromValue(args[0])));
+  }
 #endif  // PLASK_WEBGL2
 
   // void lineWidth(GLfloat width)
@@ -2845,6 +2938,44 @@ class NSOpenGLContextWrapper {
     }
 
     return args.GetReturnValue().SetUndefined();
+  }
+
+  // WebGLQuery? getQuery(GLenum target, GLenum pname);
+  DEFINE_METHOD(getQuery, 2)
+    return v8_utils::ThrowError(isolate, "Unimplemented.");
+  }
+
+  // any getQueryParameter(WebGLQuery query, GLenum pname);
+  DEFINE_METHOD(getQueryParameter, 2)
+    // TODO(deanm):
+    // Spec: "If query is not a valid query object, or is a currently active
+    //        query object, generates an INVALID_OPERATION error and returns
+    //        null."
+    if (!WebGLQuery::HasInstance(isolate, args[0]))
+      return args.GetReturnValue().SetNull();
+
+    GLuint query = WebGLQuery::ExtractNameFromValue(args[0]);
+    unsigned long pname = args[1]->Uint32Value();
+
+    switch (pname) {
+      case WEBGL_QUERY_RESULT:
+      {
+        GLuint value;
+        glGetQueryObjectuiv(query, pname, &value);
+        return args.GetReturnValue().Set(value);
+      }
+      case WEBGL_QUERY_RESULT_AVAILABLE:
+      {
+        GLuint value;
+        glGetQueryObjectuiv(query, pname, &value);
+        return args.GetReturnValue().Set(static_cast<bool>(value));
+      }
+    }
+
+    // TODO(deanm):
+    // Spec: "If pname is not in the table above, generates an INVALID_ENUM
+    //        error and returns null."
+    return args.GetReturnValue().SetNull();
   }
 #endif  // PLASK_WEBGL2
 
@@ -7816,4 +7947,5 @@ void plask_teardown_bindings() {
   WebGLProgram::ClearMap();
   WebGLShader::ClearMap();
   WebGLVertexArrayObject::ClearMap();
+  WebGLQuery::ClearMap();
 }
