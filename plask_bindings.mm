@@ -2184,7 +2184,7 @@ class NSOpenGLContextWrapper {
     v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
         isolate, sizeof(*value) * length);
     v8::Handle<v8::Float32Array> ta = v8::Float32Array::New(
-        buffer, 0, buffer->ByteLength());
+        buffer, 0, length);
     for (int i = 0; i < length; ++i) {
       ta->Set(i, v8::Number::New(isolate, value[i]));
     }
@@ -2201,7 +2201,7 @@ class NSOpenGLContextWrapper {
     v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
         isolate, sizeof(*value) * length);
     v8::Handle<v8::Int32Array> ta = v8::Int32Array::New(
-        buffer, 0, buffer->ByteLength());
+        buffer, 0, length);
     for (int i = 0; i < length; ++i) {
       ta->Set(i, v8::Integer::New(isolate, value[i]));
     }
