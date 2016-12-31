@@ -3157,13 +3157,20 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
-    int length = 0;
     if (!args[1]->IsObject())
       return v8_utils::ThrowError(isolate, "value must be an Sequence.");
 
+    int length = 0;
+    float* buffer = nullptr;
+    bool is_typed_array = false;
+
     v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[1]);
-    if (obj->IsTypedArray()) {
-      length = v8::Handle<v8::TypedArray>::Cast(obj)->Length();
+    if (obj->IsFloat32Array()) {
+      is_typed_array = true;
+      intptr_t byte_size = 0;
+      if (!GetTypedArrayBytes(obj, reinterpret_cast<void**>(&buffer), &byte_size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
+      length = byte_size / 4;
     } else if (obj->IsArray()) {
       length = v8::Handle<v8::Array>::Cast(obj)->Length();
     } else {
@@ -3173,15 +3180,22 @@ class NSOpenGLContextWrapper {
     if (length % numcomps)
       return v8_utils::ThrowError(isolate, "Sequence size not multiple of components.");
 
-    float* buffer = new float[length];
-    if (!buffer)
-      return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
+    if (!is_typed_array) {
+      buffer = new float[length];
+      if (!buffer)
+        return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
 
-    for (int i = 0; i < length; ++i) {
-      buffer[i] = obj->Get(i)->NumberValue();
+      for (int i = 0; i < length; ++i) {
+        buffer[i] = obj->Get(i)->NumberValue();
+      }
     }
+
     uniformFunc(location, length / numcomps, buffer);
-    delete[] buffer;
+
+    if (!is_typed_array) {
+      delete[] buffer;
+    }
+
     return args.GetReturnValue().SetUndefined();
   }
 
@@ -3414,13 +3428,20 @@ class NSOpenGLContextWrapper {
       return v8_utils::ThrowTypeError(isolate, "Expected a WebGLUniformLocation.");
     GLuint location = WebGLUniformLocation::ExtractLocationFromValue(args[0]);
 
-    int length = 0;
     if (!args[2]->IsObject())
       return v8_utils::ThrowError(isolate, "value must be an Sequence.");
 
+    int length = 0;
+    float* buffer = nullptr;
+    bool is_typed_array = false;
+
     v8::Handle<v8::Object> obj = v8::Handle<v8::Object>::Cast(args[2]);
-    if (obj->IsTypedArray()) {
-      length = v8::Handle<v8::TypedArray>::Cast(obj)->Length();
+    if (obj->IsFloat32Array()) {
+      is_typed_array = true;
+      intptr_t byte_size = 0;
+      if (!GetTypedArrayBytes(obj, reinterpret_cast<void**>(&buffer), &byte_size))
+        return v8_utils::ThrowError(isolate, "Data must be a TypedArray.");
+      length = byte_size / 4;
     } else if (obj->IsArray()) {
       length = v8::Handle<v8::Array>::Cast(obj)->Length();
     } else {
@@ -3430,15 +3451,22 @@ class NSOpenGLContextWrapper {
     if (length % numcomps)
       return v8_utils::ThrowError(isolate, "Sequence size not multiple of components.");
 
-    float* buffer = new float[length];
-    if (!buffer)
-      return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
+    if (!is_typed_array) {
+      buffer = new float[length];
+      if (!buffer)
+        return v8_utils::ThrowError(isolate, "Unable to allocate memory for sequence.");
 
-    for (int i = 0; i < length; ++i) {
-      buffer[i] = obj->Get(i)->NumberValue();
+      for (int i = 0; i < length; ++i) {
+        buffer[i] = obj->Get(i)->NumberValue();
+      }
     }
+
     uniformFunc(location, length / numcomps, GL_FALSE, buffer);
-    delete[] buffer;
+
+    if (!is_typed_array) {
+      delete[] buffer;
+    }
+
     return args.GetReturnValue().SetUndefined();
   }
 
