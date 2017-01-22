@@ -4638,6 +4638,7 @@ class SkPathWrapper {
       METHOD_ENTRY( lineTo ),
       METHOD_ENTRY( rLineTo ),
       METHOD_ENTRY( quadTo ),
+      METHOD_ENTRY( conicTo ),
       METHOD_ENTRY( cubicTo ),
       METHOD_ENTRY( arcTo ),
       METHOD_ENTRY( arct ),
@@ -4751,6 +4752,22 @@ class SkPathWrapper {
                  SkDoubleToScalar(args[3]->NumberValue()));
     return args.GetReturnValue().SetUndefined();
   }
+
+  // void conicTo(cx, cy, ex, ey, w)
+  //
+  // A conic (rational quadratic) bezier curve with control point (`cx`, `cy`)
+  // and endpoint (`ex`, `ey`) and weight `w`.
+  DEFINE_METHOD(conicTo, 5)
+    SkPath* path = ExtractPointer(args.Holder());
+
+    path->conicTo(SkDoubleToScalar(args[0]->NumberValue()),
+                  SkDoubleToScalar(args[1]->NumberValue()),
+                  SkDoubleToScalar(args[2]->NumberValue()),
+                  SkDoubleToScalar(args[3]->NumberValue()),
+                  SkDoubleToScalar(args[4]->NumberValue()));
+    return args.GetReturnValue().SetUndefined();
+  }
+
 
   // void cubicTo(c0x, c0y, c1x, c1y, ex, ey)
   //
