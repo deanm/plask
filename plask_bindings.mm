@@ -900,6 +900,7 @@ static const char* const kExtensionRewrites[] = {
   "GL_EXT_shader_texture_lod", "GL_ARB_shader_texture_lod",
   // https://www.khronos.org/registry/webgl/extensions/OES_standard_derivatives/
   // Eat the GL_OES_standard_derivatives directive, just with another we have.
+  // Space it out so they are the same length (it's overwritten in place).
   "GL_OES_standard_derivatives", "GL_ARB_draw_buffers        ",
 };
 
