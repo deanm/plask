@@ -13,7 +13,7 @@ following section should help you get started.
 - Building and running from source
 
 Plask integrates together quite a few pieces of technology, which unfortunately
-makes the build process more complicated.  It is possible to do a boostrapped
+makes the build process more complicated.  It is possible to do a bootstrapped
 build, where you only build the Plask source file, but use prebuilt object
 files for Plask's dependencies.  Run the fetch_deps.sh script to download and
 extract a copy of these prebuilt dependencies.  When fetching new source
